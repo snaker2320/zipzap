@@ -1,0 +1,4 @@
+interface:
+  display_name: "ZipZap"
+  short_description: "Initialize and run verifiable AI collaboration"
+  default_prompt: "Use $zipzap to initialize collaboration and execute this work with appropriate roles, gates, and evidence."
