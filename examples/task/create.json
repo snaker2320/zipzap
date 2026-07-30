@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "task_id": "example-task",
+  "revision": 1,
+  "status": "ready",
+  "work": {
+    "objective": "Implement and verify the requested behavior.",
+    "work_type": "development",
+    "acceptance_criteria": [
+      "The requested behavior is covered by a passing check."
+    ]
+  },
+  "participants": [
+    {
+      "subject_id": "developer-1",
+      "kind": "human",
+      "roles": [
+        "developer"
+      ]
+    }
+  ],
+  "evidence": []
+}

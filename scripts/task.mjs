@@ -5,8 +5,10 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const DEFAULT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const TASK_STATUSES = new Set([
   "backlog",
@@ -27,6 +29,217 @@ const TRANSITIONS = {
   completed: new Set(["in-progress"]),
   cancelled: new Set(["backlog"])
 };
+const TASK_COMMANDS = {
+  create: {
+    summary: "Create a local Task and its first event.",
+    usage: "create [--project <dir>] --input <file> [--compact]",
+    schema: "schemas/task.schema.json",
+    example: "examples/task/create.json"
+  },
+  show: {
+    summary: "Show one Task by identifier.",
+    usage: "show [--project <dir>] --id <task-id> [--compact]"
+  },
+  list: {
+    summary: "List Tasks with optional status or participant filters.",
+    usage:
+      "list [--project <dir>] [--status <status>] [--subject <id>] [--team <id>] [--compact]"
+  },
+  update: {
+    summary: "Replace editable Task state with optimistic revision control.",
+    usage: "update [--project <dir>] --input <file> [--compact]",
+    schema: "schemas/task.schema.json"
+  },
+  "apply-patch": {
+    summary: "Apply a derived L5 Task Adapter patch.",
+    usage: "apply-patch [--project <dir>] --input <file> [--compact]",
+    schema: "schemas/task-adapter-output.schema.json"
+  },
+  transition: {
+    summary: "Move a Task through an allowed status transition.",
+    usage: "transition [--project <dir>] --input <file> [--compact]",
+    example: "examples/task/transition.json"
+  },
+  "track-git": {
+    summary: "Configure Git evidence collection for a Task.",
+    usage: "track-git [--project <dir>] --input <file> [--compact]",
+    example: "examples/task/track-git.json"
+  },
+  "git-scan": {
+    summary: "Inspect confirmed and candidate Git activity without writing.",
+    usage: "git-scan [--project <dir>] --id <task-id> [--compact]"
+  },
+  "sync-git": {
+    summary: "Persist the current Git snapshot with a revision check.",
+    usage:
+      "sync-git [--project <dir>] --id <task-id> --expected-revision <n> [--compact]"
+  },
+  "record-review": {
+    summary: "Record Review evidence and import its Findings.",
+    usage: "record-review [--project <dir>] --input <file> [--compact]",
+    schema: "schemas/review-result.schema.json",
+    example: "examples/task/record-review.json"
+  },
+  "update-review": {
+    summary: "Replace a Review and reconcile its Findings.",
+    usage: "update-review [--project <dir>] --input <file> [--compact]",
+    schema: "schemas/review-result.schema.json"
+  },
+  assess: {
+    summary: "Assess evidence-backed Task completion.",
+    usage:
+      "assess [--project <dir>] --id <task-id> [--write --expected-revision <n>] [--compact]"
+  },
+  report: {
+    summary: "Build a daily or weekly person or team report.",
+    usage:
+      "report [--project <dir>] --period daily|weekly --scope person|team [--subject <id>] [--team <id>] [--from <date>] [--to <date>] [--write] [--compact]",
+    schema: "schemas/task-report.schema.json"
+  },
+  capability: {
+    summary: "Build evidence-scoped AI-programming capability profiles.",
+    usage:
+      "capability [--project <dir>] [--subject <id>] [--from <date>] [--to <date>] [--compact]",
+    schema: "schemas/capability-report.schema.json"
+  }
+};
+
+class CliUsageError extends Error {
+  constructor(code, message, hint) {
+    super(message);
+    this.code = code;
+    this.hint = hint;
+  }
+}
+
+function taskCommandHelp(command) {
+  const metadata = TASK_COMMANDS[command];
+  if (!metadata) {
+    throw new CliUsageError(
+      "unknown-command",
+      `Unknown Task command: ${command}`,
+      "Run `node scripts/task.mjs --help` to list available commands."
+    );
+  }
+  const details = [
+    `Usage: node scripts/task.mjs ${metadata.usage}`,
+    "",
+    metadata.summary
+  ];
+  if (metadata.schema) details.push("", `Related schema: ${metadata.schema}`);
+  if (metadata.example) {
+    details.push(
+      `Example input: ${metadata.example}`,
+      `Print example: node scripts/task.mjs ${command} --example`
+    );
+  }
+  details.push("", "Use --compact for single-line JSON output.");
+  return `${details.join("\n")}\n`;
+}
+
+function taskGlobalHelp() {
+  const commands = Object.entries(TASK_COMMANDS)
+    .map(([command, metadata]) => `  ${command.padEnd(16)} ${metadata.summary}`)
+    .join("\n");
+  return `ZipZap local Task CLI
+
+Usage:
+  node scripts/task.mjs <command> [options]
+  node scripts/task.mjs <command> --help
+  node scripts/task.mjs <command> --example
+
+Commands:
+${commands}
+
+Global options:
+  -h, --help        Show global or command help.
+  --project <dir>   Select the project root; defaults to the current directory.
+  --compact         Emit single-line JSON.
+
+Run \`node scripts/task.mjs <command> --help\` for command details.
+`;
+}
+
+function optionValue(args, flag) {
+  const value = args.shift();
+  if (!value || value.startsWith("--")) {
+    throw new CliUsageError(
+      "missing-option-value",
+      `${flag} requires a value.`,
+      "Run `node scripts/task.mjs --help` or command-level --help."
+    );
+  }
+  return value;
+}
+
+function parseInputJson(text, source, command) {
+  if (!text.trim()) {
+    throw new CliUsageError(
+      "input-required",
+      `No JSON input was provided for ${command}.`,
+      `Use --input <file>, pipe JSON on stdin, or run \`node scripts/task.mjs ${command} --example\`.`
+    );
+  }
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new CliUsageError(
+      "invalid-json",
+      `Invalid JSON from ${source}: ${error.message}`,
+      `Compare the input with \`node scripts/task.mjs ${command} --example\` and its related schema.`
+    );
+  }
+}
+
+function structuredCliError(error, command) {
+  const knownCommand = TASK_COMMANDS[command] ? command : null;
+  let code = error.code ?? "command-failed";
+  let hint = error.hint;
+  if (error instanceof SyntaxError) code = "invalid-json";
+  if (!hint && error.code === "ENOENT") {
+    code = "file-not-found";
+    hint = "Check the supplied file or project path and try again.";
+  }
+  if (!error.code && /revision mismatch/i.test(error.message)) {
+    code = "revision-conflict";
+    hint = "Reload the Task, use its current revision, and retry.";
+  }
+  if (!error.code && /\bdoes not exist\b/i.test(error.message)) {
+    code = "not-found";
+    hint = "Check the Task or Review identifier and selected project root.";
+  }
+  if (!error.code && /\balready exists\b/i.test(error.message)) {
+    code = "conflict";
+    hint = "Choose a new identifier or update the existing record.";
+  }
+  if (!error.code && /invalid Task transition/i.test(error.message)) {
+    code = "invalid-transition";
+    hint = "Inspect the current Task status and choose an allowed transition.";
+  }
+  if (
+    !error.code &&
+    /\b(must|requires|invalid|cannot)\b/i.test(error.message) &&
+    code === "command-failed"
+  ) {
+    code = "invalid-input";
+  }
+  if (!hint) {
+    hint = knownCommand
+      ? "Check the command options, example input, and related schema."
+      : "Run the global help to select a supported command.";
+  }
+  return {
+    ok: false,
+    error: {
+      code,
+      message: error.message,
+      hint,
+      help: knownCommand
+        ? `node scripts/task.mjs ${knownCommand} --help`
+        : "node scripts/task.mjs --help"
+    }
+  };
+}
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -867,17 +1080,44 @@ function buildCapabilityReport(projectRoot, options) {
   };
 }
 
-function readInput(inputPath) {
-  if (inputPath) return readJson(path.resolve(inputPath));
-  if (!process.stdin.isTTY) {
-    return JSON.parse(fs.readFileSync(0, "utf8"));
+function readInput(inputPath, command) {
+  if (inputPath) {
+    const resolved = path.resolve(inputPath);
+    let text;
+    try {
+      text = fs.readFileSync(resolved, "utf8");
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        throw new CliUsageError(
+          "input-file-not-found",
+          `Input file does not exist: ${inputPath}`,
+          `Create the file from \`node scripts/task.mjs ${command} --example\` or correct the path.`
+        );
+      }
+      throw error;
+    }
+    return parseInputJson(text, inputPath, command);
   }
-  throw new Error("provide --input <file> or JSON on stdin");
+  if (!process.stdin.isTTY) {
+    return parseInputJson(fs.readFileSync(0, "utf8"), "stdin", command);
+  }
+  throw new CliUsageError(
+    "input-required",
+    `Command ${command} requires JSON input.`,
+    `Use --input <file>, pipe JSON on stdin, or run \`node scripts/task.mjs ${command} --example\`.`
+  );
 }
 
 function parseArgs(argv) {
   const args = [...argv];
-  const command = args.shift();
+  if (args[0] === "-h" || args[0] === "--help") {
+    return { command: null, help: true };
+  }
+  if (args[0] === "help") {
+    args.shift();
+    return { command: args.shift() ?? null, help: true };
+  }
+  const command = args.shift() ?? null;
   const options = {
     command,
     project: ".",
@@ -892,28 +1132,76 @@ function parseArgs(argv) {
     to: null,
     expectedRevision: null,
     write: false,
-    compact: false
+    compact: false,
+    help: command == null,
+    example: false
   };
   while (args.length > 0) {
     const flag = args.shift();
-    if (flag === "--project") options.project = args.shift();
-    else if (flag === "--input") options.input = args.shift();
-    else if (flag === "--id") options.id = args.shift();
-    else if (flag === "--status") options.status = args.shift();
-    else if (flag === "--period") options.period = args.shift();
-    else if (flag === "--scope") options.scope = args.shift();
-    else if (flag === "--subject") options.subject = args.shift();
-    else if (flag === "--team") options.team = args.shift();
-    else if (flag === "--from") options.from = args.shift();
-    else if (flag === "--to") options.to = args.shift();
+    if (flag === "--project") options.project = optionValue(args, flag);
+    else if (flag === "--input") options.input = optionValue(args, flag);
+    else if (flag === "--id") options.id = optionValue(args, flag);
+    else if (flag === "--status") options.status = optionValue(args, flag);
+    else if (flag === "--period") options.period = optionValue(args, flag);
+    else if (flag === "--scope") options.scope = optionValue(args, flag);
+    else if (flag === "--subject") options.subject = optionValue(args, flag);
+    else if (flag === "--team") options.team = optionValue(args, flag);
+    else if (flag === "--from") options.from = optionValue(args, flag);
+    else if (flag === "--to") options.to = optionValue(args, flag);
     else if (flag === "--expected-revision") {
-      options.expectedRevision = Number(args.shift());
+      const value = Number(optionValue(args, flag));
+      if (!Number.isInteger(value) || value < 1) {
+        throw new CliUsageError(
+          "invalid-option-value",
+          "--expected-revision must be a positive integer.",
+          `Run \`node scripts/task.mjs ${command} --help\` for command usage.`
+        );
+      }
+      options.expectedRevision = value;
     }
+    else if (flag === "-h" || flag === "--help") options.help = true;
+    else if (flag === "--example") options.example = true;
     else if (flag === "--write") options.write = true;
     else if (flag === "--compact") options.compact = true;
-    else throw new Error(`unknown argument: ${flag}`);
+    else {
+      throw new CliUsageError(
+        "unknown-argument",
+        `Unknown argument for ${command}: ${flag}`,
+        `Run \`node scripts/task.mjs ${command} --help\` to see supported options.`
+      );
+    }
   }
   return options;
+}
+
+function requireTaskOption(options, field, flag) {
+  if (options[field] == null || options[field] === "") {
+    throw new CliUsageError(
+      "missing-option",
+      `Command ${options.command} requires ${flag}.`,
+      `Run \`node scripts/task.mjs ${options.command} --help\` for command usage.`
+    );
+  }
+}
+
+function validateTaskOptions(options) {
+  if (["show", "git-scan", "sync-git", "assess"].includes(options.command)) {
+    requireTaskOption(options, "id", "--id <task-id>");
+  }
+  if (options.command === "sync-git") {
+    requireTaskOption(
+      options,
+      "expectedRevision",
+      "--expected-revision <n>"
+    );
+  }
+  if (options.command === "assess" && options.write) {
+    requireTaskOption(
+      options,
+      "expectedRevision",
+      "--expected-revision <n> when --write is used"
+    );
+  }
 }
 
 function output(value, compact) {
@@ -1247,14 +1535,45 @@ function updateReview(projectRoot, input) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  if (!options.command) throw new Error("provide a task command");
+  if (options.help) {
+    process.stdout.write(
+      options.command
+        ? taskCommandHelp(options.command)
+        : taskGlobalHelp()
+    );
+    return;
+  }
+  if (!TASK_COMMANDS[options.command]) {
+    throw new CliUsageError(
+      "unknown-command",
+      `Unknown Task command: ${options.command}`,
+      "Run `node scripts/task.mjs --help` to list available commands."
+    );
+  }
+  if (options.example) {
+    const examplePath = TASK_COMMANDS[options.command].example;
+    if (!examplePath) {
+      throw new CliUsageError(
+        "example-unavailable",
+        `Command ${options.command} does not have a standalone input example.`,
+        `Run \`node scripts/task.mjs ${options.command} --help\` for its options and related schema.`
+      );
+    }
+    output(readJson(path.join(DEFAULT_ROOT, examplePath)), options.compact);
+    return;
+  }
+  validateTaskOptions(options);
   const projectRoot = path.resolve(options.project);
   if (!fs.existsSync(projectRoot) || !fs.statSync(projectRoot).isDirectory()) {
-    throw new Error(`project is not an available directory: ${options.project}`);
+    throw new CliUsageError(
+      "project-unavailable",
+      `Project is not an available directory: ${options.project}`,
+      "Pass an existing project root with --project <dir>."
+    );
   }
   let result;
   if (options.command === "create") {
-    result = createTask(projectRoot, readInput(options.input));
+    result = createTask(projectRoot, readInput(options.input, options.command));
   } else if (options.command === "show") {
     result = loadTask(projectRoot, options.id);
   } else if (options.command === "list") {
@@ -1276,22 +1595,37 @@ async function main() {
         updated_at: task.updated_at ?? null
       }));
   } else if (options.command === "update") {
-    result = updateTask(projectRoot, readInput(options.input));
+    result = updateTask(projectRoot, readInput(options.input, options.command));
   } else if (options.command === "apply-patch") {
-    result = applyAdapterPatch(projectRoot, readInput(options.input));
+    result = applyAdapterPatch(
+      projectRoot,
+      readInput(options.input, options.command)
+    );
   } else if (options.command === "transition") {
-    result = transitionTask(projectRoot, readInput(options.input));
+    result = transitionTask(
+      projectRoot,
+      readInput(options.input, options.command)
+    );
   } else if (options.command === "track-git") {
-    result = configureGitTracking(projectRoot, readInput(options.input));
+    result = configureGitTracking(
+      projectRoot,
+      readInput(options.input, options.command)
+    );
   } else if (options.command === "git-scan") {
     const task = loadTask(projectRoot, options.id);
     result = scanGit(projectRoot, task);
   } else if (options.command === "sync-git") {
     result = syncGit(projectRoot, options.id, options.expectedRevision);
   } else if (options.command === "record-review") {
-    result = recordReview(projectRoot, readInput(options.input));
+    result = recordReview(
+      projectRoot,
+      readInput(options.input, options.command)
+    );
   } else if (options.command === "update-review") {
-    result = updateReview(projectRoot, readInput(options.input));
+    result = updateReview(
+      projectRoot,
+      readInput(options.input, options.command)
+    );
   } else if (options.command === "assess") {
     const task = loadTask(projectRoot, options.id);
     const assessment = completionAssessment(
@@ -1327,13 +1661,25 @@ async function main() {
     }
   } else if (options.command === "report") {
     if (!["daily", "weekly"].includes(options.period)) {
-      throw new Error("report requires --period daily|weekly");
+      throw new CliUsageError(
+        "invalid-option-value",
+        "Report requires --period daily|weekly.",
+        "Choose the reporting window and rerun the command."
+      );
     }
     if (!["person", "team"].includes(options.scope)) {
-      throw new Error("report requires --scope person|team");
+      throw new CliUsageError(
+        "invalid-option-value",
+        "Report requires --scope person|team.",
+        "Use person for one subject or team for a team-wide report."
+      );
     }
     if (options.scope === "person" && !options.subject) {
-      throw new Error("person report requires --subject");
+      throw new CliUsageError(
+        "missing-option",
+        "A person report requires --subject <id>.",
+        "Identify the person whose Task evidence should be included."
+      );
     }
     result = buildReport(projectRoot, options);
     if (options.write) {
@@ -1364,7 +1710,14 @@ const invokedPath = process.argv[1]
   : null;
 if (invokedPath === import.meta.url) {
   main().catch((error) => {
-    process.stderr.write(`${error.message}\n`);
+    const command = process.argv[2]?.startsWith("-")
+      ? null
+      : process.argv[2] === "help"
+        ? process.argv[3] ?? null
+        : process.argv[2] ?? null;
+    process.stderr.write(
+      `${JSON.stringify(structuredCliError(error, command), null, 2)}\n`
+    );
     process.exitCode = 1;
   });
 }

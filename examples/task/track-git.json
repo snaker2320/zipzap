@@ -1,0 +1,9 @@
+{
+  "task_id": "example-task",
+  "expected_revision": 1,
+  "tracking": {
+    "paths": [
+      "src"
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "manifest": {
+    "schema_version": 1,
+    "project_id": "example-project",
+    "sources": [
+      {
+        "id": "development-standard",
+        "locator": "docs/development.md",
+        "kind": "standard",
+        "format": "markdown",
+        "loading": "on-demand",
+        "topics": [
+          "coding",
+          "testing"
+        ],
+        "selectors": {
+          "roles": [
+            "developer",
+            "tester"
+          ]
+        },
+        "priority": 50,
+        "version": "sha256:replace-with-current-source-hash"
+      }
+    ],
+    "persistence": {
+      "adapter": "local-json",
+      "locator": ".zipzap/tasks"
+    }
+  },
+  "query": {
+    "topics": [
+      "coding"
+    ],
+    "selectors": {
+      "roles": [
+        "developer"
+      ]
+    },
+    "on_missing": "block"
+  },
+  "observations": []
+}

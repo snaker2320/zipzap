@@ -1,0 +1,6 @@
+{
+  "task_id": "example-task",
+  "expected_revision": 1,
+  "status": "in-progress",
+  "actor_id": "developer-1"
+}

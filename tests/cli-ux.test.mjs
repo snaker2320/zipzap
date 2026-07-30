@@ -1,0 +1,108 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import test from "node:test";
+
+const root = path.resolve(".");
+const zipzapScript = path.join(root, "scripts", "zipzap.mjs");
+const taskScript = path.join(root, "scripts", "task.mjs");
+
+function run(script, args, input) {
+  return spawnSync(process.execPath, [script, ...args], {
+    cwd: root,
+    encoding: "utf8",
+    input
+  });
+}
+
+function errorOutput(result) {
+  assert.notEqual(result.status, 0, "command unexpectedly succeeded");
+  return JSON.parse(result.stderr);
+}
+
+test("ZipZap CLI exposes global and command help without input", () => {
+  const global = run(zipzapScript, ["--help"]);
+  assert.equal(global.status, 0);
+  assert.match(global.stdout, /ZipZap collaboration CLI/);
+  assert.match(global.stdout, /invoke\s+Invoke the stable L5/);
+
+  const command = run(zipzapScript, ["invoke", "--help"]);
+  assert.equal(command.status, 0);
+  assert.match(command.stdout, /schemas\/l5-adapter-input\.schema\.json/);
+  assert.match(command.stdout, /invoke --example/);
+});
+
+test("Task CLI exposes global and command help without a project", () => {
+  const global = run(taskScript, ["--help"]);
+  assert.equal(global.status, 0);
+  assert.match(global.stdout, /ZipZap local Task CLI/);
+  assert.match(global.stdout, /record-review\s+Record Review evidence/);
+
+  const command = run(taskScript, ["create", "--help"]);
+  assert.equal(command.status, 0);
+  assert.match(command.stdout, /schemas\/task\.schema\.json/);
+  assert.match(command.stdout, /create --example/);
+});
+
+test("CLI examples are valid JSON and representative inputs execute", (context) => {
+  const invokeExample = run(zipzapScript, ["invoke", "--example", "--compact"]);
+  assert.equal(invokeExample.status, 0);
+  const invocation = JSON.parse(invokeExample.stdout);
+  assert.equal(invocation.request.operation, "execute");
+
+  const invoked = run(
+    zipzapScript,
+    ["invoke", "--compact"],
+    JSON.stringify(invocation)
+  );
+  assert.equal(invoked.status, 0, invoked.stderr);
+  assert.equal(JSON.parse(invoked.stdout).status, "ready");
+
+  const taskExample = run(taskScript, ["create", "--example", "--compact"]);
+  assert.equal(taskExample.status, 0);
+  const taskInput = JSON.parse(taskExample.stdout);
+  assert.equal(taskInput.task_id, "example-task");
+
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-cli-example-"));
+  context.after(() => fs.rmSync(project, { recursive: true, force: true }));
+  const created = run(
+    taskScript,
+    ["create", "--project", project, "--compact"],
+    JSON.stringify(taskInput)
+  );
+  assert.equal(created.status, 0, created.stderr);
+  assert.equal(JSON.parse(created.stdout).task.task_id, "example-task");
+});
+
+test("CLI input failures provide structured corrective guidance", () => {
+  const invalidJson = errorOutput(
+    run(zipzapScript, ["evaluate"], "{not-json")
+  );
+  assert.equal(invalidJson.ok, false);
+  assert.equal(invalidJson.error.code, "invalid-json");
+  assert.match(invalidJson.error.hint, /--example/);
+  assert.equal(
+    invalidJson.error.help,
+    "node scripts/zipzap.mjs evaluate --help"
+  );
+
+  const missingTaskId = errorOutput(run(taskScript, ["show"]));
+  assert.equal(missingTaskId.error.code, "missing-option");
+  assert.match(missingTaskId.error.message, /--id/);
+  assert.equal(
+    missingTaskId.error.help,
+    "node scripts/task.mjs show --help"
+  );
+});
+
+test("unknown commands and missing option values identify the help path", () => {
+  const unknown = errorOutput(run(zipzapScript, ["evalute"]));
+  assert.equal(unknown.error.code, "unknown-command");
+  assert.equal(unknown.error.help, "node scripts/zipzap.mjs --help");
+
+  const missingValue = errorOutput(run(taskScript, ["show", "--id"]));
+  assert.equal(missingValue.error.code, "missing-option-value");
+  assert.equal(missingValue.error.help, "node scripts/task.mjs show --help");
+});

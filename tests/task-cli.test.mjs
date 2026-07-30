@@ -146,10 +146,11 @@ test("independent Task CLI stores, tracks, reviews, and reports work", (context)
     "ZipZap-Task: task-1"
   ]);
 
-  assert.match(
-    runFailure("sync-git", ["--id", "task-1"], projectRoot),
-    /Task revision mismatch/
+  const missingRevision = JSON.parse(
+    runFailure("sync-git", ["--id", "task-1"], projectRoot)
   );
+  assert.equal(missingRevision.error.code, "missing-option");
+  assert.match(missingRevision.error.message, /--expected-revision/);
   const synced = run(
     "sync-git",
     ["--id", "task-1", "--expected-revision", "2"],

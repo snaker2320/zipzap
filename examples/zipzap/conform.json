@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "host_id": "example-host",
+  "surface": "local",
+  "capabilities": [
+    "json-read"
+  ],
+  "limits": {
+    "concurrency_limit": 1,
+    "distinct_context_limit": 1
+  },
+  "runtimes": [
+    "node"
+  ],
+  "tools": [],
+  "interfaces": {
+    "l5": [
+      1
+    ],
+    "kernel": [
+      1
+    ]
+  }
+}

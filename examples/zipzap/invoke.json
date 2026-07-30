@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "request": {
+    "schema_version": 1,
+    "operation": "execute",
+    "request": {
+      "intent": "Change the requested behavior.",
+      "objective": "Deliver a bounded verified outcome.",
+      "scope": [
+        "example component"
+      ],
+      "requested_action": "modify",
+      "constraints": [],
+      "acceptance_criteria": [
+        "The requested behavior is verified."
+      ]
+    }
+  },
+  "context": {
+    "risk_normalization": {
+      "schema_version": 1,
+      "work_id": "example-work",
+      "work_type": "development",
+      "affected_components": [
+        "example-component"
+      ],
+      "assessment_input": {
+        "schema_version": 1,
+        "taxonomy_version": 1,
+        "invocation": {
+          "schema_version": 1,
+          "operation": "execute",
+          "request": {
+            "intent": "Change the requested behavior.",
+            "objective": "Deliver a bounded verified outcome.",
+            "scope": [
+              "example component"
+            ],
+            "requested_action": "modify",
+            "constraints": [],
+            "acceptance_criteria": [
+              "The requested behavior is verified."
+            ]
+          }
+        },
+        "evidence": []
+      },
+      "assessment": {
+        "schema_version": 1,
+        "taxonomy_version": 1,
+        "evaluated_signals": [
+          "privacy-or-regulated-data",
+          "security-critical",
+          "production-destructive",
+          "difficult-to-reverse",
+          "external-user-impact",
+          "financial-impact",
+          "shared-interface-or-migration",
+          "ambiguous-material-requirements",
+          "weak-or-missing-verification",
+          "unfamiliar-technology",
+          "authority-or-external-communication"
+        ],
+        "present_signals": [],
+        "unknown_signals": []
+      },
+      "host": {
+        "concurrency_limit": 1,
+        "distinct_context_limit": 1
+      },
+      "project_sources": [],
+      "state": {
+        "current_role": "developer",
+        "current_stage": "produce"
+      }
+    }
+  }
+}

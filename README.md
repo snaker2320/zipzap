@@ -60,6 +60,25 @@ Task events, Review evidence, and derived reports remain under `.zipzap/`.
 Except for Codex-required `SKILL.md` frontmatter and `agents/openai.yaml`, the
 ZipZap runtime format is JSON. Markdown contains semantic guidance only.
 
+## CLI discovery
+
+Both zero-dependency entry points provide global help, command help, and
+copyable JSON input examples:
+
+```bash
+node scripts/zipzap.mjs --help
+node scripts/zipzap.mjs invoke --help
+node scripts/zipzap.mjs invoke --example
+
+node scripts/task.mjs --help
+node scripts/task.mjs create --example
+```
+
+Run an example directly with `--input`, such as
+`node scripts/zipzap.mjs evaluate --input examples/zipzap/evaluate.json`.
+CLI failures use structured JSON with a stable error code, message, corrective
+hint, and the most relevant help command.
+
 ## Project initialization
 
 Discover without writing, then configure or refresh only when requested:

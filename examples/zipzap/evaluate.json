@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work": {
+    "id": "example-work",
+    "objective": "Implement a bounded reversible change.",
+    "requested_action": "modify",
+    "scope": [
+      "example component"
+    ],
+    "affected_components": [
+      "example-component"
+    ]
+  },
+  "governance": {
+    "risk_flags": [],
+    "required_gates": [],
+    "required_evidence": [
+      "tests"
+    ],
+    "project_sources": []
+  },
+  "host": {
+    "concurrency_limit": 1,
+    "distinct_context_limit": 1
+  },
+  "state": {
+    "current_role": "developer",
+    "current_stage": "produce"
+  }
+}

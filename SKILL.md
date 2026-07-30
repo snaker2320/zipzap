@@ -30,6 +30,7 @@ Use the optional zero-dependency adapter:
 node scripts/zipzap.mjs invoke --input l5-adapter-invocation.json
 ```
 
+Use command-level `--help` or `--example` when constructing CLI input.
 Return invalid input as a structured error. Return valid workflow state as
 `ready`, `decision-required`, `blocked`, or `completed`. Expose only the next
 accountable action; keep control-plane records behind diagnostics.
@@ -127,6 +128,8 @@ node scripts/task.mjs create --input task.json
 node scripts/task.mjs assess --id task-id
 ```
 
+Use `node scripts/task.mjs <command> --help` for options and `--example` when
+the command exposes a copyable JSON input.
 Associate Git Commits only through an explicit SHA or
 `ZipZap-Task: task-id` trailer. Treat range, path, author, and branch matches
 as candidates. Git activity is evidence of activity, not proof of completion.

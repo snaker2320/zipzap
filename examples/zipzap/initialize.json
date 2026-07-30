@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "operation": "initialize",
+  "project": {
+    "id": "example-project",
+    "locator": "."
+  },
+  "initialization": {
+    "action": "discover",
+    "persistence": "session",
+    "enabled_roles": [
+      "developer",
+      "tester",
+      "reviewer"
+    ]
+  }
+}

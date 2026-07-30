@@ -19,6 +19,245 @@ const ASSURANCE_KEYS = [
   "reviewer_separate_from_tester",
   "product_separate_from_coordinator"
 ];
+const ZIPZAP_COMMANDS = {
+  validate: {
+    summary: "Validate catalogs, schemas, and lifecycle policy.",
+    usage: "validate [--root <skill-dir>] [--compact]"
+  },
+  catalog: {
+    summary: "Query a narrow catalog item or section.",
+    usage:
+      "catalog --kind <kind> [--id <id>] [--section <section>] [--compact]"
+  },
+  initialize: {
+    summary: "Discover, configure, or refresh project collaboration.",
+    usage: "initialize --input <file> [--compact]",
+    schema: "schemas/l5-input.schema.json",
+    example: "examples/zipzap/initialize.json"
+  },
+  onboard: {
+    summary: "Start or advance guided preference setup.",
+    usage: "onboard --input <file> [--compact]",
+    schema: "schemas/onboarding-input.schema.json",
+    example: "examples/zipzap/onboard.json"
+  },
+  "source-resolve": {
+    summary: "Resolve registered project sources for a focused query.",
+    usage: "source-resolve --input <file> [--compact]",
+    schema: "schemas/source-resolution-input.schema.json",
+    example: "examples/zipzap/source-resolve.json"
+  },
+  invoke: {
+    summary: "Invoke the stable L5 collaboration interface.",
+    usage: "invoke --input <file> [--compact]",
+    schema: "schemas/l5-adapter-input.schema.json",
+    example: "examples/zipzap/invoke.json"
+  },
+  "task-prepare": {
+    summary: "Prepare a persistent Task for risk assessment.",
+    usage: "task-prepare --input <file> [--compact]",
+    schema: "schemas/task.schema.json",
+    example: "examples/task/create.json"
+  },
+  "task-adapt": {
+    summary: "Adapt a persistent Task into or from L5 execution.",
+    usage: "task-adapt --input <file> [--compact]",
+    schema: "schemas/task-adapter-input.schema.json"
+  },
+  "normalize-risk": {
+    summary: "Normalize evidence-backed risk assessment deterministically.",
+    usage: "normalize-risk --input <file> [--compact]",
+    schema: "schemas/risk-normalization-input.schema.json"
+  },
+  conform: {
+    summary: "Assess host compatibility for one L5 operation.",
+    usage:
+      "conform --operation <operation> [--action <action>] --input <file> [--compact]",
+    schema: "schemas/host-capabilities.schema.json",
+    example: "examples/zipzap/conform.json"
+  },
+  evaluate: {
+    summary: "Evaluate one ready L4 Kernel request.",
+    usage: "evaluate --input <file> [--compact]",
+    schema: "schemas/runtime-input.schema.json",
+    example: "examples/zipzap/evaluate.json"
+  },
+  compose: {
+    summary: "Inspect full L4 runtime composition diagnostics.",
+    usage: "compose --input <file> [--compact]",
+    schema: "schemas/runtime-input.schema.json",
+    example: "examples/zipzap/evaluate.json"
+  },
+  resolve: {
+    summary: "Inspect only L4 preset resolution.",
+    usage: "resolve --input <file> [--compact]",
+    schema: "schemas/runtime-input.schema.json",
+    example: "examples/zipzap/evaluate.json"
+  },
+  bind: {
+    summary: "Inspect L4 preset resolution and participant binding.",
+    usage: "bind --input <file> [--compact]",
+    schema: "schemas/runtime-input.schema.json",
+    example: "examples/zipzap/evaluate.json"
+  },
+  project: {
+    summary: "Inspect the current minimal runtime projection.",
+    usage: "project --input <file> [--compact]",
+    schema: "schemas/runtime-input.schema.json",
+    example: "examples/zipzap/evaluate.json"
+  },
+  reconcile: {
+    summary: "Inspect projection reconciliation for a runtime event.",
+    usage: "reconcile --input <file> [--compact]",
+    schema: "schemas/runtime-input.schema.json"
+  },
+  "release-plan": {
+    summary: "Build a deterministic release inventory.",
+    usage: "release-plan [--root <skill-dir>] [--compact]"
+  },
+  "install-check": {
+    summary: "Assess installation eligibility from host conformance.",
+    usage: "install-check --input <file> [--compact]"
+  },
+  lifecycle: {
+    summary: "Assess a build, verify, publish, install, upgrade, or rollback.",
+    usage: "lifecycle --input <file> [--compact]",
+    schema: "schemas/lifecycle-input.schema.json",
+    example: "examples/zipzap/lifecycle.json"
+  }
+};
+
+class CliUsageError extends Error {
+  constructor(code, message, hint) {
+    super(message);
+    this.code = code;
+    this.hint = hint;
+  }
+}
+
+function commandHelp(command) {
+  const metadata = ZIPZAP_COMMANDS[command];
+  if (!metadata) {
+    throw new CliUsageError(
+      "unknown-command",
+      `Unknown ZipZap command: ${command}`,
+      "Run `node scripts/zipzap.mjs --help` to list available commands."
+    );
+  }
+  const details = [
+    `Usage: node scripts/zipzap.mjs ${metadata.usage}`,
+    "",
+    metadata.summary
+  ];
+  if (metadata.schema) {
+    details.push("", `Input schema: ${metadata.schema}`);
+  }
+  if (metadata.example) {
+    details.push(
+      `Example input: ${metadata.example}`,
+      `Print example: node scripts/zipzap.mjs ${command} --example`
+    );
+  }
+  if (metadata.schema || command === "install-check") {
+    details.push(
+      "",
+      "Input may be supplied with --input <file> or as JSON on stdin."
+    );
+  }
+  details.push("Use --compact for single-line JSON output.");
+  return `${details.join("\n")}\n`;
+}
+
+function globalHelp() {
+  const commands = Object.entries(ZIPZAP_COMMANDS)
+    .map(([command, metadata]) => `  ${command.padEnd(16)} ${metadata.summary}`)
+    .join("\n");
+  return `ZipZap collaboration CLI
+
+Usage:
+  node scripts/zipzap.mjs <command> [options]
+  node scripts/zipzap.mjs <command> --help
+  node scripts/zipzap.mjs <command> --example
+
+Commands:
+${commands}
+
+Global options:
+  -h, --help          Show global or command help.
+  --root <skill-dir>  Read catalogs and examples from another Skill root.
+  --compact           Emit single-line JSON.
+
+Run \`node scripts/zipzap.mjs <command> --help\` for command details.
+`;
+}
+
+function optionValue(args, flag) {
+  const value = args.shift();
+  if (!value || value.startsWith("--")) {
+    throw new CliUsageError(
+      "missing-option-value",
+      `${flag} requires a value.`,
+      `Run \`node scripts/zipzap.mjs --help\` or command-level --help.`
+    );
+  }
+  return value;
+}
+
+function parseInputJson(text, source, command) {
+  if (!text.trim()) {
+    throw new CliUsageError(
+      "input-required",
+      `No JSON input was provided for ${command}.`,
+      `Use --input <file>, pipe JSON on stdin, or run \`node scripts/zipzap.mjs ${command} --example\`.`
+    );
+  }
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new CliUsageError(
+      "invalid-json",
+      `Invalid JSON from ${source}: ${error.message}`,
+      `Compare the input with \`node scripts/zipzap.mjs ${command} --example\` and its registered schema.`
+    );
+  }
+}
+
+function structuredCliError(error, command) {
+  const knownCommand = ZIPZAP_COMMANDS[command] ? command : null;
+  let code = error.code ?? "command-failed";
+  let hint = error.hint;
+  if (error instanceof SyntaxError) code = "invalid-json";
+  if (!hint && error.code === "ENOENT") {
+    code = "file-not-found";
+    hint = "Check the supplied file or project path and try again.";
+  }
+  if (!error.code && /revision mismatch|stale revision/i.test(error.message)) {
+    code = "revision-conflict";
+    hint = "Reload current state, preserve the latest revision, and retry.";
+  }
+  if (
+    !error.code &&
+    /\b(must|requires|invalid|unknown .* field|cannot)\b/i.test(error.message)
+  ) {
+    code = "invalid-input";
+  }
+  if (!hint) {
+    hint = knownCommand
+      ? "Check the command input against its example and schema."
+      : "Run the global help to select a supported command.";
+  }
+  return {
+    ok: false,
+    error: {
+      code,
+      message: error.message,
+      hint,
+      help: knownCommand
+        ? `node scripts/zipzap.mjs ${knownCommand} --help`
+        : "node scripts/zipzap.mjs --help"
+    }
+  };
+}
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -4279,7 +4518,14 @@ export function assessLifecycle(request, catalogs = loadCatalogs()) {
 
 function parseArgs(argv) {
   const args = [...argv];
-  const command = args.shift() ?? "evaluate";
+  if (args[0] === "-h" || args[0] === "--help") {
+    return { command: null, help: true };
+  }
+  if (args[0] === "help") {
+    args.shift();
+    return { command: args.shift() ?? null, help: true };
+  }
+  const command = args.shift() ?? null;
   let inputPath = null;
   let rootDir = DEFAULT_ROOT;
   let pretty = true;
@@ -4288,17 +4534,27 @@ function parseArgs(argv) {
   let section = null;
   let operation = null;
   let action = null;
+  let help = command == null;
+  let example = false;
   while (args.length) {
     const flag = args.shift();
-    if (flag === "--input") inputPath = args.shift();
-    else if (flag === "--root") rootDir = path.resolve(args.shift());
-    else if (flag === "--kind") kind = args.shift();
-    else if (flag === "--id") id = args.shift();
-    else if (flag === "--section") section = args.shift();
-    else if (flag === "--operation") operation = args.shift();
-    else if (flag === "--action") action = args.shift();
+    if (flag === "--input") inputPath = optionValue(args, flag);
+    else if (flag === "--root") rootDir = path.resolve(optionValue(args, flag));
+    else if (flag === "--kind") kind = optionValue(args, flag);
+    else if (flag === "--id") id = optionValue(args, flag);
+    else if (flag === "--section") section = optionValue(args, flag);
+    else if (flag === "--operation") operation = optionValue(args, flag);
+    else if (flag === "--action") action = optionValue(args, flag);
+    else if (flag === "-h" || flag === "--help") help = true;
+    else if (flag === "--example") example = true;
     else if (flag === "--compact") pretty = false;
-    else throw new Error(`unknown argument: ${flag}`);
+    else {
+      throw new CliUsageError(
+        "unknown-argument",
+        `Unknown argument for ${command}: ${flag}`,
+        `Run \`node scripts/zipzap.mjs ${command} --help\` to see supported options.`
+      );
+    }
   }
   return {
     command,
@@ -4309,16 +4565,38 @@ function parseArgs(argv) {
     id,
     section,
     operation,
-    action
+    action,
+    help,
+    example
   };
 }
 
-function readInput(inputPath) {
-  if (inputPath) return readJson(path.resolve(inputPath));
-  if (!process.stdin.isTTY) {
-    return JSON.parse(fs.readFileSync(0, "utf8"));
+function readInput(inputPath, command) {
+  if (inputPath) {
+    const resolved = path.resolve(inputPath);
+    let text;
+    try {
+      text = fs.readFileSync(resolved, "utf8");
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        throw new CliUsageError(
+          "input-file-not-found",
+          `Input file does not exist: ${inputPath}`,
+          `Create the file from \`node scripts/zipzap.mjs ${command} --example\` or correct the path.`
+        );
+      }
+      throw error;
+    }
+    return parseInputJson(text, inputPath, command);
   }
-  throw new Error("provide --input <file> or JSON on stdin");
+  if (!process.stdin.isTTY) {
+    return parseInputJson(fs.readFileSync(0, "utf8"), "stdin", command);
+  }
+  throw new CliUsageError(
+    "input-required",
+    `Command ${command} requires JSON input.`,
+    `Use --input <file>, pipe JSON on stdin, or run \`node scripts/zipzap.mjs ${command} --example\`.`
+  );
 }
 
 function outputForCommand(command, result) {
@@ -4350,8 +4628,36 @@ async function main() {
     id,
     section,
     operation,
-    action
+    action,
+    help,
+    example
   } = parseArgs(process.argv.slice(2));
+  if (help) {
+    process.stdout.write(command ? commandHelp(command) : globalHelp());
+    return;
+  }
+  if (!ZIPZAP_COMMANDS[command]) {
+    throw new CliUsageError(
+      "unknown-command",
+      `Unknown ZipZap command: ${command}`,
+      "Run `node scripts/zipzap.mjs --help` to list available commands."
+    );
+  }
+  if (example) {
+    const examplePath = ZIPZAP_COMMANDS[command].example;
+    if (!examplePath) {
+      throw new CliUsageError(
+        "example-unavailable",
+        `Command ${command} does not have a standalone input example.`,
+        `Run \`node scripts/zipzap.mjs ${command} --help\` for its input schema and options.`
+      );
+    }
+    const result = readJson(path.join(rootDir, examplePath));
+    process.stdout.write(
+      `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
+    );
+    return;
+  }
   const catalogs = loadCatalogs(rootDir);
   if (command === "validate") {
     const validation = validateCatalogs(catalogs);
@@ -4362,7 +4668,13 @@ async function main() {
     return;
   }
   if (command === "catalog") {
-    if (!kind) throw new Error("catalog requires --kind <kind>");
+    if (!kind) {
+      throw new CliUsageError(
+        "missing-option",
+        "Command catalog requires --kind <kind>.",
+        "Run `node scripts/zipzap.mjs catalog --help` for command usage."
+      );
+    }
     process.stdout.write(
       `${JSON.stringify(queryCatalog(catalogs, kind, id, section), null, pretty ? 2 : 0)}\n`
     );
@@ -4381,7 +4693,7 @@ async function main() {
     );
     return;
   }
-  const input = readInput(inputPath);
+  const input = readInput(inputPath, command);
   if (command === "initialize") {
     const result = initializeProject(input, catalogs);
     process.stdout.write(
@@ -4454,7 +4766,13 @@ async function main() {
     return;
   }
   if (command === "conform") {
-    if (!operation) throw new Error("conform requires --operation <operation>");
+    if (!operation) {
+      throw new CliUsageError(
+        "missing-option",
+        "Command conform requires --operation <operation>.",
+        "Run `node scripts/zipzap.mjs conform --help` for command usage."
+      );
+    }
     const result = assessHost(input, operation, action, catalogs);
     process.stdout.write(
       `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
@@ -4490,7 +4808,14 @@ const invokedPath = process.argv[1]
   : null;
 if (invokedPath === import.meta.url) {
   main().catch((error) => {
-    process.stderr.write(`${error.message}\n`);
+    const command = process.argv[2]?.startsWith("-")
+      ? null
+      : process.argv[2] === "help"
+        ? process.argv[3] ?? null
+        : process.argv[2] ?? null;
+    process.stderr.write(
+      `${JSON.stringify(structuredCliError(error, command), null, 2)}\n`
+    );
     process.exitCode = 1;
   });
 }
