@@ -1,0 +1,328 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/runtime-output.schema.json",
+  "title": "ZipZap L4 Kernel Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "next_action",
+    "assurance",
+    "decisions_required",
+    "continuation",
+    "diagnostics_ref"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "decision-required",
+        "blocked"
+      ]
+    },
+    "next_action": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/next_action"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "assurance": {
+      "$ref": "#/$defs/assurance"
+    },
+    "decisions_required": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/decision"
+      }
+    },
+    "continuation": {
+      "$ref": "#/$defs/continuation"
+    },
+    "diagnostics_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ready"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "next_action": {
+            "$ref": "#/$defs/next_action"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "next_action": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "decision-required"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decisions_required": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "next_action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "participant",
+        "objective",
+        "requested_action",
+        "instructions",
+        "required_outputs",
+        "exit_gate",
+        "source_locators"
+      ],
+      "properties": {
+        "participant": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "profile",
+            "display_name"
+          ],
+          "properties": {
+            "profile": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "role": {
+              "enum": [
+                "product",
+                "developer",
+                "tester",
+                "reviewer"
+              ]
+            },
+            "function": {
+              "enum": [
+                "coordinator",
+                "advisor"
+              ]
+            },
+            "stage": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "checkpoint": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "role"
+              ],
+              "not": {
+                "required": [
+                  "function"
+                ]
+              }
+            },
+            {
+              "required": [
+                "function"
+              ],
+              "not": {
+                "required": [
+                  "role"
+                ]
+              }
+            }
+          ]
+        },
+        "objective": {
+          "type": "string"
+        },
+        "requested_action": {
+          "type": "string"
+        },
+        "instructions": {
+          "type": "object"
+        },
+        "required_outputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exit_gate": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source_locators": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "locator"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "locator": {
+                "type": "string"
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "assurance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "limitations",
+        "capability"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "self",
+            "peer-challenge",
+            "independent-from-developer",
+            "full-separation",
+            "custom",
+            "unavailable"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "capability": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "message": {
+          "type": "string"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "continuation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "work_id",
+        "revisions"
+      ],
+      "properties": {
+        "work_id": {
+          "type": "string"
+        },
+        "revisions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "preset_resolution",
+            "binding",
+            "projection"
+          ],
+          "properties": {
+            "preset_resolution": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "binding": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "projection": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

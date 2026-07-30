@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "control_functions": {
+    "coordinator": {
+      "purpose": "Keep composition, sequencing, handoffs, dependencies, and gates coherent.",
+      "overlay": {
+        "must": [
+          "Maintain current revisions and ownership.",
+          "Route actionable handoffs and unresolved decisions.",
+          "Expose assurance or capacity gaps."
+        ],
+        "may": [
+          "Schedule logical members.",
+          "Request recomposition or escalation.",
+          "Compress shared status."
+        ],
+        "must_not": [
+          "Absorb accountable role decisions.",
+          "Approve gates or accept risk without a separately bound role and authority."
+        ]
+      },
+      "checkpoints": [
+        "handoff",
+        "recomposition"
+      ]
+    },
+    "advisor": {
+      "purpose": "Provide a distinct second-context challenge at material checkpoints.",
+      "overlay": {
+        "must": [
+          "Challenge assumptions, omissions, risk, and evidence.",
+          "Make advice specific and dispositionable.",
+          "Preserve the configured authorship boundary."
+        ],
+        "may": [
+          "Suggest alternatives, tests, evidence, or escalation.",
+          "Request a pause before a material action."
+        ],
+        "must_not": [
+          "Edit artifacts when configured read-only.",
+          "Approve completion or claim formal independent review.",
+          "Gain decision authority from advisory involvement."
+        ]
+      },
+      "checkpoints": [
+        "pre-plan",
+        "pre-high-impact-action",
+        "pre-verification",
+        "pre-completion",
+        "handoff"
+      ]
+    }
+  }
+}

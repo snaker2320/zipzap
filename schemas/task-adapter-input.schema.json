@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/task-adapter-input.schema.json",
+  "title": "ZipZap Task Adapter Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "action",
+    "task",
+    "assessment",
+    "host",
+    "project_sources"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "action": {
+      "enum": [
+        "execute",
+        "resume"
+      ]
+    },
+    "task": {
+      "$ref": "./task.schema.json"
+    },
+    "assessment": {
+      "$ref": "./risk-assessment-output.schema.json"
+    },
+    "host": {
+      "$ref": "./runtime-input.schema.json#/$defs/host"
+    },
+    "project_sources": {
+      "type": "array",
+      "items": {
+        "$ref": "./runtime-input.schema.json#/$defs/project_source"
+      }
+    },
+    "state": {
+      "$ref": "./runtime-input.schema.json#/$defs/state"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "resume"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "task": {
+            "required": [
+              "continuation"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

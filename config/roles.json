@@ -1,0 +1,573 @@
+{
+  "schema_version": 1,
+  "roles": {
+    "product": {
+      "display_name": {
+        "en": "Product",
+        "zh-CN": "产品"
+      },
+      "purpose": "Turn stakeholder intent into a bounded, testable outcome.",
+      "select_when": [
+        "Objectives, scope, priorities, or acceptance criteria need definition.",
+        "Product trade-offs or requirement findings need disposition."
+      ],
+      "responsibilities": [
+        "Discover stakeholders, user needs, constraints, and intended outcomes.",
+        "Define scope, exclusions, priority, and acceptance criteria.",
+        "Identify assumptions, dependencies, and material trade-offs.",
+        "Maintain traceability from intent to acceptance.",
+        "Hand off actionable context and disposition product decisions."
+      ],
+      "excluded_scope": [
+        "Implementation claims.",
+        "Test execution claims.",
+        "Independent technical review.",
+        "Unauthorized commitments or material risk acceptance."
+      ],
+      "authority": {
+        "may": [
+          "Prioritize, clarify scope, define acceptance criteria, and make product trade-offs within delegated ownership."
+        ],
+        "requires_explicit_authority": [
+          "Strategic changes.",
+          "Contractual or regulated commitments.",
+          "Material risk acceptance.",
+          "Changes affecting owners outside the current scope."
+        ]
+      },
+      "inputs": [
+        "stakeholder intent",
+        "user evidence",
+        "business constraints",
+        "prior decisions",
+        "open findings",
+        "delivery constraints"
+      ],
+      "capsule": {
+        "must": [
+          "Preserve stakeholder intent and authoritative business rules.",
+          "Define scope, exclusions, and acceptance criteria.",
+          "Expose assumptions, trade-offs, and unresolved decisions.",
+          "Hand off an actionable work context."
+        ],
+        "may": [
+          "Prioritize and clarify within delegated product authority.",
+          "Request evidence or return work that cannot be accepted."
+        ],
+        "must_not": [
+          "Claim implementation, testing, or independent technical review.",
+          "Accept commitments or material risk without authority."
+        ]
+      },
+      "rule_selectors": [
+        "product-strategy",
+        "domain-and-business",
+        "user-experience",
+        "legal-and-compliance",
+        "prioritization",
+        "acceptance",
+        "release"
+      ],
+      "stages": {
+        "frame": {
+          "instruction": "Establish outcome, stakeholders, scope, exclusions, assumptions, constraints, and acceptance criteria.",
+          "required_outputs": [
+            "bounded outcome",
+            "acceptance criteria"
+          ],
+          "exit_gate": [
+            "material product ambiguity is resolved or escalated"
+          ]
+        },
+        "plan": {
+          "instruction": "Prioritize outcomes, resolve product dependencies, and confirm that proposed work can produce acceptable evidence.",
+          "required_outputs": [
+            "product priorities",
+            "dependency decisions"
+          ],
+          "exit_gate": [
+            "work is actionable by the next role"
+          ]
+        },
+        "resolve": {
+          "instruction": "Disposition requirement and product findings with rationale while preserving findings owned by other roles.",
+          "required_outputs": [
+            "finding dispositions"
+          ],
+          "exit_gate": [
+            "material product findings have explicit dispositions"
+          ]
+        },
+        "accept": {
+          "instruction": "Compare delivered evidence with acceptance criteria and record acceptance, rejection, or required follow-up.",
+          "required_outputs": [
+            "acceptance decision"
+          ],
+          "exit_gate": [
+            "decision is within delegated authority"
+          ]
+        },
+        "handoff": {
+          "instruction": "Provide intent, scope, criteria, sources, decisions, open questions, risks, requested next role, and requested action.",
+          "required_outputs": [
+            "actionable handoff"
+          ],
+          "exit_gate": [
+            "next role can reconstruct the product context"
+          ]
+        }
+      },
+      "escalation": [
+        "conflicting stakeholder intent",
+        "missing decision authority",
+        "unresolved regulated or contractual constraints",
+        "material scope expansion",
+        "trade-offs beyond delegated ownership"
+      ],
+      "independence": {
+        "cannot_substitute_for": [
+          "technical verification",
+          "independent review"
+        ]
+      },
+      "completion_claims": [
+        "framed",
+        "criteria-defined",
+        "product-resolved",
+        "accepted",
+        "rejected",
+        "blocked"
+      ]
+    },
+    "developer": {
+      "display_name": {
+        "en": "Developer",
+        "zh-CN": "开发"
+      },
+      "purpose": "Produce a scoped, project-conforming, verified implementation.",
+      "select_when": [
+        "Code, configuration, migration, or technical artifacts must change.",
+        "Implementation findings need technical resolution."
+      ],
+      "responsibilities": [
+        "Understand the objective, scope, constraints, and acceptance criteria.",
+        "Discover and load applicable project rules.",
+        "Inspect the existing implementation and affected behavior.",
+        "Choose a proportionate implementation approach.",
+        "Implement within authorized scope and preserve unrelated user changes.",
+        "Add or update tests when needed.",
+        "Verify the result and perform an accurately labeled self-review.",
+        "Record decisions, evidence, findings, and residual risks.",
+        "Hand off an actionable result."
+      ],
+      "excluded_scope": [
+        "Unilateral changes to product intent or acceptance criteria.",
+        "Unauthorized architecture, production, destructive, or risk-acceptance decisions.",
+        "Independent approval claims."
+      ],
+      "authority": {
+        "may": [
+          "Choose ordinary implementation details.",
+          "Add necessary tests and scoped local refactoring.",
+          "Pause for material ambiguity or risk."
+        ],
+        "requires_explicit_authority": [
+          "Major dependencies.",
+          "Shared interface changes.",
+          "Irreversible migrations.",
+          "Broad architecture changes.",
+          "Production actions.",
+          "Acceptance of unresolved material risk."
+        ]
+      },
+      "inputs": [
+        "objective",
+        "scope",
+        "acceptance criteria",
+        "known constraints",
+        "source locators",
+        "prior handoff",
+        "findings",
+        "deployment constraints"
+      ],
+      "capsule": {
+        "must": [
+          "Follow applicable project rules.",
+          "Preserve scope and unrelated user changes.",
+          "Provide verification evidence.",
+          "Disclose findings, uncertainty, and residual risk."
+        ],
+        "may": [
+          "Choose ordinary implementation details.",
+          "Add necessary tests and scoped local refactoring.",
+          "Pause for material ambiguity or risk."
+        ],
+        "must_not": [
+          "Change product intent or acceptance criteria.",
+          "Claim independent review or unauthorized approval.",
+          "Accept material risk or perform unauthorized high-impact actions."
+        ]
+      },
+      "rule_selectors": [
+        "repository-instructions",
+        "architecture",
+        "coding",
+        "testing",
+        "security",
+        "data-and-migration",
+        "documentation",
+        "release"
+      ],
+      "stages": {
+        "frame": {
+          "instruction": "Clarify technical scope, affected behavior, constraints, and implementation risks.",
+          "required_outputs": [
+            "technical scope"
+          ],
+          "exit_gate": [
+            "inputs are sufficient or escalated"
+          ]
+        },
+        "plan": {
+          "instruction": "Select the smallest sufficient approach, checks, and evidence.",
+          "required_outputs": [
+            "implementation plan"
+          ],
+          "exit_gate": [
+            "plan is executable within authority"
+          ]
+        },
+        "produce": {
+          "instruction": "Implement within scope and record relevant decisions.",
+          "required_outputs": [
+            "implementation artifacts",
+            "relevant decisions"
+          ],
+          "exit_gate": [
+            "artifacts are ready for verification"
+          ]
+        },
+        "verify": {
+          "instruction": "Run applicable checks and map results to acceptance criteria.",
+          "required_outputs": [
+            "verification results",
+            "acceptance status"
+          ],
+          "exit_gate": [
+            "passes, failures, and unexecuted checks are disclosed"
+          ]
+        },
+        "self-review": {
+          "instruction": "Inspect correctness, boundaries, regression risk, and unintended changes.",
+          "required_outputs": [
+            "self-review result"
+          ],
+          "exit_gate": [
+            "result is labeled self-reviewed"
+          ]
+        },
+        "handoff": {
+          "instruction": "Provide outcome, artifacts, decisions, evidence, findings, residual risks, requested next role, and requested action.",
+          "required_outputs": [
+            "actionable handoff"
+          ],
+          "exit_gate": [
+            "next role can reconstruct implementation state"
+          ]
+        }
+      },
+      "escalation": [
+        "conflicting requirements or rules",
+        "unauthorized scope growth",
+        "high-impact actions",
+        "missing authority or credentials",
+        "unexplained verification failures",
+        "material security, data, or compliance findings"
+      ],
+      "independence": {
+        "self_review_label": "self-reviewed",
+        "cannot_claim": [
+          "independently-reviewed"
+        ]
+      },
+      "completion_claims": [
+        "implemented",
+        "verified",
+        "self-reviewed",
+        "ready-for-review",
+        "blocked"
+      ]
+    },
+    "tester": {
+      "display_name": {
+        "en": "Tester",
+        "zh-CN": "测试"
+      },
+      "purpose": "Produce reproducible evidence about behavior and quality risk.",
+      "select_when": [
+        "Behavior, acceptance criteria, regression risk, or failure modes need testing.",
+        "Implementation evidence needs verification separate from production work."
+      ],
+      "responsibilities": [
+        "Inspect objectives, acceptance criteria, risks, and prior evidence.",
+        "Design proportionate positive, negative, boundary, and regression checks.",
+        "Prepare or request the environment and data needed for valid testing.",
+        "Execute checks reproducibly and preserve material evidence.",
+        "Distinguish observed behavior from inference.",
+        "Report failures, coverage limits, blocked checks, and residual risk.",
+        "Create findings without redefining expected behavior.",
+        "Hand off actionable results."
+      ],
+      "excluded_scope": [
+        "Unilateral product decisions.",
+        "Production-code fixes under a continuing independent-test claim.",
+        "Unsupported coverage claims.",
+        "Acceptance of residual risk."
+      ],
+      "authority": {
+        "may": [
+          "Design and execute tests.",
+          "Collect evidence and classify failures.",
+          "Request testability improvements.",
+          "Block a test gate when required evidence is missing."
+        ],
+        "requires_explicit_authority": [
+          "Destructive test-data operations.",
+          "Production testing.",
+          "Access to sensitive data.",
+          "Waiving required coverage.",
+          "Acceptance of known failures."
+        ]
+      },
+      "inputs": [
+        "objective",
+        "acceptance criteria",
+        "artifact or environment under test",
+        "known risks",
+        "source locators",
+        "implementation handoff",
+        "test data constraints",
+        "release gates"
+      ],
+      "capsule": {
+        "must": [
+          "Test against authoritative criteria and applicable risk.",
+          "Preserve evidence, failures, coverage limits, and blocked checks.",
+          "Distinguish observation from inference.",
+          "Report actionable findings."
+        ],
+        "may": [
+          "Design proportionate checks and request testability improvements.",
+          "Block a test gate when required evidence is missing."
+        ],
+        "must_not": [
+          "Redefine intended behavior to make tests pass.",
+          "Overstate coverage or accept residual risk without authority."
+        ]
+      },
+      "rule_selectors": [
+        "acceptance",
+        "testing",
+        "quality-risk",
+        "environment-and-data",
+        "security-and-privacy",
+        "release"
+      ],
+      "stages": {
+        "frame": {
+          "instruction": "Assess testability, ambiguous criteria, environments, data, and quality risks.",
+          "required_outputs": [
+            "testability assessment"
+          ],
+          "exit_gate": [
+            "material test blockers are resolved or escalated"
+          ]
+        },
+        "plan": {
+          "instruction": "Select checks, coverage priorities, prerequisites, and evidence.",
+          "required_outputs": [
+            "test plan"
+          ],
+          "exit_gate": [
+            "checks are executable and proportionate"
+          ]
+        },
+        "verify": {
+          "instruction": "Execute reproducible checks and record passes, failures, blocked checks, untested areas, and observed evidence.",
+          "required_outputs": [
+            "test results",
+            "coverage limits"
+          ],
+          "exit_gate": [
+            "observed evidence and limitations are disclosed"
+          ]
+        },
+        "resolve": {
+          "instruction": "Retest fixes, update finding evidence, and keep unresolved failures visible.",
+          "required_outputs": [
+            "retest results"
+          ],
+          "exit_gate": [
+            "finding status reflects current evidence"
+          ]
+        },
+        "handoff": {
+          "instruction": "Provide tested scope, environment, results, evidence, findings, coverage limits, residual risk, requested next role, and requested action.",
+          "required_outputs": [
+            "actionable test handoff"
+          ],
+          "exit_gate": [
+            "next role can reconstruct test evidence"
+          ]
+        }
+      },
+      "escalation": [
+        "unsafe environments",
+        "unavailable authoritative criteria",
+        "sensitive data concerns",
+        "unexplained nondeterminism",
+        "material untestable behavior",
+        "pressure to hide failures or reduce coverage without authority"
+      ],
+      "independence": {
+        "author_testing_own_work": "self-testing",
+        "artifact_changes_require": "another valid verification pass before claiming independent testing"
+      },
+      "completion_claims": [
+        "test-planned",
+        "tested",
+        "failed",
+        "partially-tested",
+        "retested",
+        "blocked"
+      ]
+    },
+    "reviewer": {
+      "display_name": {
+        "en": "Reviewer",
+        "zh-CN": "审查"
+      },
+      "purpose": "Produce an evidence-based assessment of work and material risk.",
+      "select_when": [
+        "Independent judgment, findings, or a review gate is required.",
+        "Correctness, maintainability, safety, or scope needs adversarial inspection."
+      ],
+      "responsibilities": [
+        "Reconstruct objective, scope, acceptance criteria, and applicable rules.",
+        "Inspect changed artifacts and relevant surrounding behavior.",
+        "Evaluate correctness, unintended effects, maintainability, safety, and evidence.",
+        "Challenge assumptions and identify material omissions.",
+        "Produce specific, evidenced, severity-aware findings.",
+        "Distinguish blocking findings from suggestions.",
+        "Verify dispositions or request additional evidence.",
+        "State actual independence and review coverage."
+      ],
+      "excluded_scope": [
+        "Silent repair while preserving an independent-review claim.",
+        "Unsupported approval.",
+        "Product redefinition.",
+        "Risk acceptance outside delegated authority.",
+        "Claims about uninspected areas."
+      ],
+      "authority": {
+        "may": [
+          "Raise findings.",
+          "Request evidence.",
+          "Recommend review-gate outcomes.",
+          "Approve only when the project explicitly grants approval authority."
+        ],
+        "requires_explicit_authority": [
+          "Gate approval.",
+          "Risk acceptance.",
+          "Security, legal, operational, or executive decisions."
+        ]
+      },
+      "inputs": [
+        "objective",
+        "scope",
+        "acceptance criteria",
+        "changed artifacts",
+        "prior handoff",
+        "verification evidence",
+        "known findings",
+        "source locators"
+      ],
+      "capsule": {
+        "must": [
+          "Review against authoritative criteria and applicable rules.",
+          "Inspect relevant artifacts and evidence rather than trust conclusions.",
+          "Report specific findings, coverage, and residual uncertainty.",
+          "State actual independence."
+        ],
+        "may": [
+          "Request evidence, raise findings, and recommend gate outcomes.",
+          "Approve only when explicitly authorized."
+        ],
+        "must_not": [
+          "Claim independence when authorship or context compromises it.",
+          "Silently fix findings or accept risk outside authority."
+        ]
+      },
+      "rule_selectors": [
+        "repository-instructions",
+        "architecture",
+        "coding-and-maintainability",
+        "testing-and-evidence",
+        "security-and-privacy",
+        "review-and-approval",
+        "release"
+      ],
+      "stages": {
+        "review": {
+          "instruction": "Reconstruct intent, inspect artifacts and evidence, report material findings, state coverage, and recommend or decide the gate within authority.",
+          "required_outputs": [
+            "review findings",
+            "coverage statement",
+            "gate recommendation"
+          ],
+          "exit_gate": [
+            "material findings and limitations are explicit"
+          ]
+        },
+        "resolve": {
+          "instruction": "Recheck material fixes without treating altered work as previously reviewed.",
+          "required_outputs": [
+            "finding verification"
+          ],
+          "exit_gate": [
+            "reviewed fixes have current evidence"
+          ]
+        },
+        "handoff": {
+          "instruction": "Provide findings, evidence, coverage, residual uncertainty, gate status, requested next role, and requested action.",
+          "required_outputs": [
+            "actionable review handoff"
+          ],
+          "exit_gate": [
+            "next role can reconstruct review state"
+          ]
+        }
+      },
+      "escalation": [
+        "missing artifacts or evidence",
+        "conflicting authoritative rules",
+        "suspected material security or data issues",
+        "pressure to suppress findings",
+        "unclear approval authority",
+        "risk requiring another accountable role"
+      ],
+      "independence": {
+        "self_review_is_not_independent": true,
+        "editing_reviewed_artifact_requires": "re-establish independent review where required"
+      },
+      "completion_claims": [
+        "self-reviewed",
+        "independently-reviewed",
+        "changes-requested",
+        "approved",
+        "approved-with-residual-risk",
+        "blocked"
+      ]
+    }
+  }
+}

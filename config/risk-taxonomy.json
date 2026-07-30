@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "signals": {
+    "privacy-or-regulated-data": {
+      "summary": "The work accesses, changes, exposes, or governs personal, confidential, or regulated data.",
+      "effects": {
+        "risk_flags": [
+          "regulated-data"
+        ],
+        "required_gates": [],
+        "required_evidence": [
+          "data-scope",
+          "privacy-or-compliance-validation"
+        ],
+        "requires_approval": [
+          "data-owner-or-compliance"
+        ],
+        "persistence_required": true
+      }
+    },
+    "security-critical": {
+      "summary": "The work affects authentication, authorization, secrets, trust boundaries, or exploitable security behavior.",
+      "effects": {
+        "risk_flags": [
+          "security-critical"
+        ],
+        "required_gates": [],
+        "required_evidence": [
+          "threat-analysis",
+          "security-tests"
+        ],
+        "requires_approval": [
+          "security-owner"
+        ],
+        "persistence_required": true
+      }
+    },
+    "production-destructive": {
+      "summary": "The requested action can delete, overwrite, corrupt, or irreversibly mutate production state.",
+      "effects": {
+        "risk_flags": [
+          "production-destructive"
+        ],
+        "required_gates": [],
+        "required_evidence": [
+          "recovery-plan",
+          "rollback-or-restore-evidence"
+        ],
+        "requires_approval": [
+          "production-owner"
+        ],
+        "persistence_required": true
+      }
+    },
+    "difficult-to-reverse": {
+      "summary": "Recovery is costly, uncertain, slow, or requires coordinated migration or repair.",
+      "effects": {
+        "risk_flags": [
+          "difficult-to-reverse"
+        ],
+        "required_gates": [],
+        "required_evidence": [
+          "rollback-or-recovery-plan"
+        ],
+        "requires_approval": [],
+        "persistence_required": true
+      }
+    },
+    "external-user-impact": {
+      "summary": "The work changes externally visible behavior or can materially affect users.",
+      "effects": {
+        "risk_flags": [],
+        "required_gates": [
+          "independent-testing-from-developer",
+          "independent-review-from-developer"
+        ],
+        "required_evidence": [
+          "user-impact-validation"
+        ],
+        "requires_approval": [],
+        "persistence_required": true
+      }
+    },
+    "financial-impact": {
+      "summary": "The work can change monetary values, settlement, billing, limits, accounting, or financial decisions.",
+      "effects": {
+        "risk_flags": [],
+        "required_gates": [
+          "independent-testing-from-developer",
+          "independent-review-from-developer",
+          "reviewer-independent-from-tester"
+        ],
+        "required_evidence": [
+          "financial-calculation-tests",
+          "reconciliation-evidence"
+        ],
+        "requires_approval": [
+          "business-or-financial-owner"
+        ],
+        "persistence_required": true
+      }
+    },
+    "shared-interface-or-migration": {
+      "summary": "The work changes a shared contract, schema, protocol, migration, or broad dependency surface.",
+      "effects": {
+        "risk_flags": [
+          "difficult-to-reverse"
+        ],
+        "required_gates": [],
+        "required_evidence": [
+          "compatibility-tests",
+          "migration-and-rollback-plan"
+        ],
+        "requires_approval": [],
+        "persistence_required": true
+      }
+    },
+    "ambiguous-material-requirements": {
+      "summary": "Material behavior or acceptance criteria remain ambiguous and different interpretations have meaningful consequences.",
+      "effects": {
+        "risk_flags": [],
+        "required_gates": [
+          "peer-challenge"
+        ],
+        "required_evidence": [
+          "resolved-requirement-decision"
+        ],
+        "requires_approval": [
+          "product-or-domain-owner"
+        ],
+        "persistence_required": false
+      }
+    },
+    "weak-or-missing-verification": {
+      "summary": "Objective validation is absent, unreliable, or does not cover the affected behavior.",
+      "effects": {
+        "risk_flags": [],
+        "required_gates": [
+          "independent-testing-from-developer",
+          "independent-review-from-developer"
+        ],
+        "required_evidence": [
+          "proportionate-test-plan"
+        ],
+        "requires_approval": [],
+        "persistence_required": false
+      }
+    },
+    "unfamiliar-technology": {
+      "summary": "The active executor lacks reliable experience or project evidence for the affected technology.",
+      "effects": {
+        "risk_flags": [],
+        "required_gates": [
+          "peer-challenge",
+          "independent-testing-from-developer"
+        ],
+        "required_evidence": [
+          "technology-specific-validation"
+        ],
+        "requires_approval": [],
+        "persistence_required": false
+      }
+    },
+    "authority-or-external-communication": {
+      "summary": "The work sends external communication or requires credentials, authority, risk acceptance, or a binding human decision.",
+      "effects": {
+        "risk_flags": [],
+        "required_gates": [
+          "second-context"
+        ],
+        "required_evidence": [
+          "authorized-decision"
+        ],
+        "requires_approval": [
+          "authorized-human"
+        ],
+        "persistence_required": true
+      }
+    }
+  }
+}

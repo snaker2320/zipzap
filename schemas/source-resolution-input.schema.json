@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/source-resolution-input.schema.json",
+  "title": "ZipZap Source Resolution Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "manifest",
+    "query"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "manifest": {
+      "$ref": "./project-manifest.schema.json"
+    },
+    "query": {
+      "$ref": "#/$defs/query"
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/observation"
+      },
+      "default": []
+    }
+  },
+  "$defs": {
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "topics"
+      ],
+      "properties": {
+        "topics": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "selectors": {
+          "$ref": "./project-manifest.schema.json#/$defs/selectors"
+        },
+        "on_missing": {
+          "enum": [
+            "allow-with-limitation",
+            "decision-required",
+            "block"
+          ],
+          "default": "decision-required"
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "availability"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "availability": {
+          "enum": [
+            "available",
+            "unavailable",
+            "stale"
+          ]
+        },
+        "preloaded": {
+          "type": "boolean",
+          "default": false
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

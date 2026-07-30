@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/host-capabilities.schema.json",
+  "title": "ZipZap L6 Host Capabilities",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "host_id",
+    "surface",
+    "capabilities",
+    "limits",
+    "runtimes",
+    "interfaces"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "host_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "surface": {
+      "type": "string",
+      "minLength": 1
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "concurrency_limit",
+        "distinct_context_limit"
+      ],
+      "properties": {
+        "concurrency_limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "distinct_context_limit": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "runtimes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      }
+    },
+    "tools": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "interfaces": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "l5",
+        "kernel"
+      ],
+      "properties": {
+        "l5": {
+          "$ref": "#/$defs/versionSet"
+        },
+        "kernel": {
+          "$ref": "#/$defs/versionSet"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "versionSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      }
+    }
+  }
+}

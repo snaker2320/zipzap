@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "defaults": {
+    "scope": "project",
+    "preferred_preset": "auto",
+    "personalization": {
+      "response_detail": "balanced",
+      "humor": "light",
+      "team_tone": "balanced",
+      "status_style": "conversational",
+      "signatures": "hidden",
+      "agent_aliases": {}
+    }
+  },
+  "questions": [
+    {
+      "id": "scope",
+      "field": "scope",
+      "group": "core",
+      "label": "Configuration scope",
+      "description": "Choose where these preferences apply.",
+      "options": [
+        {
+          "value": "project",
+          "label": "Project",
+          "description": "Store preferences in .zipzap/project.json.",
+          "recommended": true
+        },
+        {
+          "value": "user",
+          "label": "User",
+          "description": "Ask the host to store preferences for this user."
+        },
+        {
+          "value": "session",
+          "label": "Session",
+          "description": "Apply preferences only to the current session."
+        }
+      ]
+    },
+    {
+      "id": "response-detail",
+      "field": "personalization.response_detail",
+      "group": "core",
+      "label": "Response detail",
+      "description": "Choose the normal level of detail in responses.",
+      "options": [
+        {
+          "value": "concise",
+          "label": "Concise",
+          "description": "Prefer short, outcome-focused responses."
+        },
+        {
+          "value": "balanced",
+          "label": "Balanced",
+          "description": "Include enough context for confident decisions.",
+          "recommended": true
+        },
+        {
+          "value": "detailed",
+          "label": "Detailed",
+          "description": "Prefer fuller explanations and implementation context."
+        }
+      ]
+    },
+    {
+      "id": "humor",
+      "field": "personalization.humor",
+      "group": "core",
+      "label": "Humor",
+      "description": "Choose how much light personality appears in routine collaboration.",
+      "options": [
+        {
+          "value": "off",
+          "label": "Off",
+          "description": "Keep communication strictly neutral."
+        },
+        {
+          "value": "light",
+          "label": "Light",
+          "description": "Allow occasional light humor without reducing clarity.",
+          "recommended": true
+        },
+        {
+          "value": "playful",
+          "label": "Playful",
+          "description": "Use a livelier style when the work context permits."
+        }
+      ]
+    },
+    {
+      "id": "preferred-preset",
+      "field": "preferred_preset",
+      "group": "core",
+      "label": "Preferred team",
+      "description": "Choose a non-authoritative default collaboration topology.",
+      "options": [
+        {
+          "value": "auto",
+          "label": "Auto",
+          "description": "Let risk and assurance requirements select the lightest sufficient team.",
+          "recommended": true
+        },
+        {
+          "value": "solo",
+          "label": "Solo",
+          "description": "Prefer one primary execution context."
+        },
+        {
+          "value": "copilot",
+          "label": "Copilot",
+          "description": "Prefer a primary context with a continuous advisory context."
+        },
+        {
+          "value": "trio",
+          "label": "Trio",
+          "description": "Prefer separated implementation, testing, and review."
+        },
+        {
+          "value": "squad",
+          "label": "Squad",
+          "description": "Prefer the full role-separated topology."
+        }
+      ]
+    },
+    {
+      "id": "team-tone",
+      "field": "personalization.team_tone",
+      "group": "advanced",
+      "label": "Team tone",
+      "description": "Choose the general energy of team communication.",
+      "options": [
+        {
+          "value": "quiet",
+          "label": "Quiet",
+          "description": "Keep personality in the background."
+        },
+        {
+          "value": "balanced",
+          "label": "Balanced",
+          "description": "Use a friendly but work-focused tone.",
+          "recommended": true
+        },
+        {
+          "value": "lively",
+          "label": "Lively",
+          "description": "Give named agents a more visible presence."
+        }
+      ]
+    },
+    {
+      "id": "signatures",
+      "field": "personalization.signatures",
+      "group": "advanced",
+      "label": "Agent signatures",
+      "description": "Choose whether named agents visibly sign their messages.",
+      "options": [
+        {
+          "value": "hidden",
+          "label": "Hidden",
+          "description": "Avoid extra visual noise.",
+          "recommended": true
+        },
+        {
+          "value": "visible",
+          "label": "Visible",
+          "description": "Show the active named agent in routine collaboration."
+        }
+      ]
+    }
+  ],
+  "policies": {
+    "preview_before_write": true,
+    "configuration_is_repeatable": true,
+    "request_overrides_project": true,
+    "project_overrides_user": true,
+    "personalization_cannot_change_governance": true,
+    "preferred_preset_is_non_authoritative": true,
+    "plan_mode_is_optional": true,
+    "page_and_conversation_share_contract": true
+  }
+}

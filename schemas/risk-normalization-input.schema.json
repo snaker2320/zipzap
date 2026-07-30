@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/risk-normalization-input.schema.json",
+  "title": "ZipZap L5 Risk Normalization Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "work_id",
+    "assessment_input",
+    "assessment",
+    "host",
+    "project_sources"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "work_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "work_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "affected_components": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "assessment_input": {
+      "$ref": "./risk-assessment-input.schema.json"
+    },
+    "assessment": {
+      "$ref": "./risk-assessment-output.schema.json"
+    },
+    "host": {
+      "$ref": "./runtime-input.schema.json#/$defs/host"
+    },
+    "project_sources": {
+      "type": "array",
+      "items": {
+        "$ref": "./runtime-input.schema.json#/$defs/project_source"
+      }
+    },
+    "state": {
+      "$ref": "./runtime-input.schema.json#/$defs/state"
+    }
+  }
+}

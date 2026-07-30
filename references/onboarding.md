@@ -1,0 +1,63 @@
+# Guided Onboarding
+
+Load this reference when presenting, changing, or resetting ZipZap
+collaboration preferences. Use `config/onboarding.json` as the question and
+default catalog. Use `schemas/onboarding-input.schema.json` and
+`schemas/onboarding-output.schema.json` as the interface.
+
+## Presentation
+
+Prefer a host-rendered form when available:
+
+```bash
+node scripts/zipzap.mjs onboard --input onboarding-start.json
+```
+
+Send `presentation: form` to receive all page-ready fields. Send
+`presentation: stepwise` to receive one `question` at a time. Both
+presentations use the same state, validation, preview, and confirmation rules.
+Do not require Plan mode.
+
+Supported operations are:
+
+- `start`: load defaults or current values;
+- `answer`: answer the next question in a stepwise flow;
+- `submit`: submit form values;
+- `confirm`: apply an already previewed state;
+- `reset`: preview removal of stored overrides before confirmation.
+
+Pass the returned `state` unchanged with `expected_revision` for the next
+operation. Treat it as untrusted input and let the adapter validate it.
+
+## Configuration
+
+The core choices are response detail, humor, and preferred team. Scope may be
+`session`, `user`, or `project`. Team tone and signatures are advanced choices;
+agent aliases remain an optional direct personalization field.
+
+Treat `preferred_preset` as a preference. `auto` means no explicit runtime
+selection. Risk, gates, assurance, and independence can select a stronger
+topology.
+
+Apply precedence as:
+
+```text
+request override > project preference > user preference > ZipZap default
+```
+
+Apply governance after preference resolution. Never let a preference weaken
+authority, project rules, gates, evidence, or independence.
+
+## Preview and Storage
+
+Never write during `start`, `answer`, `submit`, or `reset`. Require
+`preview-ready` followed by `confirm`.
+
+- Store project scope in `.zipzap/project.json`.
+- Return user scope to `host-user-state`; the host must apply it.
+- Return session scope to `session-state`; the host must apply it.
+
+Project confirmation uses the manifest revision as an optimistic concurrency
+check. Preserve sources, extensions, enabled roles, enabled presets, and local
+Task persistence while changing preferences. A reset removes preference
+overrides rather than deleting project-owned sources or governance.

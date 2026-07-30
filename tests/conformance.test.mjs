@@ -1,0 +1,166 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import {
+  assessHost,
+  evaluateKernel,
+  loadCatalogs
+} from "../scripts/zipzap.mjs";
+
+const catalogs = loadCatalogs();
+const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
+const VECTOR_DIR = path.join(TEST_DIR, "conformance");
+
+function hostCapabilities(overrides = {}) {
+  return {
+    schema_version: 1,
+    host_id: "test-host",
+    surface: "test",
+    capabilities: ["json-read"],
+    limits: {
+      concurrency_limit: 2,
+      distinct_context_limit: 5
+    },
+    runtimes: [],
+    tools: [],
+    interfaces: {
+      l5: [1],
+      kernel: [1]
+    },
+    ...overrides
+  };
+}
+
+for (const fileName of fs.readdirSync(VECTOR_DIR).sort()) {
+  if (!fileName.endsWith(".json")) continue;
+  const vector = JSON.parse(
+    fs.readFileSync(path.join(VECTOR_DIR, fileName), "utf8")
+  );
+  test(`kernel conformance: ${vector.id}`, () => {
+    const result = evaluateKernel(vector.request, catalogs);
+    assert.equal(result.status, vector.expected.status);
+    assert.equal(result.assurance.mode, vector.expected.assurance_mode);
+    if (vector.expected.participant === null) {
+      assert.equal(result.next_action, null);
+      return;
+    }
+    assert.equal(
+      result.next_action.participant.profile,
+      vector.expected.participant.profile
+    );
+    assert.equal(
+      result.next_action.participant.role ??
+        result.next_action.participant.function,
+      vector.expected.participant.assignment
+    );
+  });
+}
+
+test("selects the native adapter when the host exposes native execution", () => {
+  const result = assessHost(
+    hostCapabilities({
+      capabilities: [
+        "native-skill-execution",
+        "json-read"
+      ]
+    }),
+    "execute",
+    null,
+    catalogs
+  );
+  assert.equal(result.compatible, true);
+  assert.equal(result.selected_adapter, "codex-native");
+  assert.equal(result.fallback_used, false);
+  assert.equal(result.governance_preserved, true);
+});
+
+test("selects the optional script accelerator only when Node is available", () => {
+  const result = assessHost(
+    hostCapabilities({
+      capabilities: [
+        "script-execution",
+        "json-read"
+      ],
+      runtimes: ["node"]
+    }),
+    "execute",
+    null,
+    catalogs
+  );
+  assert.equal(result.compatible, true);
+  assert.equal(result.selected_adapter, "script-accelerator");
+  assert.equal(result.fallback_used, true);
+});
+
+test("keeps direct JSON compatible without Node", () => {
+  const result = assessHost(
+    hostCapabilities(),
+    "execute",
+    null,
+    catalogs
+  );
+  assert.equal(result.compatible, true);
+  assert.equal(result.selected_adapter, "direct-json");
+  assert.equal(result.fallback_used, true);
+  assert.equal(result.governance_preserved, true);
+  assert.equal(
+    result.limitations.some((item) => item.includes("Node accelerator")),
+    true
+  );
+});
+
+test("rejects project configuration when project write is unavailable", () => {
+  const result = assessHost(
+    hostCapabilities({
+      capabilities: [
+        "json-read",
+        "project-read"
+      ]
+    }),
+    "initialize",
+    "configure",
+    catalogs
+  );
+  assert.equal(result.compatible, false);
+  assert.equal(result.governance_preserved, false);
+  assert.equal(result.missing_capabilities.includes("project-write"), true);
+});
+
+test("accepts either session or project state for resume", () => {
+  const result = assessHost(
+    hostCapabilities({
+      capabilities: [
+        "json-read",
+        "project-state"
+      ]
+    }),
+    "resume",
+    null,
+    catalogs
+  );
+  assert.equal(result.compatible, true);
+  assert.deepEqual(result.missing_capabilities, []);
+});
+
+test("L6 schemas and compatibility policy are registered", () => {
+  assert.equal(
+    catalogs.schemas.hostCapabilities.title,
+    "ZipZap L6 Host Capabilities"
+  );
+  assert.equal(
+    catalogs.schemas.conformanceResult.title,
+    "ZipZap L6 Conformance Result"
+  );
+  assert.deepEqual(catalogs.compatibility.adapter_order, [
+    "codex-native",
+    "script-accelerator",
+    "direct-json"
+  ]);
+  assert.equal(
+    Object.values(catalogs.compatibility.policies).every(Boolean),
+    true
+  );
+});

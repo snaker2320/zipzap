@@ -1,0 +1,483 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/runtime-input.schema.json",
+  "title": "ZipZap L4 Kernel Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "work",
+    "governance",
+    "host"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "work": {
+      "$ref": "#/$defs/work"
+    },
+    "preferences": {
+      "$ref": "#/$defs/preferences"
+    },
+    "governance": {
+      "$ref": "#/$defs/governance"
+    },
+    "host": {
+      "$ref": "#/$defs/host"
+    },
+    "state": {
+      "$ref": "#/$defs/state"
+    },
+    "event": {
+      "$ref": "#/$defs/event"
+    }
+  },
+  "$defs": {
+    "work": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "objective",
+        "requested_action"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "scope_summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "work_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requested_action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "affected_components": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "preferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "team_preset": {
+          "enum": [
+            "solo",
+            "copilot",
+            "trio",
+            "squad"
+          ]
+        },
+        "personalization": {
+          "$ref": "#/$defs/personalization"
+        }
+      }
+    },
+    "personalization": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "response_detail": {
+          "enum": [
+            "concise",
+            "balanced",
+            "detailed"
+          ]
+        },
+        "agent_aliases": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "team_tone": {
+          "enum": [
+            "quiet",
+            "balanced",
+            "lively"
+          ]
+        },
+        "humor": {
+          "enum": [
+            "off",
+            "light",
+            "playful",
+            "none",
+            "no"
+          ]
+        },
+        "status_style": {
+          "enum": [
+            "concise",
+            "conversational"
+          ]
+        },
+        "signatures": {
+          "enum": [
+            "hidden",
+            "visible"
+          ]
+        }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "risk_flags",
+        "required_gates",
+        "required_evidence",
+        "project_sources"
+      ],
+      "properties": {
+        "risk_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "required_gates": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "second-context",
+              "peer-challenge",
+              "independent-testing-from-developer",
+              "independent-review-from-developer",
+              "reviewer-independent-from-tester",
+              "product-independent-from-coordinator"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "required_assurance": {
+          "$ref": "#/$defs/assurance"
+        },
+        "required_evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requires_approval": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "project_sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/project_source"
+          }
+        }
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "concurrency_limit",
+        "distinct_context_limit"
+      ],
+      "properties": {
+        "concurrency_limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "distinct_context_limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "available_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_slot": {
+          "type": "string"
+        },
+        "current_role": {
+          "enum": [
+            "product",
+            "developer",
+            "tester",
+            "reviewer"
+          ]
+        },
+        "current_function": {
+          "enum": [
+            "coordinator",
+            "advisor"
+          ]
+        },
+        "current_stage": {
+          "type": "string"
+        },
+        "current_checkpoint": {
+          "type": "string"
+        },
+        "prior_handoff": true,
+        "expected_next": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "open_findings": {
+          "type": "array"
+        },
+        "assurance_labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unresolved": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "previous_revisions": {
+          "$ref": "#/$defs/revisions"
+        }
+      },
+      "not": {
+        "required": [
+          "current_role",
+          "current_function"
+        ]
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "current_role"
+            ]
+          },
+          "then": {
+            "required": [
+              "current_stage"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "current_function"
+            ]
+          },
+          "then": {
+            "required": [
+              "current_checkpoint"
+            ]
+          }
+        }
+      ]
+    },
+    "revisions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preset_resolution": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "binding": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "projection": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "user-selection-changed",
+            "host-capacity-changed",
+            "member-availability-changed",
+            "personalization-changed",
+            "role-transitioned",
+            "stage-transitioned",
+            "checkpoint-transitioned",
+            "scope-changed",
+            "acceptance-criteria-changed",
+            "requested-action-changed",
+            "affected-components-changed",
+            "risk-changed",
+            "gate-changed",
+            "finding-opened",
+            "finding-dispositioned",
+            "handoff-received",
+            "source-version-changed",
+            "source-unavailable",
+            "pre-high-impact-action"
+          ]
+        },
+        "previous_projection_id": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "assurance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "second_context": {
+          "type": "boolean"
+        },
+        "peer_challenge": {
+          "type": "boolean"
+        },
+        "tester_separate_from_developer": {
+          "type": "boolean"
+        },
+        "reviewer_separate_from_developer": {
+          "type": "boolean"
+        },
+        "reviewer_separate_from_tester": {
+          "type": "boolean"
+        },
+        "product_separate_from_coordinator": {
+          "type": "boolean"
+        }
+      }
+    },
+    "project_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "locator"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "locator": {
+          "type": "string"
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selectors": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "roles": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "functions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "stages": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "checkpoints": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "work_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "actions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "risk_flags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

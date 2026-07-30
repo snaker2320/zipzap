@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/risk-normalization-output.schema.json",
+  "title": "ZipZap L5 Risk Normalization Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "kernel_request",
+    "derived_governance",
+    "decisions_required"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "decision-required"
+      ]
+    },
+    "kernel_request": {
+      "oneOf": [
+        {
+          "$ref": "./runtime-input.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "derived_governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "present_signals",
+        "risk_flags",
+        "required_gates",
+        "required_evidence",
+        "requires_approval",
+        "persistence_required"
+      ],
+      "properties": {
+        "present_signals": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "risk_flags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_gates": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_evidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "requires_approval": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "persistence_required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "decisions_required": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "signal",
+          "message",
+          "required_authority"
+        ],
+        "properties": {
+          "code": {
+            "const": "risk-signal-unresolved"
+          },
+          "signal": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required_authority": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ready"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "kernel_request": {
+            "type": "object"
+          },
+          "decisions_required": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "decision-required"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "kernel_request": {
+            "type": "null"
+          },
+          "decisions_required": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,767 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/task.schema.json",
+  "title": "ZipZap Task Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "revision",
+    "status",
+    "work",
+    "evidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "enum": [
+        "backlog",
+        "ready",
+        "in-progress",
+        "blocked",
+        "review",
+        "completed",
+        "cancelled"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "team_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "participants": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/participant"
+      }
+    },
+    "work": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "objective"
+      ],
+      "properties": {
+        "intent": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "requested_action": {
+          "type": "string"
+        },
+        "work_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "affected_components": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "locator",
+          "statement"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "kind": {
+            "enum": [
+              "project-rule",
+              "artifact",
+              "user-statement",
+              "host-observation",
+              "verification",
+              "review",
+              "git"
+            ]
+          },
+          "locator": {
+            "type": "string",
+            "minLength": 1
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "authority": {
+            "type": "string"
+          },
+          "criteria_refs": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "unknown"
+            ]
+          }
+        }
+      }
+    },
+    "git_tracking": {
+      "$ref": "#/$defs/git_tracking"
+    },
+    "git_snapshot": {
+      "$ref": "#/$defs/git_snapshot"
+    },
+    "gate_results": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/gate_result"
+      }
+    },
+    "review_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "completion_assessment": {
+      "$ref": "#/$defs/completion_assessment"
+    },
+    "collaboration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "team_preference": {
+          "enum": [
+            "solo",
+            "copilot",
+            "trio",
+            "squad"
+          ]
+        },
+        "persistence": {
+          "enum": [
+            "auto",
+            "ephemeral",
+            "persistent"
+          ]
+        },
+        "personalization": {
+          "$ref": "./l5-input.schema.json#/$defs/collaboration/properties/personalization"
+        }
+      }
+    },
+    "risk_assessment": {
+      "$ref": "./risk-assessment-output.schema.json"
+    },
+    "governance_snapshot": {
+      "$ref": "#/$defs/governance_snapshot"
+    },
+    "runtime_snapshot": {
+      "$ref": "#/$defs/runtime_snapshot"
+    },
+    "continuation": {
+      "$ref": "#/$defs/continuation"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "statement",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "statement": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "fixed",
+              "accepted",
+              "deferred",
+              "duplicate",
+              "not-reproducible"
+            ]
+          },
+          "severity": {
+            "enum": [
+              "blocker",
+              "high",
+              "medium",
+              "low",
+              "advisory"
+            ]
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "review_ref": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "participant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject_id",
+        "kind",
+        "roles"
+      ],
+      "properties": {
+        "subject_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "human",
+            "agent"
+          ]
+        },
+        "roles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "agent_profile": {
+          "type": "string"
+        },
+        "git_identity_hashes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "git_tracking": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "default": "."
+        },
+        "base_commit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "head_ref": {
+          "type": "string",
+          "default": "HEAD"
+        },
+        "paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "commit_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "association_policy": {
+          "enum": [
+            "trailer-or-explicit",
+            "range-candidate"
+          ],
+          "default": "trailer-or-explicit"
+        },
+        "max_commits": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 100
+        }
+      }
+    },
+    "git_commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha",
+        "subject",
+        "authored_at",
+        "association",
+        "changed_files",
+        "insertions",
+        "deletions"
+      ],
+      "properties": {
+        "sha": {
+          "type": "string",
+          "minLength": 7
+        },
+        "subject": {
+          "type": "string"
+        },
+        "authored_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "subject_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "association": {
+          "enum": [
+            "explicit",
+            "trailer",
+            "candidate"
+          ]
+        },
+        "changed_files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "insertions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deletions": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "git_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "derived",
+        "task_revision",
+        "repository_head",
+        "synced_at",
+        "confirmed_commits",
+        "candidate_commits",
+        "changed_paths",
+        "insertions",
+        "deletions",
+        "contributors",
+        "uncommitted_changes"
+      ],
+      "properties": {
+        "derived": {
+          "const": true
+        },
+        "task_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "repository_head": {
+          "type": "string",
+          "minLength": 7
+        },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "base_commit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "synced_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "confirmed_commits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/git_commit"
+          }
+        },
+        "candidate_commits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/git_commit"
+          }
+        },
+        "changed_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "insertions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deletions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contributors": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "uncommitted_changes": {
+          "type": "boolean"
+        }
+      }
+    },
+    "gate_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "satisfied",
+            "unsatisfied",
+            "pending"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "completion_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "derived",
+        "task_revision",
+        "status",
+        "assessed_at",
+        "criteria",
+        "open_findings",
+        "missing_gates",
+        "next_actions"
+      ],
+      "properties": {
+        "derived": {
+          "const": true
+        },
+        "task_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "enum": [
+            "in-progress",
+            "verification-needed",
+            "review-needed",
+            "changes-requested",
+            "ready-to-complete",
+            "complete",
+            "blocked"
+          ]
+        },
+        "assessed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "criteria": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "verified",
+            "total"
+          ],
+          "properties": {
+            "verified": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "open_findings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blocking",
+            "non_blocking"
+          ],
+          "properties": {
+            "blocking": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "non_blocking": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "missing_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "governance_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "derived",
+        "taxonomy_version",
+        "task_revision",
+        "present_signals",
+        "risk_flags",
+        "required_gates",
+        "required_evidence",
+        "requires_approval",
+        "persistence_required"
+      ],
+      "properties": {
+        "derived": {
+          "const": true
+        },
+        "taxonomy_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "task_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "present_signals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "risk_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requires_approval": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "persistence_required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "runtime_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "derived",
+        "effective_team",
+        "assurance_mode",
+        "taxonomy_version",
+        "runtime_policy_version",
+        "task_revision",
+        "binding_revision"
+      ],
+      "properties": {
+        "derived": {
+          "const": true
+        },
+        "effective_team": {
+          "enum": [
+            "solo",
+            "copilot",
+            "trio",
+            "squad"
+          ]
+        },
+        "assurance_mode": {
+          "enum": [
+            "self",
+            "peer-challenge",
+            "independent-from-developer",
+            "full-separation",
+            "custom"
+          ]
+        },
+        "taxonomy_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runtime_policy_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "task_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "binding_revision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "continuation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "work_id",
+        "kernel_revisions"
+      ],
+      "properties": {
+        "work_id": {
+          "type": "string"
+        },
+        "resume_from": {
+          "type": "string"
+        },
+        "kernel_revisions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "preset_resolution",
+            "binding",
+            "projection"
+          ],
+          "properties": {
+            "preset_resolution": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "binding": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "projection": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

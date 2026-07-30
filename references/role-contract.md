@@ -13,29 +13,28 @@ Do not load it for routine execution under an already configured role.
 
 ## Authoritative Role Contract
 
-Define a complete role with these dimensions:
+Store complete standard roles in
+[`config/roles.json`](../config/roles.json). Define these dimensions in JSON:
 
 | Field | Purpose |
 | --- | --- |
 | `id` | Stable machine-facing identity |
 | `display_name` | Localized human-facing name |
 | `purpose` | Outcome for which the role is accountable |
-| `scope` | Included and excluded work |
+| `select_when` | Conditions that route work to the role |
+| `excluded_scope` | Work and claims outside the role |
 | `responsibilities` | Non-optional duties |
 | `authority` | Decisions the role may and may not make |
 | `inputs` | Required and conditional starting information |
 | `rule_selectors` | Project rule topics to resolve on demand |
-| `stage_overlays` | Stage-specific duties, outputs, and exit gates |
-| `conditional_policies` | Requirements activated by scope or risk |
-| `outputs` | Artifacts and information the role must produce |
-| `evidence` | Proof required to support its claims |
-| `handoff` | Information passed to the next role |
+| `stages` | Stage-specific instructions, outputs, and exit gates |
 | `escalation` | Conditions requiring pause or higher authority |
 | `independence` | Conflicts and separation-of-duty constraints |
-| `completion` | Permitted completion states and claims |
+| `completion_claims` | Permitted completion states and claims |
 
-Keep project business rules outside the contract. Store selectors and source
-locators, not copied rule text.
+Keep project business rules outside the catalog. Store topic selectors and
+source locators, not copied rule text. Use
+`node scripts/zipzap.mjs validate` after changing a catalog.
 
 ## Runtime Modules
 

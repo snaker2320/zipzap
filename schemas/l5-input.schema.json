@@ -1,0 +1,310 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/l5-input.schema.json",
+  "title": "ZipZap L5 Invocation Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "operation": {
+      "enum": [
+        "initialize",
+        "execute",
+        "resume",
+        "inspect"
+      ]
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "initialization": {
+      "$ref": "#/$defs/initialization"
+    },
+    "request": {
+      "$ref": "#/$defs/request"
+    },
+    "collaboration": {
+      "$ref": "#/$defs/collaboration"
+    },
+    "context": {
+      "$ref": "#/$defs/context"
+    },
+    "inspection": {
+      "$ref": "#/$defs/inspection"
+    }
+  },
+  "oneOf": [
+    {
+      "title": "Initialize",
+      "properties": {
+        "operation": {
+          "const": "initialize"
+        }
+      },
+      "required": [
+        "project",
+        "initialization"
+      ]
+    },
+    {
+      "title": "Execute",
+      "properties": {
+        "operation": {
+          "const": "execute"
+        }
+      },
+      "required": [
+        "request"
+      ]
+    },
+    {
+      "title": "Resume",
+      "properties": {
+        "operation": {
+          "const": "resume"
+        }
+      },
+      "required": [
+        "context"
+      ]
+    },
+    {
+      "title": "Inspect",
+      "properties": {
+        "operation": {
+          "const": "inspect"
+        }
+      },
+      "required": [
+        "inspection"
+      ]
+    }
+  ],
+  "$defs": {
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locator"
+      ],
+      "properties": {
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "initialization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "persistence"
+      ],
+      "properties": {
+        "action": {
+          "enum": [
+            "discover",
+            "configure",
+            "refresh"
+          ]
+        },
+        "persistence": {
+          "enum": [
+            "auto",
+            "session",
+            "project"
+          ]
+        },
+        "enabled_roles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "product",
+              "developer",
+              "tester",
+              "reviewer"
+            ]
+          }
+        },
+        "preferences": {
+          "$ref": "./onboarding-input.schema.json#/$defs/configuration"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "./project-manifest.schema.json#/$defs/source"
+          }
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "objective"
+      ],
+      "properties": {
+        "intent": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "requested_action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "collaboration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "team_preset": {
+          "enum": [
+            "solo",
+            "copilot",
+            "trio",
+            "squad"
+          ]
+        },
+        "persistence": {
+          "enum": [
+            "auto",
+            "ephemeral",
+            "persistent"
+          ],
+          "default": "auto"
+        },
+        "personalization": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "response_detail": {
+              "enum": [
+                "concise",
+                "balanced",
+                "detailed"
+              ]
+            },
+            "agent_aliases": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "team_tone": {
+              "enum": [
+                "quiet",
+                "balanced",
+                "lively"
+              ]
+            },
+            "humor": {
+              "enum": [
+                "off",
+                "light",
+                "playful"
+              ]
+            },
+            "status_style": {
+              "enum": [
+                "concise",
+                "conversational"
+              ]
+            },
+            "signatures": {
+              "enum": [
+                "hidden",
+                "visible"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resume_from"
+      ],
+      "properties": {
+        "resume_from": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "inspection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target"
+      ],
+      "properties": {
+        "target": {
+          "enum": [
+            "configuration",
+            "work",
+            "evidence",
+            "gates",
+            "catalog"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "detail": {
+          "enum": [
+            "summary",
+            "full"
+          ],
+          "default": "summary"
+        }
+      }
+    }
+  }
+}

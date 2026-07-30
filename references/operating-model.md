@@ -6,6 +6,7 @@ runtime context, or explaining ZipZap's conceptual model.
 ## Contents
 
 - Core Entities
+- Runtime Control Plane
 - Runtime Binding
 - Assurance Boundary
 
@@ -50,6 +51,25 @@ Keep logical team size independent from simultaneous concurrency. Permit
 Copilot, Trio, or Squad to execute sequentially while preserving distinct named
 profiles, contexts, and handoffs.
 
+### Preset Resolution
+
+Record the requested preset, effective preset, recommended preset, assurance
+requirements, capability comparison, capacity constraints, reasons, and
+unresolved decisions. Do not create an executable binding from a recommendation
+when a topology-changing decision is required.
+
+### Team Binding
+
+Instantiate a Team Preset as revisioned logical members with stable profile
+IDs, unique context IDs, role and control-function assignments, actual
+assurance, personalization, and scheduling.
+
+### Control Function
+
+Define a narrow L4 behavior such as `coordinator` or `advisor`. Let it sequence,
+route, or challenge accountable work without inheriting project-role authority,
+approval, authorship, risk acceptance, or independent-assurance claims.
+
 ### Work Context
 
 Maintain a work context for every request. Include the objective, scope,
@@ -77,6 +97,50 @@ overlay, triggered policies, and applicable rule locators. Exclude unrelated
 stages, dormant policies, explanatory design history, and duplicate project
 rules.
 
+### Runtime Projection
+
+Compose one participant's current profile, role or control function, stage,
+authority, outputs, evidence, sources, handoff, Findings, and assurance into a
+minimal revisioned execution context.
+
+### Projection Manifest
+
+Record why each module and source was included, which binding and source
+versions the projection used, what assurance applies, and what remains
+unresolved. Keep authoritative source content outside the manifest.
+
+## Runtime Control Plane
+
+Run:
+
+```text
+Preset Resolver
+  → Binding Planner
+  → Context Router
+  → Runtime Participant
+```
+
+Use the Projection Reconciler to detect runtime changes and choose `no-op`,
+`patch`, `rebuild-projection`, `rebind`, `re-resolve-preset`, or `block`.
+
+### Preset Resolver
+
+Select the least costly topology satisfying explicit gates and project policy,
+unless the user has explicitly selected a sufficient preset. Keep concurrency
+separate from logical topology.
+
+### Binding Planner
+
+Assign profiles, unique contexts, roles, control functions, independence, human
+gates, and scheduling. Compute actual assurance rather than inheriting the
+preset's promise blindly.
+
+### Control Functions
+
+Provide narrow coordination and advisory overlays to the Context Router. Select
+a Role for accountable work or a Control Function for control-plane work; do
+not combine their authority implicitly in one action.
+
 ### Context Router
 
 Treat the Context Router as a ZipZap control-plane function, not a project role
@@ -89,15 +153,23 @@ the projection when role, stage, scope, risk, findings, or handoff state
 changes. Let a role executor request missing context, but do not let it silently
 remove mandatory context.
 
+### Projection Reconciler
+
+Re-run composition from the highest affected component when team selection,
+capacity, membership, stage, scope, risk, gates, Findings, handoff state, or
+source availability changes. Invalidate stale projections before consequential
+actions.
+
 ## Runtime Binding
 
 Compose each participant at runtime:
 
 ```text
 team preset and agent slot
+  + binding and context revision
   + agent profile capsule
   + personalization overlay
-  + context-router-selected role projection
+  + context-router-selected role projection or control-function overlay
   + work context
   + stage context
   + applicable project rules

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "persistence_triggers": [
+    "cross-session-continuity",
+    "multi-participant-coordination",
+    "approval-or-audit",
+    "progress-or-dependency-tracking",
+    "high-risk-governance",
+    "durable-findings",
+    "project-required-task"
+  ],
+  "response_status_to_task_status": {
+    "ready": "in-progress",
+    "decision-required": "blocked",
+    "blocked": "blocked",
+    "completed": "completed"
+  },
+  "snapshot_invalidation_events": [
+    "task-revised",
+    "risk-assessment-changed",
+    "project-source-changed",
+    "runtime-policy-changed",
+    "host-capability-changed"
+  ],
+  "local_store": {
+    "adapter": "local-json",
+    "locator": ".zipzap/tasks",
+    "format": "one-json-file-per-task",
+    "event_locator": ".zipzap/events",
+    "review_locator": ".zipzap/reviews",
+    "report_locator": ".zipzap/reports"
+  },
+  "policies": {
+    "task_persistence_is_conditional": true,
+    "task_store_is_project_local": true,
+    "evidence_uses_locators": true,
+    "team_preference_is_non_authoritative": true,
+    "effective_team_is_derived": true,
+    "adapters_return_patches_only": true,
+    "project_rules_are_not_copied": true
+  }
+}

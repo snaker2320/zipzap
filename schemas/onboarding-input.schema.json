@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/onboarding-input.schema.json",
+  "title": "ZipZap Guided Onboarding Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "operation": {
+      "enum": [
+        "start",
+        "answer",
+        "submit",
+        "confirm",
+        "reset"
+      ]
+    },
+    "presentation": {
+      "enum": [
+        "form",
+        "stepwise"
+      ],
+      "default": "form"
+    },
+    "scope": {
+      "enum": [
+        "session",
+        "user",
+        "project"
+      ]
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locator"
+      ],
+      "properties": {
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "state": {
+      "$ref": "#/$defs/state"
+    },
+    "expected_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "answer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question_id",
+        "value"
+      ],
+      "properties": {
+        "question_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "answers": {
+      "$ref": "#/$defs/answers"
+    },
+    "current_configuration": {
+      "$ref": "#/$defs/configuration"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "answer",
+              "submit",
+              "confirm"
+            ]
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "required": [
+          "state",
+          "expected_revision"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "answer"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "required": [
+          "answer"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "submit"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "required": [
+          "answers"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "reset"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "required": [
+          "scope"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "personalization": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "response_detail": {
+          "enum": [
+            "concise",
+            "balanced",
+            "detailed"
+          ]
+        },
+        "humor": {
+          "enum": [
+            "off",
+            "light",
+            "playful"
+          ]
+        },
+        "team_tone": {
+          "enum": [
+            "quiet",
+            "balanced",
+            "lively"
+          ]
+        },
+        "status_style": {
+          "enum": [
+            "concise",
+            "conversational"
+          ]
+        },
+        "signatures": {
+          "enum": [
+            "hidden",
+            "visible"
+          ]
+        },
+        "agent_aliases": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preferred_preset",
+        "personalization"
+      ],
+      "properties": {
+        "preferred_preset": {
+          "enum": [
+            "auto",
+            "solo",
+            "copilot",
+            "trio",
+            "squad"
+          ]
+        },
+        "personalization": {
+          "$ref": "#/$defs/personalization"
+        }
+      }
+    },
+    "answers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scope": {
+          "enum": [
+            "session",
+            "user",
+            "project"
+          ]
+        },
+        "response_detail": {
+          "enum": [
+            "concise",
+            "balanced",
+            "detailed"
+          ]
+        },
+        "humor": {
+          "enum": [
+            "off",
+            "light",
+            "playful"
+          ]
+        },
+        "preferred_preset": {
+          "enum": [
+            "auto",
+            "solo",
+            "copilot",
+            "trio",
+            "squad"
+          ]
+        },
+        "team_tone": {
+          "enum": [
+            "quiet",
+            "balanced",
+            "lively"
+          ]
+        },
+        "signatures": {
+          "enum": [
+            "hidden",
+            "visible"
+          ]
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision",
+        "mode",
+        "presentation",
+        "scope",
+        "base_configuration_revision",
+        "base_configuration",
+        "completed_questions",
+        "configuration"
+      ],
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mode": {
+          "enum": [
+            "configure",
+            "reset"
+          ]
+        },
+        "presentation": {
+          "enum": [
+            "form",
+            "stepwise"
+          ]
+        },
+        "scope": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            null,
+            "session",
+            "user",
+            "project"
+          ]
+        },
+        "base_configuration_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "base_configuration": {
+          "$ref": "#/$defs/configuration"
+        },
+        "completed_questions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "configuration": {
+          "$ref": "#/$defs/configuration"
+        }
+      }
+    }
+  }
+}

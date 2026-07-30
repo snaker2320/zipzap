@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "skill": {
+    "name": "zipzap",
+    "current_version": "0.1.0",
+    "channel": "development"
+  },
+  "package": {
+    "format": "zipzap-skill-directory",
+    "include_roots": [
+      "SKILL.md",
+      "agents/openai.yaml",
+      "config",
+      "schemas",
+      "scripts",
+      "references"
+    ],
+    "required_files": [
+      "SKILL.md",
+      "agents/openai.yaml",
+      "scripts/task.mjs",
+      "config/compatibility.json",
+      "config/lifecycle.json",
+      "config/onboarding.json",
+      "config/risk-taxonomy.json",
+      "config/task-policy.json",
+      "schemas/l5-input.schema.json",
+      "schemas/l5-output.schema.json",
+      "schemas/l5-adapter-input.schema.json",
+      "schemas/onboarding-input.schema.json",
+      "schemas/onboarding-output.schema.json",
+      "schemas/source-resolution-input.schema.json",
+      "schemas/source-resolution-output.schema.json",
+      "schemas/risk-assessment-input.schema.json",
+      "schemas/risk-assessment-output.schema.json",
+      "schemas/risk-normalization-input.schema.json",
+      "schemas/risk-normalization-output.schema.json",
+      "schemas/task.schema.json",
+      "schemas/task-event.schema.json",
+      "schemas/review-result.schema.json",
+      "schemas/task-report.schema.json",
+      "schemas/capability-report.schema.json",
+      "schemas/task-adapter-input.schema.json",
+      "schemas/task-adapter-output.schema.json",
+      "schemas/runtime-input.schema.json",
+      "schemas/runtime-output.schema.json"
+    ]
+  },
+  "runtime_dependencies": [],
+  "known_releases": [
+    {
+      "version": "0.1.0",
+      "interfaces": {
+        "l5": 1,
+        "kernel": 1
+      }
+    }
+  ],
+  "migrations": [],
+  "release_gates": [
+    "catalog-valid",
+    "tests-pass",
+    "schema-valid",
+    "skill-valid",
+    "conformance-pass",
+    "diff-check"
+  ],
+  "policies": {
+    "installer_managed_mutation": true,
+    "installation_does_not_initialize_project": true,
+    "preserve_project_manifest_on_upgrade": true,
+    "backup_required_for_rollback": true,
+    "major_interface_change_requires_migration": true,
+    "runtime_dependency_install_forbidden": true
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "personalization": {
+    "response_detail": [
+      "concise",
+      "balanced",
+      "detailed"
+    ],
+    "team_tone": [
+      "quiet",
+      "balanced",
+      "lively"
+    ],
+    "humor": [
+      "off",
+      "light",
+      "playful"
+    ],
+    "status_style": [
+      "concise",
+      "conversational"
+    ],
+    "signatures": [
+      "hidden",
+      "visible"
+    ]
+  },
+  "gate_requirements": {
+    "second-context": {
+      "second_context": true
+    },
+    "peer-challenge": {
+      "peer_challenge": true
+    },
+    "independent-testing-from-developer": {
+      "tester_separate_from_developer": true
+    },
+    "independent-review-from-developer": {
+      "reviewer_separate_from_developer": true
+    },
+    "reviewer-independent-from-tester": {
+      "reviewer_separate_from_tester": true
+    },
+    "product-independent-from-coordinator": {
+      "product_separate_from_coordinator": true
+    }
+  },
+  "risk_requirements": {
+    "regulated-data": {
+      "tester_separate_from_developer": true,
+      "reviewer_separate_from_developer": true,
+      "reviewer_separate_from_tester": true
+    },
+    "security-critical": {
+      "tester_separate_from_developer": true,
+      "reviewer_separate_from_developer": true
+    },
+    "difficult-to-reverse": {
+      "tester_separate_from_developer": true,
+      "reviewer_separate_from_developer": true
+    },
+    "production-destructive": {
+      "tester_separate_from_developer": true,
+      "reviewer_separate_from_developer": true,
+      "reviewer_separate_from_tester": true
+    }
+  },
+  "event_actions": {
+    "user-selection-changed": "re-resolve-preset",
+    "host-capacity-changed": "rebind",
+    "member-availability-changed": "rebind",
+    "personalization-changed": "patch",
+    "role-transitioned": "rebuild-projection",
+    "stage-transitioned": "rebuild-projection",
+    "checkpoint-transitioned": "rebuild-projection",
+    "scope-changed": "rebuild-projection",
+    "acceptance-criteria-changed": "rebuild-projection",
+    "requested-action-changed": "rebuild-projection",
+    "affected-components-changed": "rebuild-projection",
+    "risk-changed": "re-resolve-preset",
+    "gate-changed": "re-resolve-preset",
+    "finding-opened": "rebuild-projection",
+    "finding-dispositioned": "rebuild-projection",
+    "handoff-received": "rebuild-projection",
+    "source-version-changed": "rebuild-projection",
+    "source-unavailable": "block",
+    "pre-high-impact-action": "rebuild-projection"
+  },
+  "projection_lifecycle": {
+    "normal_transition": "superseded",
+    "stale_or_unsafe": "invalidated"
+  }
+}

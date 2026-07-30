@@ -22,7 +22,8 @@ work, approval state, or claims of independence in the profile.
 
 ## Authoritative Fields
 
-Define:
+Store standard profiles in
+[`config/agents.json`](../config/agents.json). Define:
 
 | Field | Purpose |
 | --- | --- |
@@ -56,23 +57,29 @@ Combine the capsule with a role projection; never let it replace the role.
 
 ## Personalization
 
-Allow lightweight presentation overrides:
+Allow lightweight presentation overrides through the runtime input:
 
-```yaml
-personalization:
-  agent_aliases:
-    wolf: "阿狼"
-  team_tone: balanced
-  humor: light
-  status_style: concise
-  signatures: visible
+```json
+{
+  "personalization": {
+    "agent_aliases": {
+      "wolf": "阿狼"
+    },
+    "response_detail": "balanced",
+    "team_tone": "balanced",
+    "humor": "light",
+    "status_style": "concise",
+    "signatures": "visible"
+  }
+}
 ```
 
 Support:
 
 - `agent_aliases`: change display names while preserving profile IDs;
+- `response_detail`: `concise`, `balanced`, or `detailed`;
 - `team_tone`: `quiet`, `balanced`, or `lively`;
-- `humor`: `off` or `light`;
+- `humor`: `off`, `light`, or `playful`;
 - `status_style`: `concise` or `conversational`;
 - `signatures`: `hidden` or `visible`.
 
@@ -96,3 +103,5 @@ Reject or revise a profile when:
 - personalization can weaken governance or change a stable ID;
 - the capsule is merely a copy of the full profile;
 - two profiles differ only by name and cosmetic wording.
+
+Run `node scripts/zipzap.mjs validate` after changing the profile catalog.

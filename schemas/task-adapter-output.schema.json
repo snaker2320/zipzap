@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/task-adapter-output.schema.json",
+  "title": "ZipZap Task Adapter Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "action",
+    "response",
+    "task_patch"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "action": {
+      "enum": [
+        "execute",
+        "resume"
+      ]
+    },
+    "response": {
+      "$ref": "./l5-output.schema.json"
+    },
+    "task_patch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "base_revision",
+        "next_revision",
+        "status",
+        "risk_assessment",
+        "governance_snapshot",
+        "runtime_snapshot",
+        "continuation",
+        "invalidates_previous_runtime"
+      ],
+      "properties": {
+        "base_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "next_revision": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "status": {
+          "enum": [
+            "in-progress",
+            "blocked",
+            "review",
+            "completed"
+          ]
+        },
+        "risk_assessment": {
+          "$ref": "./risk-assessment-output.schema.json"
+        },
+        "governance_snapshot": {
+          "$ref": "./task.schema.json#/$defs/governance_snapshot"
+        },
+        "runtime_snapshot": {
+          "oneOf": [
+            {
+              "$ref": "./task.schema.json#/$defs/runtime_snapshot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "continuation": {
+          "oneOf": [
+            {
+              "$ref": "./task.schema.json#/$defs/continuation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invalidates_previous_runtime": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

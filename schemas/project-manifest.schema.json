@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/project-manifest.schema.json",
+  "title": "ZipZap Project Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project_id",
+    "sources"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "extensions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/extension"
+      }
+    },
+    "collaboration": {
+      "$ref": "#/$defs/collaboration"
+    },
+    "persistence": {
+      "$ref": "#/$defs/persistence"
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "locator",
+        "topics"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "instructions",
+            "standard",
+            "requirement",
+            "architecture",
+            "decision",
+            "reference"
+          ],
+          "default": "reference"
+        },
+        "format": {
+          "enum": [
+            "markdown",
+            "json",
+            "text",
+            "external"
+          ],
+          "default": "markdown"
+        },
+        "loading": {
+          "enum": [
+            "host-managed",
+            "on-demand",
+            "external-resource"
+          ],
+          "default": "on-demand"
+        },
+        "description": {
+          "type": "string"
+        },
+        "authority": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "selectors": {
+          "$ref": "#/$defs/selectors"
+        },
+        "priority": {
+          "type": "integer",
+          "default": 0
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "selectors": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "functions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "checkpoints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "work_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "risk_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "extension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "locator"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "kind": {
+          "enum": [
+            "role",
+            "agent",
+            "team",
+            "control-function",
+            "runtime-policy"
+          ]
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "collaboration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preferred_preset": {
+          "enum": [
+            "auto",
+            "solo",
+            "copilot",
+            "trio",
+            "squad"
+          ]
+        },
+        "enabled_presets": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "solo",
+              "copilot",
+              "trio",
+              "squad"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "enabled_roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "personalization": {
+          "$ref": "./l5-input.schema.json#/$defs/collaboration/properties/personalization"
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adapter"
+      ],
+      "properties": {
+        "adapter": {
+          "const": "local-json"
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "default": ".zipzap/tasks"
+        }
+      }
+    }
+  }
+}

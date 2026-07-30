@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/conformance-vector.schema.json",
+  "title": "ZipZap L6 Kernel Conformance Vector",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "request",
+    "expected"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "request": {
+      "$ref": "./runtime-input.schema.json"
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "participant",
+        "assurance_mode"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "ready",
+            "decision-required",
+            "blocked"
+          ]
+        },
+        "participant": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "profile",
+            "assignment"
+          ],
+          "properties": {
+            "profile": {
+              "type": "string"
+            },
+            "assignment": {
+              "type": "string"
+            }
+          }
+        },
+        "assurance_mode": {
+          "enum": [
+            "self",
+            "peer-challenge",
+            "independent-from-developer",
+            "full-separation",
+            "unavailable",
+            "custom"
+          ]
+        }
+      }
+    }
+  }
+}

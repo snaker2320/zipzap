@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/onboarding-output.schema.json",
+  "title": "ZipZap Guided Onboarding Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "state",
+    "write_performed",
+    "storage"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "enum": [
+        "decision-required",
+        "preview-ready",
+        "completed",
+        "blocked"
+      ]
+    },
+    "state": {
+      "$ref": "./onboarding-input.schema.json#/$defs/state"
+    },
+    "question": {
+      "$ref": "#/$defs/question"
+    },
+    "form": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fields"
+      ],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/question"
+          }
+        }
+      }
+    },
+    "preview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "configuration",
+        "changes",
+        "warnings"
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "session",
+            "user",
+            "project"
+          ]
+        },
+        "configuration": {
+          "$ref": "./onboarding-input.schema.json#/$defs/configuration"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "field",
+              "from",
+              "to"
+            ],
+            "properties": {
+              "field": {
+                "type": "string"
+              },
+              "from": {},
+              "to": {}
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "write_performed": {
+      "type": "boolean"
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "target",
+        "application_required"
+      ],
+      "properties": {
+        "scope": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            null,
+            "session",
+            "user",
+            "project"
+          ]
+        },
+        "target": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "application_required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "configuration": {
+      "$ref": "./onboarding-input.schema.json#/$defs/configuration"
+    },
+    "configuration_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "label",
+        "description",
+        "recommended"
+      ],
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "recommended": {
+          "type": "boolean"
+        }
+      }
+    },
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "field",
+        "group",
+        "label",
+        "description",
+        "kind",
+        "options",
+        "current_value"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "group": {
+          "enum": [
+            "core",
+            "advanced"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "single-select"
+        },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "current_value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

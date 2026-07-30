@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "squad-high-risk",
+  "request": {
+    "schema_version": 1,
+    "work": {
+      "id": "squad-high-risk",
+      "objective": "Verify a regulated high-risk change.",
+      "requested_action": "verify",
+      "scope": [],
+      "affected_components": [
+        "regulated-data"
+      ]
+    },
+    "governance": {
+      "risk_flags": [
+        "regulated-data"
+      ],
+      "required_gates": [],
+      "required_evidence": [
+        "tests"
+      ],
+      "project_sources": []
+    },
+    "host": {
+      "concurrency_limit": 2,
+      "distinct_context_limit": 5
+    },
+    "state": {
+      "current_role": "tester",
+      "current_stage": "verify"
+    }
+  },
+  "expected": {
+    "status": "ready",
+    "participant": {
+      "profile": "lynx",
+      "assignment": "tester"
+    },
+    "assurance_mode": "full-separation"
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/l5-adapter-input.schema.json",
+  "title": "ZipZap L5 Adapter Invocation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request",
+    "context"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "request": {
+      "$ref": "./l5-input.schema.json"
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "risk_normalization": {
+          "$ref": "./risk-normalization-input.schema.json"
+        },
+        "workflow_status": {
+          "enum": [
+            "ready",
+            "decision-required",
+            "blocked",
+            "completed"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "initialization": {
+          "$ref": "./l5-output.schema.json#/$defs/initialization"
+        },
+        "inspection_result": {
+          "$ref": "./l5-output.schema.json#/$defs/inspection_result"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "request": {
+            "properties": {
+              "operation": {
+                "enum": [
+                  "execute",
+                  "resume"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "context": {
+            "required": [
+              "risk_normalization"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "request": {
+            "properties": {
+              "operation": {
+                "const": "initialize"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "context": {
+            "required": [
+              "workflow_status",
+              "initialization"
+            ],
+            "properties": {
+              "workflow_status": {
+                "enum": [
+                  "decision-required",
+                  "blocked",
+                  "completed"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "request": {
+            "properties": {
+              "operation": {
+                "const": "inspect"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "context": {
+            "required": [
+              "workflow_status",
+              "inspection_result"
+            ],
+            "properties": {
+              "workflow_status": {
+                "enum": [
+                  "blocked",
+                  "completed"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

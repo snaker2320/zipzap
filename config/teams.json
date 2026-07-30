@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "order": [
+    "solo",
+    "copilot",
+    "trio",
+    "squad"
+  ],
+  "teams": {
+    "solo": {
+      "display_name": "Solo",
+      "summary": "One adaptive profile executes roles sequentially with explicit boundaries.",
+      "select_when": [
+        "Work is bounded, reversible, low risk, objectively verifiable, and needs no independent gate."
+      ],
+      "avoid_when": [
+        "Independent review, separation of duties, adversarial testing, specialized authority, or material risk acceptance is required."
+      ],
+      "members": [
+        {
+          "slot": "primary",
+          "profile": "owl",
+          "functions": [
+            "coordinator"
+          ],
+          "roles": [
+            "product",
+            "developer",
+            "tester",
+            "reviewer"
+          ]
+        }
+      ],
+      "assurance": {
+        "second_context": false,
+        "peer_challenge": false,
+        "tester_separate_from_developer": false,
+        "reviewer_separate_from_developer": false,
+        "reviewer_separate_from_tester": false,
+        "product_separate_from_coordinator": false
+      },
+      "schedule_waves": [
+        [
+          "primary"
+        ]
+      ],
+      "degradation": {
+        "fallback": null,
+        "on_assurance_gap": "Upgrade to Trio or Squad, add a distinct human or Agent gate, or stop with the gap disclosed."
+      }
+    },
+    "copilot": {
+      "display_name": "Copilot",
+      "summary": "One primary Agent executes while a second context accompanies, challenges, and advises.",
+      "select_when": [
+        "Everyday low-to-normal-risk execution benefits from continuous second-context challenge without a formal independent gate."
+      ],
+      "avoid_when": [
+        "Formal independent testing or review is required."
+      ],
+      "members": [
+        {
+          "slot": "pilot",
+          "profile": "wolf",
+          "functions": [
+            "coordinator"
+          ],
+          "roles": [
+            "product",
+            "developer",
+            "tester",
+            "reviewer"
+          ]
+        },
+        {
+          "slot": "copilot",
+          "profile": "eagle",
+          "functions": [
+            "advisor"
+          ],
+          "roles": [],
+          "artifact_access": "read-only"
+        }
+      ],
+      "assurance": {
+        "second_context": true,
+        "peer_challenge": true,
+        "tester_separate_from_developer": false,
+        "reviewer_separate_from_developer": false,
+        "reviewer_separate_from_tester": false,
+        "product_separate_from_coordinator": false
+      },
+      "schedule_waves": [
+        [
+          "pilot"
+        ],
+        [
+          "copilot"
+        ]
+      ],
+      "degradation": {
+        "fallback": "solo",
+        "on_member_unavailable": "Disclose loss of second-context challenge.",
+        "on_assurance_gap": "Upgrade to Trio or Squad or add a distinct qualified human or Agent gate."
+      }
+    },
+    "trio": {
+      "display_name": "Trio",
+      "summary": "A compact delivery team separating implementation from assurance.",
+      "select_when": [
+        "Normal collaborative or persistent delivery needs testing and review separated from development."
+      ],
+      "avoid_when": [
+        "Testing and review must be mutually independent or Product must be separate from coordination."
+      ],
+      "members": [
+        {
+          "slot": "coordinator",
+          "profile": "owl",
+          "functions": [
+            "coordinator"
+          ],
+          "roles": [
+            "product"
+          ]
+        },
+        {
+          "slot": "builder",
+          "profile": "wolf",
+          "functions": [],
+          "roles": [
+            "developer"
+          ]
+        },
+        {
+          "slot": "assurance",
+          "profile": "eagle",
+          "functions": [],
+          "roles": [
+            "tester",
+            "reviewer"
+          ]
+        }
+      ],
+      "assurance": {
+        "second_context": true,
+        "peer_challenge": true,
+        "tester_separate_from_developer": true,
+        "reviewer_separate_from_developer": true,
+        "reviewer_separate_from_tester": false,
+        "product_separate_from_coordinator": false
+      },
+      "schedule_waves": [
+        [
+          "coordinator"
+        ],
+        [
+          "builder"
+        ],
+        [
+          "assurance"
+        ]
+      ],
+      "degradation": {
+        "fallback": null,
+        "on_assurance_gap": "Substitute another distinct profile or human, upgrade to Squad, or stop the affected gate."
+      }
+    },
+    "squad": {
+      "display_name": "Squad",
+      "summary": "A full specialist team separating coordination, product, development, testing, and review.",
+      "select_when": [
+        "Work is high risk, broad, complex, regulated, difficult to reverse, or requires full role separation."
+      ],
+      "avoid_when": [
+        "Fewer contexts satisfy the required outcome and gates."
+      ],
+      "members": [
+        {
+          "slot": "coordinator",
+          "profile": "owl",
+          "functions": [
+            "coordinator"
+          ],
+          "roles": []
+        },
+        {
+          "slot": "product",
+          "profile": "fox",
+          "functions": [],
+          "roles": [
+            "product"
+          ]
+        },
+        {
+          "slot": "builder",
+          "profile": "wolf",
+          "functions": [],
+          "roles": [
+            "developer"
+          ]
+        },
+        {
+          "slot": "verifier",
+          "profile": "lynx",
+          "functions": [],
+          "roles": [
+            "tester"
+          ]
+        },
+        {
+          "slot": "reviewer",
+          "profile": "eagle",
+          "functions": [],
+          "roles": [
+            "reviewer"
+          ]
+        }
+      ],
+      "assurance": {
+        "second_context": true,
+        "peer_challenge": true,
+        "tester_separate_from_developer": true,
+        "reviewer_separate_from_developer": true,
+        "reviewer_separate_from_tester": true,
+        "product_separate_from_coordinator": true
+      },
+      "schedule_waves": [
+        [
+          "coordinator",
+          "product"
+        ],
+        [
+          "coordinator",
+          "builder"
+        ],
+        [
+          "coordinator",
+          "verifier"
+        ],
+        [
+          "coordinator",
+          "reviewer"
+        ]
+      ],
+      "degradation": {
+        "fallback": null,
+        "on_assurance_gap": "Reassign to a distinct profile or human with provenance, otherwise stop the affected gate."
+      }
+    }
+  }
+}

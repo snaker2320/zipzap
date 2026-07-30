@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "invariants": [
+    {
+      "id": "role-profile-separation",
+      "rule": "Keep accountable roles separate from named Agent Profiles."
+    },
+    {
+      "id": "topology-concurrency-separation",
+      "rule": "Keep logical Team Presets separate from host concurrency."
+    },
+    {
+      "id": "personalization-governance-boundary",
+      "rule": "Do not let personalization change authority, rules, gates, evidence, or independence."
+    },
+    {
+      "id": "project-rule-single-source",
+      "rule": "Keep project-specific rules at their authoritative project source."
+    },
+    {
+      "id": "ephemeral-work-default",
+      "rule": "Maintain a Work Context for every request and persist a Task only when durable coordination or governance adds value."
+    },
+    {
+      "id": "truthful-assurance",
+      "rule": "Do not label self-review, peer challenge, or co-authored work as independent review."
+    },
+    {
+      "id": "evidence-backed-completion",
+      "rule": "Support completion claims with applicable evidence and gate state."
+    },
+    {
+      "id": "minimal-runtime-context",
+      "rule": "Inject the smallest sufficient runtime projection and recompose it when governing inputs change."
+    }
+  ],
+  "standard_stages": [
+    "frame",
+    "plan",
+    "produce",
+    "verify",
+    "self-review",
+    "review",
+    "resolve",
+    "accept",
+    "complete",
+    "handoff"
+  ],
+  "assurance_claims": [
+    "implemented",
+    "verified",
+    "tested",
+    "self-reviewed",
+    "peer-challenged",
+    "independently-reviewed",
+    "accepted",
+    "blocked",
+    "completed"
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "trio-review",
+  "request": {
+    "schema_version": 1,
+    "work": {
+      "id": "trio-review",
+      "objective": "Independently review a normal delivery.",
+      "requested_action": "review",
+      "scope": [],
+      "affected_components": []
+    },
+    "governance": {
+      "risk_flags": [],
+      "required_gates": [
+        "independent-testing-from-developer",
+        "independent-review-from-developer"
+      ],
+      "required_evidence": [
+        "tests"
+      ],
+      "project_sources": []
+    },
+    "host": {
+      "concurrency_limit": 2,
+      "distinct_context_limit": 3
+    },
+    "state": {
+      "current_role": "reviewer",
+      "current_stage": "review"
+    }
+  },
+  "expected": {
+    "status": "ready",
+    "participant": {
+      "profile": "eagle",
+      "assignment": "reviewer"
+    },
+    "assurance_mode": "independent-from-developer"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "copilot-advice",
+  "request": {
+    "schema_version": 1,
+    "work": {
+      "id": "copilot-advice",
+      "objective": "Challenge an implementation before verification.",
+      "requested_action": "review",
+      "scope": [],
+      "affected_components": []
+    },
+    "preferences": {
+      "team_preset": "copilot"
+    },
+    "governance": {
+      "risk_flags": [],
+      "required_gates": [
+        "second-context"
+      ],
+      "required_evidence": [],
+      "project_sources": []
+    },
+    "host": {
+      "concurrency_limit": 2,
+      "distinct_context_limit": 2
+    },
+    "state": {
+      "target_slot": "copilot",
+      "current_function": "advisor",
+      "current_checkpoint": "pre-verification"
+    }
+  },
+  "expected": {
+    "status": "ready",
+    "participant": {
+      "profile": "eagle",
+      "assignment": "advisor"
+    },
+    "assurance_mode": "peer-challenge"
+  }
+}

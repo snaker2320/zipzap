@@ -16,7 +16,8 @@ presets. Do not load it for routine execution under a selected preset.
 
 ## Purpose and Boundary
 
-Define a Team Preset as a reusable collaboration topology. Let it choose logical
+Define a Team Preset as a reusable collaboration topology. Store standard
+presets in [`config/teams.json`](../config/teams.json). Let a preset choose logical
 agent slots, default profiles, default role or control-plane bindings,
 independence constraints, assurance limits, and degradation behavior.
 
@@ -92,30 +93,9 @@ Never degrade Squad, Trio, or Copilot to a weaker topology silently.
 
 ## Binding Manifest
 
-Emit an inspectable binding:
-
-```yaml
-team_binding:
-  preset: trio
-  personalization:
-    team_tone: balanced
-    humor: light
-    status_style: concise
-  members:
-    - slot: coordinator
-      profile: owl
-      functions: [coordinator]
-      roles: [product]
-    - slot: builder
-      profile: wolf
-      roles: [developer]
-    - slot: assurance
-      profile: eagle
-      roles: [tester, reviewer]
-  assurance:
-    reviewer_separate_from_developer: true
-    reviewer_separate_from_tester: false
-```
+Generate an inspectable diagnostic binding with
+`node scripts/zipzap.mjs bind --input <kernel-request.json>`. Do not author or
+maintain a binding by hand; it is derived, revisioned runtime state.
 
 ## Validation Rules
 
@@ -128,3 +108,5 @@ Reject or revise a preset when:
 - unavailable members cause an undisclosed assurance downgrade;
 - personalization changes governance;
 - its selection guidance depends only on headcount rather than work assurance.
+
+Run `node scripts/zipzap.mjs validate` after changing a preset.

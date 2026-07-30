@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/lifecycle-input.schema.json",
+  "title": "ZipZap L7 Lifecycle Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "operation": {
+      "enum": [
+        "build-release",
+        "verify-release",
+        "publish",
+        "install",
+        "upgrade",
+        "rollback"
+      ]
+    },
+    "release_manifest": {
+      "$ref": "./release-manifest.schema.json"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gate",
+          "status",
+          "evidence_ref"
+        ],
+        "properties": {
+          "gate": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "status": {
+            "const": "passed"
+          },
+          "evidence_ref": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "host_conformance": {
+      "$ref": "./conformance-result.schema.json"
+    },
+    "installed_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "target_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "backup_available": {
+      "type": "boolean"
+    },
+    "project_state_preserved": {
+      "type": "boolean"
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "operation": {
+          "const": "build-release"
+        }
+      }
+    },
+    {
+      "properties": {
+        "operation": {
+          "const": "verify-release"
+        }
+      },
+      "required": [
+        "release_manifest"
+      ]
+    },
+    {
+      "properties": {
+        "operation": {
+          "const": "publish"
+        }
+      },
+      "required": [
+        "release_manifest",
+        "evidence"
+      ]
+    },
+    {
+      "properties": {
+        "operation": {
+          "const": "install"
+        }
+      },
+      "required": [
+        "target_version",
+        "host_conformance"
+      ]
+    },
+    {
+      "properties": {
+        "operation": {
+          "const": "upgrade"
+        }
+      },
+      "required": [
+        "installed_version",
+        "target_version",
+        "host_conformance"
+      ]
+    },
+    {
+      "properties": {
+        "operation": {
+          "const": "rollback"
+        }
+      },
+      "required": [
+        "installed_version",
+        "target_version",
+        "host_conformance",
+        "backup_available",
+        "project_state_preserved"
+      ]
+    }
+  ],
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    }
+  }
+}

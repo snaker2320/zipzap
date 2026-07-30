@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "solo-basic",
+  "request": {
+    "schema_version": 1,
+    "work": {
+      "id": "solo-basic",
+      "objective": "Implement a bounded reversible change.",
+      "requested_action": "modify",
+      "scope": [],
+      "affected_components": []
+    },
+    "governance": {
+      "risk_flags": [],
+      "required_gates": [],
+      "required_evidence": [],
+      "project_sources": []
+    },
+    "host": {
+      "concurrency_limit": 1,
+      "distinct_context_limit": 1
+    },
+    "state": {
+      "current_role": "developer",
+      "current_stage": "produce"
+    }
+  },
+  "expected": {
+    "status": "ready",
+    "participant": {
+      "profile": "owl",
+      "assignment": "developer"
+    },
+    "assurance_mode": "self"
+  }
+}
