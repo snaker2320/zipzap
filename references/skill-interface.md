@@ -76,6 +76,12 @@ Keep page rendering, stepwise questioning, and host user-state writes outside
 the stable L5 interface. Keep preference validation, project-manifest storage,
 and governance boundaries identical across presentations.
 
+Return `decision_bundles` on every successful L5 response. Use an empty array
+when no decision is active. When status is `decision-required`, include one or
+more bundles conforming to `schemas/decision-bundle.schema.json` and retain
+`decisions_required` only as a compact compatibility summary. Split questions
+that require different authorities into separate bundles.
+
 Use `source-resolve` after initialization to match Role, stage, action,
 component, and risk selectors. Treat missing-source behavior as explicit
 policy. Treat Host-preloaded instructions as already available and do not

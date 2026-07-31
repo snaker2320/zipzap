@@ -604,7 +604,7 @@ test("captures shareable Feedback with a minimal derived Task snapshot", (contex
   });
   assert.equal(
     captured.feedback.zipzap_snapshot.skill_version,
-    "0.1.1-beta.2"
+    "0.1.1-beta.3"
   );
   assert.equal(captured.feedback.task_snapshot.task_id, "task-1");
   assert.equal(captured.feedback.task_snapshot.completion, "ready-to-complete");

@@ -18,6 +18,12 @@ Send `presentation: form` to receive all page-ready fields. Send
 presentations use the same state, validation, preview, and confirmation rules.
 Do not require Plan mode.
 
+Return the same canonical `decision_bundles` contract for both presentations.
+A form uses one atomic bundle containing all visible questions. Stepwise
+conversation uses an incremental bundle containing the next question while
+preserving state revision. The preview returns a confirmation bundle before
+any preference write.
+
 When First Run chooses presentation automatically, use `guided-form` when
 available and `stepwise` otherwise. Do not ask users to decide between these
 presentation mechanisms.

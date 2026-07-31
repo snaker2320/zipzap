@@ -29,6 +29,10 @@ Run:
    manifest write.
 6. Return the stored initialization and post-check result.
 
+Expose preference collection and final confirmation through
+`decision_bundles`. Keep the legacy `form` or `question` projection for
+compatible hosts, but treat the bundle as the authoritative rendering input.
+
 Always show the core preference fields before confirmation:
 
 - configuration scope;

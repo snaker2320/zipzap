@@ -10,6 +10,7 @@
     "next_action",
     "assurance",
     "decisions_required",
+    "decision_bundles",
     "continuation",
     "diagnostics_ref"
   ],
@@ -41,6 +42,12 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/decision"
+      }
+    },
+    "decision_bundles": {
+      "type": "array",
+      "items": {
+        "$ref": "./decision-bundle.schema.json"
       }
     },
     "continuation": {
@@ -95,6 +102,31 @@
         "properties": {
           "decisions_required": {
             "minItems": 1
+          },
+          "decision_bundles": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "ready",
+              "blocked"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision_bundles": {
+            "maxItems": 0
           }
         }
       }

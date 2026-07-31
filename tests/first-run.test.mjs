@@ -97,6 +97,8 @@ test("guides discovery and visible preferences before one project write", (conte
   );
 
   assert.equal(started.status, "decision-required");
+  assert.equal(started.decision_bundles.length, 1);
+  assert.equal(started.decision_bundles[0].questions.length, 6);
   assert.equal(started.write_performed, false);
   assert.equal(fs.existsSync(manifestPath), false);
   assert.deepEqual(
@@ -125,6 +127,10 @@ test("guides discovery and visible preferences before one project write", (conte
     signatures: "visible"
   });
   assert.equal(preview.status, "preview-ready");
+  assert.equal(
+    preview.decision_bundles[0].questions[0].kind,
+    "confirm"
+  );
   assert.equal(preview.write_performed, false);
   assert.equal(fs.existsSync(manifestPath), false);
   assert.equal(

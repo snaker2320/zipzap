@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildDecisionBundles,
   compose,
   evaluateKernel,
   loadCatalogs,
@@ -73,7 +74,7 @@ test("catalogs are internally valid", () => {
     task_policies: 12,
     onboarding_questions: 6,
     adapters: 3,
-    releases: 4
+    releases: 5
   });
 });
 
@@ -153,9 +154,11 @@ test("L4 Kernel defaults routine work to Developer Produce without prompting", (
   assert.equal(result.next_action.participant.role, "developer");
   assert.equal(result.next_action.participant.stage, "produce");
   assert.deepEqual(result.decisions_required, []);
+  assert.deepEqual(result.decision_bundles, []);
   assert.deepEqual(Object.keys(result).sort(), [
     "assurance",
     "continuation",
+    "decision_bundles",
     "decisions_required",
     "diagnostics_ref",
     "next_action",
@@ -355,6 +358,81 @@ test("requires explicit authorization before binding multiple Agent contexts", (
   assert.equal(
     result.decisions_required[0].code,
     "multi-agent-authorization-required"
+  );
+  assert.equal(result.decision_bundles.length, 1);
+  assert.equal(result.decision_bundles[0].required_authority, "user");
+  assert.equal(
+    result.decision_bundles[0].questions[0].kind,
+    "single-select"
+  );
+  assert.deepEqual(
+    result.decision_bundles[0].questions[0].options.map((option) => option.id),
+    ["granted", "denied"]
+  );
+});
+
+test("builds atomic multi-select forms and separates decision authorities", () => {
+  const bundles = buildDecisionBundles(
+    [
+      {
+        code: "choose-scouts",
+        kind: "multi-select",
+        label: "Choose exploration lenses",
+        description: "Select the roles that should investigate independently.",
+        required_authority: "user",
+        min_selections: 1,
+        max_selections: 3,
+        options: [
+          { id: "business", label: "Business" },
+          { id: "technology", label: "Technology" },
+          { id: "risk", label: "Risk" }
+        ]
+      },
+      {
+        code: "accept-business-scope",
+        message: "Accept the resulting business scope.",
+        required_authority: "product-owner"
+      }
+    ],
+    {
+      id: "exploration-setup",
+      title: "Configure exploration",
+      context: "Resolve the exploration setup before launching Agent contexts."
+    }
+  );
+
+  assert.equal(bundles.length, 2);
+  const userBundle = bundles.find(
+    (bundle) => bundle.required_authority === "user"
+  );
+  assert.equal(userBundle.submit_mode, "atomic");
+  assert.equal(userBundle.questions[0].kind, "multi-select");
+  assert.equal(userBundle.questions[0].min_selections, 1);
+  assert.equal(userBundle.questions[0].max_selections, 3);
+  assert.equal(
+    bundles.find((bundle) => bundle.required_authority === "product-owner")
+      .questions.length,
+    1
+  );
+});
+
+test("rejects invalid decision form selection bounds", () => {
+  assert.throws(
+    () =>
+      buildDecisionBundles([
+        {
+          code: "choose-scouts",
+          kind: "multi-select",
+          description: "Choose exploration roles.",
+          min_selections: 2,
+          max_selections: 1,
+          options: [
+            { id: "product", label: "Product" },
+            { id: "risk", label: "Risk" }
+          ]
+        }
+      ]),
+    /selection bounds are invalid/
   );
 });
 

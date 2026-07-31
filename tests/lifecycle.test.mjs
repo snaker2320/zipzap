@@ -48,7 +48,7 @@ test("builds a deterministic zero-dependency release manifest", () => {
   const second = buildReleaseManifest(catalogs);
   assert.deepEqual(first, second);
   assert.deepEqual(first.runtime_dependencies, []);
-  assert.equal(first.skill.version, "0.1.1-beta.2");
+  assert.equal(first.skill.version, "0.1.1-beta.3");
   assert.equal(first.skill.channel, "beta");
   assert.equal(
     first.files.some((file) => file.path === "SKILL.md"),
@@ -77,6 +77,12 @@ test("builds a deterministic zero-dependency release manifest", () => {
   assert.equal(
     first.files.some(
       (file) => file.path === "schemas/onboarding-output.schema.json"
+    ),
+    true
+  );
+  assert.equal(
+    first.files.some(
+      (file) => file.path === "schemas/decision-bundle.schema.json"
     ),
     true
   );
@@ -151,7 +157,7 @@ test("rejects a release channel that disagrees with the semantic version", () =>
         },
         catalogs
       ),
-    /channel development does not match version 0\.1\.1-beta\.2/
+    /channel development does not match version 0\.1\.1-beta\.3/
   );
 });
 
@@ -163,7 +169,7 @@ test("upgrades both beta archive and misreported internal versions", () => {
         schema_version: 1,
         operation: "upgrade",
         installed_version: installedVersion,
-        target_version: "0.1.1-beta.2",
+        target_version: "0.1.1-beta.3",
         host_conformance: host
       },
       catalogs
@@ -186,7 +192,7 @@ test("routes uninitialized and incomplete projects during upgrade checks", (cont
       schema_version: 1,
       operation: "upgrade",
       installed_version: "0.1.0-beta.1",
-      target_version: "0.1.1-beta.2",
+      target_version: "0.1.1-beta.3",
       host_conformance: host,
       project: {
         id: "example",
@@ -225,7 +231,7 @@ test("routes uninitialized and incomplete projects during upgrade checks", (cont
       schema_version: 1,
       operation: "upgrade",
       installed_version: "0.1.0-beta.1",
-      target_version: "0.1.1-beta.2",
+      target_version: "0.1.1-beta.3",
       host_conformance: host,
       project: {
         id: "example",
@@ -243,7 +249,7 @@ test("routes uninitialized and incomplete projects during upgrade checks", (cont
       schema_version: 1,
       operation: "verify-upgrade",
       installed_version: "0.1.0-beta.1",
-      target_version: "0.1.1-beta.2",
+      target_version: "0.1.1-beta.3",
       host_conformance: host,
       release_manifest: buildReleaseManifest(catalogs),
       project: {
@@ -295,7 +301,7 @@ test("blocks post-upgrade verification when project state changed", (context) =>
       schema_version: 1,
       operation: "upgrade",
       installed_version: "0.1.0-beta.1",
-      target_version: "0.1.1-beta.2",
+      target_version: "0.1.1-beta.3",
       host_conformance: compatibleHost(),
       project: {
         locator: projectRoot
@@ -313,7 +319,7 @@ test("blocks post-upgrade verification when project state changed", (context) =>
       schema_version: 1,
       operation: "verify-upgrade",
       installed_version: "0.1.0-beta.1",
-      target_version: "0.1.1-beta.2",
+      target_version: "0.1.1-beta.3",
       host_conformance: compatibleHost(),
       release_manifest: buildReleaseManifest(catalogs),
       project: {

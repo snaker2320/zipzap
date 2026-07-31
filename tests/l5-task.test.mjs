@@ -251,6 +251,11 @@ test("unified L5 invoke returns risk decisions without entering L4", () => {
     "risk-signal-unresolved"
   ]);
   assert.equal(response.execution, undefined);
+  assert.equal(response.decision_bundles.length, 1);
+  assert.equal(
+    response.decision_bundles[0].questions[0].source_decision_code,
+    "risk-signal-unresolved"
+  );
   assert.equal(
     response.decisions_required[0].code,
     "risk-signal-unresolved"

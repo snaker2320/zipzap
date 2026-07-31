@@ -32,11 +32,16 @@ implementing or debugging that boundary.
 - Interrupt only for material ambiguity, authority, approval, unsafe or
   irreversible action, missing governing sources, or an unmet gate.
 - Ask one concise question for one accountable decision.
+- At a critical checkpoint, emit structured Decision Bundles. One bundle may
+  contain multiple related single-select, multi-select, or confirmation
+  questions for the same authority; split different authorities.
 - Persist only for continuity, coordination, approval, tracking, durable
   Findings, auditability, or project policy.
 
 Read [the execution policy](references/execution-policy.md) when selecting
 persistence, assurance, or gates.
+Read [Decision Forms](references/decision-forms.md) when presenting or changing
+structured choices at a critical checkpoint.
 
 ## Route Work by Outcome
 

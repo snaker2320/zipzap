@@ -46,6 +46,10 @@
     "no_task_for_routine_ephemeral_work": true,
     "no_preference_prompt_when_defaults_apply": true,
     "no_status_prompt_for_ready_work": true,
-    "one_prompt_for_one_accountable_decision": true
+    "one_prompt_for_one_accountable_decision": true,
+    "structured_choices_available_without_plan_mode": true,
+    "multiple_questions_share_one_authority": true,
+    "different_authorities_use_separate_bundles": true,
+    "decision_preview_precedes_material_effect": true
   }
 }

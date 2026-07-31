@@ -61,6 +61,9 @@ test("exposes one page-ready form without requiring Plan mode", () => {
   assert.equal(started.status, "decision-required");
   assert.equal(started.form.fields.length, 6);
   assert.equal(started.question, undefined);
+  assert.equal(started.decision_bundles.length, 1);
+  assert.equal(started.decision_bundles[0].submit_mode, "atomic");
+  assert.equal(started.decision_bundles[0].questions.length, 6);
   assert.equal(catalogs.onboarding.policies.plan_mode_is_optional, true);
   assert.deepEqual(
     started.form.fields
@@ -108,6 +111,10 @@ test("previews and confirms project preferences with revisions", (context) => {
   });
 
   assert.equal(preview.status, "preview-ready");
+  assert.equal(
+    preview.decision_bundles[0].questions[0].kind,
+    "confirm"
+  );
   assert.equal(preview.write_performed, false);
   assert.equal(preview.preview.configuration.preferred_preset, "copilot");
   assert.equal(
@@ -178,6 +185,8 @@ test("supports stepwise conversation over the same contract", (context) => {
   };
 
   while (result.status === "decision-required") {
+    assert.equal(result.decision_bundles[0].submit_mode, "incremental");
+    assert.equal(result.decision_bundles[0].questions.length, 1);
     result = advanceOnboarding(
       {
         schema_version: 1,
@@ -332,5 +341,9 @@ test("registers onboarding policy and schemas", () => {
   assert.equal(
     catalogs.schemas.onboardingOutput.title,
     "ZipZap Guided Onboarding Output"
+  );
+  assert.equal(
+    catalogs.schemas.decisionBundle.title,
+    "ZipZap Decision Bundle"
   );
 });
