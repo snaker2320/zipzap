@@ -23,7 +23,8 @@
     },
     "host": {
       "concurrency_limit": 2,
-      "distinct_context_limit": 2
+      "distinct_context_limit": 2,
+      "multi_agent_authorization": "granted"
     },
     "state": {
       "target_slot": "copilot",

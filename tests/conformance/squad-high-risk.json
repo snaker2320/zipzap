@@ -24,7 +24,8 @@
     },
     "host": {
       "concurrency_limit": 2,
-      "distinct_context_limit": 5
+      "distinct_context_limit": 5,
+      "multi_agent_authorization": "granted"
     },
     "state": {
       "current_role": "tester",

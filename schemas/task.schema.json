@@ -134,6 +134,15 @@
         "intent": {
           "type": "string"
         },
+        "scope_depth": {
+          "$ref": "./l5-input.schema.json#/$defs/request/properties/scope_depth"
+        },
+        "assurance_target": {
+          "$ref": "./l5-input.schema.json#/$defs/request/properties/assurance_target"
+        },
+        "execution_budget": {
+          "$ref": "./l5-input.schema.json#/$defs/execution_budget"
+        },
         "objective": {
           "type": "string",
           "minLength": 1
@@ -372,6 +381,47 @@
     "completion_assessment": {
       "$ref": "#/$defs/completion_assessment"
     },
+    "resource_budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "token_budget",
+        "goal_authorization"
+      ],
+      "properties": {
+        "token_budget": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "goal_authorization": {
+          "enum": [
+            "not-requested",
+            "explicit-user",
+            "denied"
+          ]
+        },
+        "goal_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "goal_id"
+            ]
+          },
+          "then": {
+            "properties": {
+              "goal_authorization": {
+                "const": "explicit-user"
+              }
+            }
+          }
+        }
+      ]
+    },
     "collaboration": {
       "type": "object",
       "additionalProperties": false,
@@ -442,6 +492,14 @@
               "medium",
               "low",
               "advisory"
+            ]
+          },
+          "priority": {
+            "enum": [
+              "p0",
+              "p1",
+              "p2",
+              "p3"
             ]
           },
           "blocking": {
@@ -1048,6 +1106,24 @@
             "type": "string"
           }
         },
+        "subject_risk_signals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "action_risk_signals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "subject_uncertainties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "risk_flags": {
           "type": "array",
           "items": {
@@ -1074,6 +1150,44 @@
         },
         "persistence_required": {
           "type": "boolean"
+        },
+        "execution_profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "assurance_target": {
+          "oneOf": [
+            {
+              "$ref": "./l5-input.schema.json#/$defs/request/properties/assurance_target"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "claim_limit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "review_focus": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "execution_budget": {
+          "oneOf": [
+            {
+              "$ref": "./l5-input.schema.json#/$defs/execution_budget"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },

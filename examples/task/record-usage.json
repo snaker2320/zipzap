@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "usage_id": "example-usage",
+  "task_id": "example-task",
+  "task_revision": 1,
+  "recorded_at": "2026-01-01T00:00:00.000Z",
+  "actor_id": "agent-1",
+  "resource_usage": {
+    "measurement": "exact",
+    "source": "host",
+    "input_tokens": 1200,
+    "output_tokens": 800,
+    "tool_result_tokens": 3000,
+    "total_tokens": 5000
+  },
+  "goal": {
+    "authorization": "explicit-user",
+    "token_budget": 10000,
+    "goal_id": "host-goal-id"
+  }
+}

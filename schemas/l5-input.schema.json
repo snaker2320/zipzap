@@ -164,6 +164,24 @@
           "type": "string",
           "minLength": 1
         },
+        "scope_depth": {
+          "enum": [
+            "design-only",
+            "targeted-implementation",
+            "full"
+          ]
+        },
+        "assurance_target": {
+          "enum": [
+            "advisory",
+            "self-review",
+            "independent-review",
+            "formal-acceptance"
+          ]
+        },
+        "execution_budget": {
+          "$ref": "#/$defs/execution_budget"
+        },
         "objective": {
           "type": "string",
           "minLength": 1
@@ -193,6 +211,33 @@
             "type": "string",
             "minLength": 1
           }
+        }
+      }
+    },
+    "execution_budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "enum": [
+            "light",
+            "standard",
+            "deep"
+          ]
+        },
+        "max_source_files": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "allow_tests": {
+          "type": "boolean"
+        },
+        "allow_mutations": {
+          "type": "boolean"
+        },
+        "allow_persistence": {
+          "type": "boolean"
         }
       }
     },

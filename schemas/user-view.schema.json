@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/user-view.schema.json",
+  "title": "ZipZap User View",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "phase",
+    "label",
+    "interaction",
+    "persistence"
+  ],
+  "properties": {
+    "phase": {
+      "enum": [
+        "initialize",
+        "work",
+        "complete"
+      ]
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1
+    },
+    "interaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "reason_codes",
+        "prompt"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "silent",
+            "inform",
+            "confirm",
+            "block"
+          ]
+        },
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "prompt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "persistence": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "ephemeral",
+        "persistent",
+        null
+      ]
+    }
+  }
+}

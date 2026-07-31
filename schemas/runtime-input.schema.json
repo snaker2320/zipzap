@@ -51,6 +51,47 @@
           "type": "string",
           "minLength": 1
         },
+        "intent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope_depth": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "design-only",
+            "targeted-implementation",
+            "full",
+            null
+          ]
+        },
+        "assurance_target": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "advisory",
+            "self-review",
+            "independent-review",
+            "formal-acceptance",
+            null
+          ]
+        },
+        "execution_budget": {
+          "oneOf": [
+            {
+              "$ref": "./l5-input.schema.json#/$defs/execution_budget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "scope": {
           "type": "array",
           "items": {
@@ -189,6 +230,39 @@
         "required_assurance": {
           "$ref": "#/$defs/assurance"
         },
+        "execution_profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subject_risk_signals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "action_risk_signals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "review_focus": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "claim_limit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "required_evidence": {
           "type": "array",
           "items": {
@@ -224,6 +298,13 @@
         "distinct_context_limit": {
           "type": "integer",
           "minimum": 1
+        },
+        "multi_agent_authorization": {
+          "enum": [
+            "unknown",
+            "granted",
+            "denied"
+          ]
         },
         "available_tools": {
           "type": "array",

@@ -11,6 +11,7 @@
     "fallback_used",
     "interface_versions",
     "governance_preserved",
+    "capability_matrix",
     "checks",
     "missing_capabilities",
     "limitations"
@@ -62,6 +63,9 @@
     },
     "governance_preserved": {
       "type": "boolean"
+    },
+    "capability_matrix": {
+      "$ref": "./host-capability-matrix.schema.json"
     },
     "checks": {
       "type": "array",

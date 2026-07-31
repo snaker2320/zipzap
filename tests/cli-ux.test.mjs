@@ -60,6 +60,23 @@ test("CLI examples are valid JSON and representative inputs execute", (context) 
   assert.equal(invoked.status, 0, invoked.stderr);
   assert.equal(JSON.parse(invoked.stdout).status, "ready");
 
+  const diagnosticExample = run(
+    zipzapScript,
+    ["normalize-risk", "--example", "--compact"]
+  );
+  assert.equal(diagnosticExample.status, 0);
+  const diagnosticInput = JSON.parse(diagnosticExample.stdout);
+  const diagnostic = run(
+    zipzapScript,
+    ["normalize-risk", "--compact"],
+    JSON.stringify(diagnosticInput)
+  );
+  assert.equal(diagnostic.status, 0, diagnostic.stderr);
+  assert.equal(
+    JSON.parse(diagnostic.stdout).derived_governance.execution_profile,
+    "design-diagnostic"
+  );
+
   const taskExample = run(taskScript, ["create", "--example", "--compact"]);
   assert.equal(taskExample.status, 0);
   const taskInput = JSON.parse(taskExample.stdout);

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   assessHost,
+  buildHostCapabilityMatrix,
   evaluateKernel,
   loadCatalogs
 } from "../scripts/zipzap.mjs";
@@ -75,6 +76,13 @@ test("selects the native adapter when the host exposes native execution", () => 
   assert.equal(result.selected_adapter, "codex-native");
   assert.equal(result.fallback_used, false);
   assert.equal(result.governance_preserved, true);
+  assert.equal(result.capability_matrix.assessed, true);
+  assert.equal(
+    result.capability_matrix.entries.find(
+      (entry) => entry.id === "node-acceleration"
+    ).status,
+    "unavailable"
+  );
 });
 
 test("selects the optional script accelerator only when Node is available", () => {
@@ -93,6 +101,61 @@ test("selects the optional script accelerator only when Node is available", () =
   assert.equal(result.compatible, true);
   assert.equal(result.selected_adapter, "script-accelerator");
   assert.equal(result.fallback_used, true);
+  assert.equal(
+    result.capability_matrix.entries.find(
+      (entry) => entry.id === "node-acceleration"
+    ).status,
+    "available"
+  );
+});
+
+test("reports optional Host capabilities and fallbacks explicitly", () => {
+  const result = assessHost(
+    hostCapabilities({
+      capabilities: [
+        "json-read",
+        "guided-form",
+        "token-usage-reporting",
+        "goal-budgeting",
+        "project-read",
+        "project-write"
+      ],
+      limits: {
+        concurrency_limit: 2,
+        distinct_context_limit: 5,
+        multi_agent_authorization: "unknown"
+      }
+    }),
+    "execute",
+    null,
+    catalogs
+  );
+  const statuses = Object.fromEntries(
+    result.capability_matrix.entries.map((entry) => [
+      entry.id,
+      entry.status
+    ])
+  );
+  assert.deepEqual(statuses, {
+    "multi-agent": "authorization-required",
+    "guided-form": "available",
+    "exact-token-telemetry": "available",
+    "goal-budgeting": "available",
+    "node-acceleration": "unavailable",
+    "project-state": "available"
+  });
+});
+
+test("keeps unknown Host capabilities safe and actionable", () => {
+  const matrix = buildHostCapabilityMatrix();
+  assert.equal(matrix.assessed, false);
+  assert.equal(matrix.entries.length, 6);
+  assert.ok(matrix.entries.every((entry) => entry.status === "unknown"));
+  assert.ok(
+    matrix.entries.every(
+      (entry) => typeof entry.fallback === "string" && entry.fallback.length > 0
+    )
+  );
 });
 
 test("keeps direct JSON compatible without Node", () => {

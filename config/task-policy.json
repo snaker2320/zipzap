@@ -60,6 +60,8 @@
     "adapters_return_patches_only": true,
     "project_rules_are_not_copied": true,
     "events_are_immutable": true,
+    "token_usage_is_host_measured": true,
+    "goal_creation_requires_explicit_user_authorization": true,
     "feedback_is_project_local": true,
     "project_state_is_git_shareable": true
   }

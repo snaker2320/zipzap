@@ -24,11 +24,13 @@
       "enum": [
         "form",
         "stepwise"
-      ],
-      "default": "form"
+      ]
     },
     "project": {
       "$ref": "#/$defs/project"
+    },
+    "host": {
+      "$ref": "./host-capabilities.schema.json"
     },
     "enabled_roles": {
       "type": "array",
@@ -194,6 +196,9 @@
         },
         "onboarding_state": {
           "$ref": "./onboarding-input.schema.json#/$defs/state"
+        },
+        "host": {
+          "$ref": "./host-capabilities.schema.json"
         }
       }
     }

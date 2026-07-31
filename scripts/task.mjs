@@ -37,7 +37,8 @@ const TASK_EVENT_TYPES = new Set([
   "git-synced",
   "review-recorded",
   "review-updated",
-  "completion-assessed"
+  "completion-assessed",
+  "usage-recorded"
 ]);
 const PROJECT_GITIGNORE = `# Derived or machine-local ZipZap state
 /reports/
@@ -116,6 +117,12 @@ const TASK_COMMANDS = {
     summary: "Replace a Review and reconcile its Findings.",
     usage: "update-review [--project <dir>] --input <file> [--compact]",
     schema: "schemas/review-result.schema.json"
+  },
+  "record-usage": {
+    summary: "Record exact host token usage or explicit telemetry unavailability.",
+    usage: "record-usage [--project <dir>] --input <file> [--compact]",
+    schema: "schemas/resource-usage.schema.json",
+    example: "examples/task/record-usage.json"
   },
   assess: {
     summary: "Assess evidence-backed Task completion.",
@@ -790,6 +797,19 @@ function validateTask(task) {
       throw new Error("Task participant is invalid");
     }
   }
+  if (
+    task.resource_budget != null &&
+    (!Number.isInteger(task.resource_budget.token_budget) ||
+      task.resource_budget.token_budget < 1 ||
+      !["not-requested", "explicit-user", "denied"].includes(
+        task.resource_budget.goal_authorization
+      ) ||
+      (task.resource_budget.goal_id != null &&
+        (!nonEmptyString(task.resource_budget.goal_id) ||
+          task.resource_budget.goal_authorization !== "explicit-user")))
+  ) {
+    throw new Error("Task resource budget is invalid");
+  }
   return task;
 }
 
@@ -934,6 +954,45 @@ function validateReview(review) {
     !Array.isArray(review.findings)
   ) {
     throw new Error("Review result is invalid");
+  }
+  if (
+    review.subject_snapshot != null &&
+    (!Number.isInteger(review.subject_snapshot.task_revision) ||
+      review.subject_snapshot.task_revision < 1 ||
+      !Array.isArray(review.subject_snapshot.artifact_refs) ||
+      (review.subject_snapshot.git_head != null &&
+        !nonEmptyString(review.subject_snapshot.git_head)) ||
+      review.subject_snapshot.artifact_refs.some(
+        (reference) =>
+          !reference ||
+          !nonEmptyString(reference.locator) ||
+          (reference.version != null && !nonEmptyString(reference.version))
+      ))
+  ) {
+    throw new Error("Review subject snapshot is invalid");
+  }
+  for (const finding of review.findings) {
+    if (
+      !nonEmptyString(finding?.id) ||
+      !nonEmptyString(finding.statement) ||
+      !["blocker", "high", "medium", "low", "advisory"].includes(
+        finding.severity
+      ) ||
+      (finding.priority != null &&
+        !["p0", "p1", "p2", "p3"].includes(finding.priority)) ||
+      typeof finding.blocking !== "boolean" ||
+      ![
+        "open",
+        "fixed",
+        "accepted",
+        "deferred",
+        "duplicate",
+        "not-reproducible"
+      ].includes(finding.status) ||
+      !Array.isArray(finding.evidence_refs)
+    ) {
+      throw new Error(`Review Finding is invalid: ${finding?.id ?? "unknown"}`);
+    }
   }
   return review;
 }
@@ -1444,6 +1503,30 @@ function taskSummary(task, reviews) {
   };
 }
 
+function summarizeUsage(events) {
+  const records = events
+    .filter((event) => event.type === "usage-recorded")
+    .map((event) => event.data.resource_usage);
+  const exact = records.filter((usage) => usage.measurement === "exact");
+  const unavailable = records.length - exact.length;
+  const sum = (field) =>
+    exact.reduce((total, usage) => total + usage[field], 0);
+  return {
+    measurement:
+      records.length === 0 || exact.length === 0
+        ? "unavailable"
+        : unavailable > 0
+          ? "mixed"
+          : "exact",
+    exact_records: exact.length,
+    unavailable_records: unavailable,
+    input_tokens: sum("input_tokens"),
+    output_tokens: sum("output_tokens"),
+    tool_result_tokens: sum("tool_result_tokens"),
+    total_tokens: sum("total_tokens")
+  };
+}
+
 function buildReport(projectRoot, options) {
   const { from, to } = reportWindow(
     options.period,
@@ -1464,9 +1547,12 @@ function buildReport(projectRoot, options) {
   const scopedEvents = events.filter((event) =>
     selectedTaskIds.has(event.task_id)
   );
-  const summaries = selected.map((task) =>
-    taskSummary(task, listReviews(projectRoot, task.task_id))
-  );
+  const summaries = selected.map((task) => ({
+    ...taskSummary(task, listReviews(projectRoot, task.task_id)),
+    resource_usage: summarizeUsage(
+      scopedEvents.filter((event) => event.task_id === task.task_id)
+    )
+  }));
   const statusCounts = {};
   for (const summary of summaries) {
     statusCounts[summary.status] = (statusCounts[summary.status] ?? 0) + 1;
@@ -1502,6 +1588,7 @@ function buildReport(projectRoot, options) {
         0
       )
     },
+    resource_usage: summarizeUsage(scopedEvents),
     tasks: summaries,
     limitations:
       scopedEvents.length === 0
@@ -2186,9 +2273,17 @@ function recordReview(projectRoot, input) {
   assertObject(input, "Review recording");
   const review = validateReview(clone(input.review));
   const task = loadTask(projectRoot, review.task_id);
+  if (!review.subject_snapshot) {
+    throw new Error("New Review records must include a subject_snapshot");
+  }
   if (input.expected_revision !== task.revision) {
     throw new Error(
       `Task revision mismatch: expected ${input.expected_revision}, stored ${task.revision}`
+    );
+  }
+  if (review.subject_snapshot.task_revision !== task.revision) {
+    throw new Error(
+      `Review subject snapshot revision ${review.subject_snapshot.task_revision} does not match stored Task revision ${task.revision}`
     );
   }
   const filePath = reviewFile(projectRoot, review.review_id);
@@ -2207,6 +2302,7 @@ function recordReview(projectRoot, input) {
       statement: finding.statement,
       status: finding.status,
       severity: finding.severity,
+      ...(finding.priority ? { priority: finding.priority } : {}),
       blocking: finding.blocking,
       review_ref: review.review_id,
       evidence_refs: clone(finding.evidence_refs)
@@ -2221,6 +2317,7 @@ function recordReview(projectRoot, input) {
     {
       review_id: review.review_id,
       outcome: review.outcome,
+      subject_snapshot: clone(review.subject_snapshot),
       findings: review.findings.length,
       blocking_findings: review.findings.filter((finding) => finding.blocking)
         .length
@@ -2243,6 +2340,9 @@ function updateReview(projectRoot, input) {
     throw new Error(`Review does not exist: ${review.review_id}`);
   }
   const existing = validateReview(readJson(filePath));
+  if (!review.subject_snapshot) {
+    throw new Error("Review updates must include a current subject_snapshot");
+  }
   if (existing.task_id !== review.task_id) {
     throw new Error("Review update cannot change task_id");
   }
@@ -2250,6 +2350,11 @@ function updateReview(projectRoot, input) {
   if (input.expected_revision !== task.revision) {
     throw new Error(
       `Task revision mismatch: expected ${input.expected_revision}, stored ${task.revision}`
+    );
+  }
+  if (review.subject_snapshot.task_revision !== task.revision) {
+    throw new Error(
+      `Review subject snapshot revision ${review.subject_snapshot.task_revision} does not match stored Task revision ${task.revision}`
     );
   }
   writeJsonAtomic(filePath, review);
@@ -2262,6 +2367,7 @@ function updateReview(projectRoot, input) {
       statement: finding.statement,
       status: finding.status,
       severity: finding.severity,
+      ...(finding.priority ? { priority: finding.priority } : {}),
       blocking: finding.blocking,
       review_ref: review.review_id,
       evidence_refs: clone(finding.evidence_refs)
@@ -2277,6 +2383,7 @@ function updateReview(projectRoot, input) {
       review_id: review.review_id,
       prior_outcome: existing.outcome,
       outcome: review.outcome,
+      subject_snapshot: clone(review.subject_snapshot),
       open_findings: review.findings.filter((finding) =>
         OPEN_FINDING_STATUSES.has(finding.status)
       ).length
@@ -2289,6 +2396,105 @@ function updateReview(projectRoot, input) {
   );
   appendEvent(projectRoot, event);
   return { task, review, event_ref: event.event_id };
+}
+
+function validateUsageRecord(input) {
+  assertObject(input, "Resource usage record");
+  if (input.schema_version !== 1) {
+    throw new Error("Resource usage schema_version must be 1");
+  }
+  assertId(input.usage_id, "Resource usage usage_id");
+  assertId(input.task_id, "Resource usage task_id");
+  if (
+    !Number.isInteger(input.task_revision) ||
+    input.task_revision < 1 ||
+    !validDateTime(input.recorded_at)
+  ) {
+    throw new Error("Resource usage Task revision or recorded_at is invalid");
+  }
+  assertObject(input.resource_usage, "Resource usage measurement");
+  const usage = input.resource_usage;
+  if (
+    !["exact", "unavailable"].includes(usage.measurement) ||
+    !nonEmptyString(usage.source)
+  ) {
+    throw new Error("Resource usage measurement or source is invalid");
+  }
+  const tokenFields = [
+    "input_tokens",
+    "output_tokens",
+    "tool_result_tokens",
+    "total_tokens"
+  ];
+  if (usage.measurement === "exact") {
+    if (
+      tokenFields.some(
+        (field) => !Number.isInteger(usage[field]) || usage[field] < 0
+      ) ||
+      usage.total_tokens !==
+        usage.input_tokens + usage.output_tokens + usage.tool_result_tokens
+    ) {
+      throw new Error(
+        "Exact resource usage requires non-negative token counts whose components equal total_tokens"
+      );
+    }
+  } else if (tokenFields.some((field) => usage[field] != null)) {
+    throw new Error(
+      "Unavailable resource usage must not include estimated token counts"
+    );
+  }
+  if (
+    input.goal != null &&
+    (input.goal.authorization !== "explicit-user" ||
+      !Number.isInteger(input.goal.token_budget) ||
+      input.goal.token_budget < 1 ||
+      (input.goal.goal_id != null && !nonEmptyString(input.goal.goal_id)))
+  ) {
+    throw new Error("Resource usage Goal metadata is invalid");
+  }
+  return input;
+}
+
+function recordUsage(projectRoot, input) {
+  const record = validateUsageRecord(clone(input));
+  const task = loadTask(projectRoot, record.task_id);
+  if (record.task_revision !== task.revision) {
+    throw new Error(
+      `Resource usage Task revision ${record.task_revision} does not match stored Task revision ${task.revision}`
+    );
+  }
+  const existing = readEvents(
+    projectRoot,
+    new Date(0),
+    new Date(8640000000000000)
+  ).find(
+    (event) =>
+      event.type === "usage-recorded" &&
+      event.data.usage_id === record.usage_id
+  );
+  if (existing) {
+    throw new Error(`Resource usage already exists: ${record.usage_id}`);
+  }
+  const event = taskEvent(
+    task.task_id,
+    "usage-recorded",
+    {
+      usage_id: record.usage_id,
+      task_revision: record.task_revision,
+      resource_usage: clone(record.resource_usage),
+      ...(record.goal ? { goal: clone(record.goal) } : {})
+    },
+    {
+      actor_id: record.actor_id,
+      occurred_at: record.recorded_at
+    }
+  );
+  appendEvent(projectRoot, event);
+  return {
+    usage: record,
+    task_revision: task.revision,
+    event_ref: event.event_id
+  };
 }
 
 async function main() {
@@ -2387,6 +2593,11 @@ async function main() {
     );
   } else if (options.command === "update-review") {
     result = updateReview(
+      projectRoot,
+      readInput(options.input, options.command)
+    );
+  } else if (options.command === "record-usage") {
+    result = recordUsage(
       projectRoot,
       readInput(options.input, options.command)
     );

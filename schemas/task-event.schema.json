@@ -33,7 +33,8 @@
         "git-synced",
         "review-recorded",
         "review-updated",
-        "completion-assessed"
+        "completion-assessed",
+        "usage-recorded"
       ]
     },
     "occurred_at": {

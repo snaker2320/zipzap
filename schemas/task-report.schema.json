@@ -10,6 +10,7 @@
     "scope",
     "window",
     "summary",
+    "resource_usage",
     "tasks",
     "limitations"
   ],
@@ -54,6 +55,9 @@
       }
     },
     "summary": {
+      "type": "object"
+    },
+    "resource_usage": {
       "type": "object"
     },
     "tasks": {

@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "id": "trio-review",
+  "id": "multi-agent-authorization-denied",
   "request": {
     "schema_version": 1,
     "work": {
-      "id": "trio-review",
-      "objective": "Independently review a normal delivery.",
-      "requested_action": "review",
+      "id": "multi-agent-authorization-denied",
+      "objective": "Verify a change requiring independent assurance.",
+      "requested_action": "verify",
       "scope": [],
       "affected_components": []
     },
@@ -22,21 +22,18 @@
       "project_sources": []
     },
     "host": {
-      "concurrency_limit": 2,
+      "concurrency_limit": 3,
       "distinct_context_limit": 3,
-      "multi_agent_authorization": "granted"
+      "multi_agent_authorization": "denied"
     },
     "state": {
-      "current_role": "reviewer",
-      "current_stage": "review"
+      "current_role": "tester",
+      "current_stage": "verify"
     }
   },
   "expected": {
-    "status": "ready",
-    "participant": {
-      "profile": "eagle",
-      "assignment": "reviewer"
-    },
-    "assurance_mode": "independent-from-developer"
+    "status": "blocked",
+    "participant": null,
+    "assurance_mode": "unavailable"
   }
 }

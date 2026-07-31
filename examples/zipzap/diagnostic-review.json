@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "review_kind": "design-diagnostic",
+  "subject_ref": {
+    "locator": "docs/settlement-design.md",
+    "version": "sha256:example",
+    "task_id": null
+  },
+  "reviewer": {
+    "subject_id": "owl",
+    "context_id": "current",
+    "independence": "peer"
+  },
+  "created_at": "2030-01-01T00:00:00.000Z",
+  "judgment": "conditionally-reasonable",
+  "claim": "advisory",
+  "positive_conclusions": [
+    "The design separates initiation, execution, and terminal settlement states."
+  ],
+  "findings": [
+    {
+      "id": "missing-close-failure-recovery",
+      "statement": "The design does not define recovery from CLOSE_FAILED.",
+      "severity": "high",
+      "evidence_refs": [
+        "docs/settlement-design.md#failure-recovery"
+      ],
+      "suggested_verification": "Inspect the retry and reconciliation implementation after upgrade authorization."
+    }
+  ],
+  "coverage": {
+    "inspected": [
+      "settlement state model",
+      "failure recovery section"
+    ],
+    "not_inspected": [
+      "implementation",
+      "database schema",
+      "runtime behavior"
+    ],
+    "limitations": [
+      "No tests or implementation inspection were performed."
+    ]
+  },
+  "boundaries": {
+    "local_feasibility": "The design can guide a local prototype after the recovery rule is resolved.",
+    "production_acceptability": "not-assessed"
+  },
+  "owner_decisions": [
+    "Define the accountable owner and retry policy for CLOSE_FAILED."
+  ],
+  "upgrade": {
+    "recommended": true,
+    "triggers": [
+      "high-severity Finding",
+      "suspected design-to-implementation dependency"
+    ],
+    "next_action": "targeted-implementation-verification"
+  },
+  "execution_report": {
+    "source_files_read": 3,
+    "tests_run": 0,
+    "mutations_performed": false,
+    "persistence_performed": false,
+    "agent_contexts": 1,
+    "tool_calls": null,
+    "token_measurement": "unavailable"
+  },
+  "evidence_refs": [
+    "docs/settlement-design.md#state-model",
+    "docs/settlement-design.md#failure-recovery"
+  ]
+}

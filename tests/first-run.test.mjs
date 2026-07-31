@@ -12,6 +12,33 @@ import {
 
 const catalogs = loadCatalogs();
 
+function host() {
+  return {
+    schema_version: 1,
+    host_id: "test-host",
+    surface: "test",
+    capabilities: [
+      "json-read",
+      "script-execution",
+      "project-read",
+      "project-write",
+      "project-state",
+      "guided-form"
+    ],
+    limits: {
+      concurrency_limit: 2,
+      distinct_context_limit: 5,
+      multi_agent_authorization: "unknown"
+    },
+    runtimes: ["node"],
+    tools: [],
+    interfaces: {
+      l5: [1],
+      kernel: [1]
+    }
+  };
+}
+
 function project(context) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-first-run-"));
   context.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -63,7 +90,8 @@ test("guides discovery and visible preferences before one project write", (conte
       schema_version: 1,
       operation: "start",
       presentation: "form",
-      project: projectInput
+      project: projectInput,
+      host: host()
     },
     catalogs
   );
@@ -78,6 +106,15 @@ test("guides discovery and visible preferences before one project write", (conte
     ["scope", "response-detail", "humor", "preferred-preset"]
   );
   assert.equal(started.discovery.sources.length, 1);
+  assert.equal(started.user_view.phase, "initialize");
+  assert.equal(started.user_view.interaction.mode, "confirm");
+  assert.equal(started.capability_matrix.assessed, true);
+  assert.equal(
+    started.capability_matrix.entries.find(
+      (entry) => entry.id === "multi-agent"
+    ).status,
+    "authorization-required"
+  );
 
   const preview = submit(started, {
     scope: "project",
@@ -101,6 +138,7 @@ test("guides discovery and visible preferences before one project write", (conte
   assert.equal(completed.write_performed, true);
   assert.equal(completed.post_check.preferences_visible_before_write, true);
   assert.equal(completed.post_check.single_manifest_write, true);
+  assert.equal(completed.user_view.interaction.mode, "inform");
   const stored = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   assert.equal(stored.revision, 1);
   assert.equal(stored.sources.length, 1);
@@ -151,6 +189,29 @@ test("requires a refreshed preview when sources change before confirmation", (co
   const completed = confirm(refreshed);
   assert.equal(completed.status, "completed");
   assert.equal(completed.initialization.sources.length, 2);
+});
+
+test("falls back to stepwise onboarding when guided forms are not reported", (context) => {
+  const started = runFirstRun(
+    {
+      schema_version: 1,
+      operation: "start",
+      project: project(context),
+      host: {
+        ...host(),
+        capabilities: ["json-read", "project-read", "project-write"]
+      }
+    },
+    catalogs
+  );
+  assert.equal(started.form, undefined);
+  assert.equal(started.question.id, "scope");
+  assert.equal(
+    started.capability_matrix.entries.find(
+      (entry) => entry.id === "guided-form"
+    ).status,
+    "unavailable"
+  );
 });
 
 test("exposes First Run through CLI help, example, and schemas", () => {

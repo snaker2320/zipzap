@@ -48,6 +48,13 @@
         "distinct_context_limit": {
           "type": "integer",
           "minimum": 1
+        },
+        "multi_agent_authorization": {
+          "enum": [
+            "unknown",
+            "granted",
+            "denied"
+          ]
         }
       }
     },

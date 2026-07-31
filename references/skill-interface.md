@@ -1,9 +1,34 @@
-# L5 Skill Interface
+# Unified Machine Interface
 
-L5 is ZipZap's only stable public machine interface. Its authoritative
-contracts are
+People interact with ZipZap through Initialize, Work, and Complete. Do not
+present L5, the Kernel, adapters, or projections as additional user concepts.
+
+The internal L5 boundary is the stable machine contract behind those three
+actions. Its authoritative contracts are
 [`schemas/l5-input.schema.json`](../schemas/l5-input.schema.json) and
 [`schemas/l5-output.schema.json`](../schemas/l5-output.schema.json).
+
+## User-Facing Model
+
+Expose only three actions to people:
+
+- Initialize: discover and configure collaboration;
+- Work: start or continue an outcome;
+- Complete: inspect evidence, gates, and completion claims.
+
+Keep the four L5 operations as an internal stable interface:
+
+```text
+Initialize -> initialize
+Work       -> execute | resume
+Complete   -> inspect plus completion assessment
+```
+
+Every successful L5 response includes `user_view`. Use `silent` when a ready
+default can proceed, `inform` for a completed result, `confirm` for one
+accountable decision, and `block` when work cannot proceed. Do not expose
+layer names or ask for participant selection when the requested action has one
+safe default.
 
 ## Operations
 
@@ -14,6 +39,9 @@ contracts are
 
 Expose one logical `invoke(request) -> response` entry point. Treat persistence
 as an execution preference, not a separate operation.
+
+Default routine work to ephemeral persistence. Do not create Task state or ask
+about preferences when no persistence or governance trigger is present.
 
 The optional runner accepts
 `schemas/l5-adapter-input.schema.json`, which wraps the public request with
@@ -57,6 +85,22 @@ duplicate them in the runtime context.
 
 Let the caller supply intent, objective, scope, constraints, acceptance
 criteria, collaboration preferences, and a continuation reference.
+
+For structured routing, accept:
+
+- `intent`: use `diagnose`, `plan`, `implement`, `verify`, `accept`, or
+  `operate` when one applies; retain descriptive legacy values;
+- `scope_depth`: `design-only`, `targeted-implementation`, or `full`;
+- `assurance_target`: `advisory`, `self-review`, `independent-review`, or
+  `formal-acceptance`;
+- `execution_budget`: evidence depth, initial source-file limit, and explicit
+  test, mutation, and persistence permissions.
+
+Treat these as machine routing facts, not additional user-facing workflow
+steps. Default `diagnose` to advisory and `accept` to formal acceptance when
+the target is omitted. Read
+[Design Diagnostic Review](design-diagnostic.md) for the only current
+specialized profile.
 
 Let L5 derive risk signals, required gates, effective topology, current
 participant, and the minimal execution view. Let the host adapter supply

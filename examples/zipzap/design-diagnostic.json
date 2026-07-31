@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "work_id": "settlement-design-diagnostic",
+  "work_type": "design-review",
+  "affected_components": [
+    "settlement"
+  ],
+  "assessment_input": {
+    "schema_version": 1,
+    "taxonomy_version": 1,
+    "invocation": {
+      "schema_version": 1,
+      "operation": "execute",
+      "request": {
+        "intent": "diagnose",
+        "scope_depth": "design-only",
+        "assurance_target": "advisory",
+        "objective": "Assess whether the current settlement design is reasonable.",
+        "scope": [
+          "authoritative settlement design"
+        ],
+        "requested_action": "diagnose-design",
+        "constraints": [
+          "Do not inspect implementation unless an upgrade is authorized."
+        ],
+        "acceptance_criteria": [
+          "Material design Findings, positive conclusions, and coverage limits are explicit."
+        ]
+      }
+    },
+    "evidence": []
+  },
+  "assessment": {
+    "schema_version": 1,
+    "taxonomy_version": 1,
+    "evaluated_signals": [
+      "privacy-or-regulated-data",
+      "security-critical",
+      "production-destructive",
+      "difficult-to-reverse",
+      "external-user-impact",
+      "financial-impact",
+      "shared-interface-or-migration",
+      "ambiguous-material-requirements",
+      "weak-or-missing-verification",
+      "unfamiliar-technology",
+      "authority-or-external-communication"
+    ],
+    "present_signals": [
+      {
+        "id": "financial-impact",
+        "evidence_refs": [
+          "request.objective"
+        ],
+        "confidence": "high",
+        "exposure": "subject"
+      }
+    ],
+    "unknown_signals": []
+  },
+  "host": {
+    "concurrency_limit": 1,
+    "distinct_context_limit": 1,
+    "multi_agent_authorization": "unknown"
+  },
+  "project_sources": []
+}

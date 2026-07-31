@@ -3,11 +3,19 @@
   "host_id": "example-host",
   "surface": "local",
   "capabilities": [
-    "json-read"
+    "json-read",
+    "script-execution",
+    "project-read",
+    "project-write",
+    "project-state",
+    "guided-form",
+    "token-usage-reporting",
+    "goal-budgeting"
   ],
   "limits": {
     "concurrency_limit": 1,
-    "distinct_context_limit": 1
+    "distinct_context_limit": 5,
+    "multi_agent_authorization": "unknown"
   },
   "runtimes": [
     "node"

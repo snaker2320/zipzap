@@ -5,5 +5,35 @@
   "project": {
     "id": "example-project",
     "locator": "."
+  },
+  "host": {
+    "schema_version": 1,
+    "host_id": "example-host",
+    "surface": "local",
+    "capabilities": [
+      "json-read",
+      "script-execution",
+      "project-read",
+      "project-write",
+      "project-state",
+      "guided-form"
+    ],
+    "limits": {
+      "concurrency_limit": 1,
+      "distinct_context_limit": 5,
+      "multi_agent_authorization": "unknown"
+    },
+    "runtimes": [
+      "node"
+    ],
+    "tools": [],
+    "interfaces": {
+      "l5": [
+        1
+      ],
+      "kernel": [
+        1
+      ]
+    }
   }
 }

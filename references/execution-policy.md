@@ -3,6 +3,18 @@
 Load this reference when choosing ephemeral versus persistent work, assessing
 risk, selecting single-agent versus multi-agent execution, or defining gates.
 
+## Default No-Touch Path
+
+Start bounded reversible work with ephemeral context, automatic team
+selection, and no Task write. When no independent gate is required, route
+ordinary implementation to Solo Developer Produce without asking the user to
+select a participant or stage.
+
+Interrupt only for material ambiguity, required authorization or approval,
+unsafe or irreversible action, missing authoritative sources, or an unmet
+required gate. Keep ready work silent and ask one question per accountable
+decision.
+
 ## Persistence Decision
 
 Keep work ephemeral by default. Persist it when one or more of these conditions
@@ -33,6 +45,19 @@ Raise assurance when work affects:
 
 Consider likelihood, impact, reversibility, observability, and recovery cost.
 Do not infer low risk merely from a small diff.
+
+Separate three dimensions before deriving policy:
+
+- subject risk selects what the work must inspect;
+- current-action risk selects safety controls, approval, and persistence;
+- assurance target selects the topology, gates, and claims required now.
+
+Require risk assessment records to label classified signals as `subject`,
+`action`, or `both` for a Design Diagnostic Review. Subject risk alone must not
+turn advisory consultation into formal acceptance. Current-action risk must
+never be suppressed by an advisory intent. Read
+[Design Diagnostic Review](design-diagnostic.md) for the bounded read-only
+profile.
 
 ## Execution Mode
 

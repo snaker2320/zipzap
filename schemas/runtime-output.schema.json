@@ -184,6 +184,12 @@
         "requested_action": {
           "type": "string"
         },
+        "execution_profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "instructions": {
           "type": "object"
         },
