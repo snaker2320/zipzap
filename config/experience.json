@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "public_phases": {
+    "initialize": {
+      "label": "Initialize",
+      "summary": "Set up project collaboration once."
+    },
+    "work": {
+      "label": "Work",
+      "summary": "Start or continue the requested work."
+    },
+    "complete": {
+      "label": "Complete",
+      "summary": "Verify evidence and finish with an accurate claim."
+    }
+  },
+  "operation_phase": {
+    "initialize": "initialize",
+    "execute": "work",
+    "resume": "work",
+    "inspect": "complete"
+  },
+  "status_interaction": {
+    "ready": "silent",
+    "completed": "inform",
+    "decision-required": "confirm",
+    "preview-ready": "confirm",
+    "blocked": "block"
+  },
+  "defaults": {
+    "work_persistence": "ephemeral",
+    "team_preference": "auto",
+    "routine_status": "silent",
+    "small_reversible_team": "solo"
+  },
+  "interrupt_only_for": [
+    "material-ambiguity",
+    "required-authorization",
+    "required-approval",
+    "unsafe-or-irreversible-action",
+    "missing-authoritative-source",
+    "unmet-required-gate"
+  ],
+  "policies": {
+    "internal_layers_hidden_by_default": true,
+    "no_task_for_routine_ephemeral_work": true,
+    "no_preference_prompt_when_defaults_apply": true,
+    "no_status_prompt_for_ready_work": true,
+    "one_prompt_for_one_accountable_decision": true
+  }
+}

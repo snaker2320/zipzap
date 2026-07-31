@@ -16,3 +16,9 @@ re-established where the gate demands it.
 Load the full JSON record only when initializing, changing, validating, or
 auditing Reviewer. Routine execution should use the script-generated capsule
 and current review overlay.
+
+For a read-only design diagnosis, add the `design-diagnostic` execution
+profile without changing Reviewer authority. Report an advisory result through
+`schemas/diagnostic-review.schema.json`; do not create a Task or claim a formal
+Review gate. Read [Design Diagnostic Review](design-diagnostic.md) only for
+that path.

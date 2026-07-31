@@ -2,7 +2,7 @@
   "schema_version": 1,
   "skill": {
     "name": "zipzap",
-    "current_version": "0.1.1-beta.1",
+    "current_version": "0.1.1-beta.2",
     "channel": "beta"
   },
   "package": {
@@ -21,12 +21,16 @@
       "agents/openai.yaml",
       "scripts/task.mjs",
       "config/compatibility.json",
+      "config/execution-profiles.json",
+      "config/experience.json",
       "config/lifecycle.json",
       "config/onboarding.json",
       "config/risk-taxonomy.json",
       "config/task-policy.json",
       "schemas/l5-input.schema.json",
       "schemas/l5-output.schema.json",
+      "schemas/user-view.schema.json",
+      "schemas/host-capability-matrix.schema.json",
       "schemas/l5-adapter-input.schema.json",
       "schemas/onboarding-input.schema.json",
       "schemas/onboarding-output.schema.json",
@@ -42,6 +46,8 @@
       "schemas/task-event.schema.json",
       "schemas/feedback.schema.json",
       "schemas/review-result.schema.json",
+      "schemas/diagnostic-review.schema.json",
+      "schemas/resource-usage.schema.json",
       "schemas/task-report.schema.json",
       "schemas/capability-report.schema.json",
       "schemas/task-adapter-input.schema.json",
@@ -68,6 +74,13 @@
     },
     {
       "version": "0.1.1-beta.1",
+      "interfaces": {
+        "l5": 1,
+        "kernel": 1
+      }
+    },
+    {
+      "version": "0.1.1-beta.2",
       "interfaces": {
         "l5": 1,
         "kernel": 1

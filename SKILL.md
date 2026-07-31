@@ -1,304 +1,153 @@
 ---
 name: zipzap
-description: Initialize, run, and distribute role-based human-AI collaboration for ad-hoc work or persistent tasks. Use when Codex needs to configure collaboration roles and named agent profiles, select Solo, Copilot, Trio, or Squad team presets, personalize agents, create context-efficient runtime projections, register project rules without copying them, manage handoffs, apply risk-based gates, run testing and independent review, establish evidence-backed completion, or package, verify, install, upgrade, roll back, or publish the ZipZap Skill.
+description: Run low-friction, role-based human-AI collaboration with project-rule routing, risk-proportionate Solo, Copilot, Trio, or Squad execution, compact context, evidence-backed completion, and Git-shareable local Tasks. Use when Codex needs to initialize collaboration, diagnose an existing design, implement or verify work, conduct self or independent Review, manage Findings and handoffs, assess completion, report exact resource use, or package, install, upgrade, roll back, and publish ZipZap.
 ---
 
 # ZipZap
 
-Run human-AI work through explicit roles, risk-proportionate collaboration,
-minimal context, evidence, and completion gates. Treat `config/*.json` and
-`schemas/*.json` as machine authority. Load Markdown only for the current
-decision.
+Run work with explicit authority, minimal context, proportionate assurance,
+and truthful evidence. Treat `config/*.json` and `schemas/*.json` as machine
+authority. Load only the reference needed for the current decision.
 
-## Run the Public Workflow
+## Keep Three Visible Actions
 
-Normalize the request into one L5 operation:
+Expose only:
 
-- `initialize`: discover or configure project collaboration;
-- `execute`: start ephemeral or persistent work;
-- `resume`: continue from a continuation reference;
-- `inspect`: query configuration, work, evidence, gates, or catalogs.
+1. **Initialize**: register project rules and confirm preferences.
+2. **Work**: start or continue the requested outcome.
+3. **Complete**: verify evidence and make an accurate claim.
 
-Preserve caller-owned intent and preferences. Let host context supply
-capability, state, initialization results, and authoritative evidence. Never
-claim approval, independence, satisfied gates, or host capability for the
-caller.
+Keep layers, Kernel, normalization, bindings, projections, adapters, and
+revisions internal unless the user requests diagnostics.
+Read [the unified machine interface](references/skill-interface.md) only when
+implementing or debugging that boundary.
 
-Use the optional zero-dependency adapter:
+## Stay Unobtrusive
 
-```bash
-node scripts/zipzap.mjs invoke --input l5-adapter-invocation.json
+- Start ordinary bounded work ephemerally with automatic team selection.
+- Use Solo Developer Produce for small reversible implementation work.
+- Do not create a Task, ask for preferences, or request a status decision when
+  defaults are sufficient.
+- Keep a ready action silent and report useful progress without asking.
+- Interrupt only for material ambiguity, authority, approval, unsafe or
+  irreversible action, missing governing sources, or an unmet gate.
+- Ask one concise question for one accountable decision.
+- Persist only for continuity, coordination, approval, tracking, durable
+  Findings, auditability, or project policy.
+
+Read [the execution policy](references/execution-policy.md) when selecting
+persistence, assurance, or gates.
+
+## Route Work by Outcome
+
+Use structured request facts when available:
+
+```json
+{
+  "intent": "diagnose",
+  "scope_depth": "design-only",
+  "assurance_target": "advisory"
+}
 ```
 
-Use command-level `--help` or `--example` when constructing CLI input.
-Return invalid input as a structured error. Return valid workflow state as
-`ready`, `decision-required`, `blocked`, or `completed`. Expose only the next
-accountable action; keep control-plane records behind diagnostics.
+Separate:
 
-Read [the L5 interface](references/skill-interface.md) only when implementing,
-validating, or debugging the public boundary.
+- subject risk, which selects what to inspect;
+- current-action risk, which selects safety controls and persistence;
+- assurance target, which selects topology, gates, and allowed claims.
 
-## Route the Work
+Route implementation to Developer Produce, verification to Tester Verify,
+Review or diagnosis to Reviewer Review, and acceptance to Product Accept.
+Default `accept` to formal acceptance. Never use an advisory intent to suppress
+actual mutation, access, authority, data, or production risk.
 
-Classify before acting:
+For `diagnose + design-only + advisory|self-review`, use the internal
+`design-diagnostic` profile: Solo Reviewer, read-only, ephemeral, no tests, no
+Task, bounded sources, and advisory output. Load
+[Design Diagnostic Review](references/design-diagnostic.md) for that path.
 
-1. Route a new project through `first-run`; use direct initialization only
-   when the caller already supplied or explicitly accepted complete settings.
-2. Execute bounded work with an ephemeral context by default.
-3. Persist a Task when continuity, coordination, approval, progress tracking,
-   durable Findings, or risk governance adds value.
-4. Resume by reconstructing current state from the Task, handoff, evidence,
-   Findings, and registered project sources.
+Assess every risk signal with evidence. For a design diagnostic, label each
+classified signal `subject`, `action`, or `both`; apply formal effects only to
+current-action risk. Let deterministic normalization derive policy.
 
-If initialization and execution are combined, configure only what the current
-work requires, then continue.
+## Preserve Core Invariants
 
-## Preserve the Invariants
+- Separate Product, Developer, Tester, and Reviewer roles from named Agent
+  Profiles.
+- Treat Solo, Copilot, Trio, and Squad as logical topologies, not concurrency
+  counts.
+- Let personalization change presentation only, never authority, risk, gates,
+  evidence, or independence.
+- Keep project rules at their source of truth; register locators and never
+  copy governing content into ZipZap state.
+- Never call sequential self-review independent Review.
+- Never claim approval, host capability, satisfied gates, completion, or
+  production readiness without cited evidence.
+- Require explicit authorization before using multiple Agent contexts.
 
-- Keep roles separate from named Agent Profiles. Product, developer, tester,
-  and reviewer are roles; Owl, Fox, Wolf, Lynx, and Eagle are profiles.
-- Bind runtime execution as profile + current role or control function + work
-  context + stage context + applicable project rules.
-- Treat Solo, Copilot, Trio, and Squad as logical topologies, not host
-  concurrency counts.
-- Let personalization change presentation only, never authority, project
-  rules, gates, evidence, risk, or independence.
-- Keep project rules in the project's source of truth. Register locators and
-  load applicable fragments; never create shadow copies.
-- Inject compact profile, role, and stage projections instead of full
-  definitions during routine execution.
-- Create a temporary work context for every request; persist selectively.
-- Allow one Agent to perform roles sequentially, but never label self-review
-  as independent Review.
-- Require completion claims to cite acceptance, verification, Review, and
-  remaining-risk evidence.
+Read [the operating model](references/operating-model.md) only for authority
+disputes, design changes, or audits.
+Read [roles](references/role-catalog.md),
+[Agent Profiles](references/agent-catalog.md),
+[teams](references/team-catalog.md), or
+[control functions](references/control-functions.md) only when selecting,
+authoring, or auditing those definitions.
 
-Read [the operating model](references/operating-model.md) only for conceptual
-design, authority disputes, or audits.
+## Load the Smallest Sufficient Context
 
-## Initialize and Configure
-
-Inspect before writing. Discover repository instructions, requirements,
-architecture, development and testing standards, ownership, Review rules, and
-verification commands. Register source locators, topics, selectors, authority,
-and versions without copying source content.
-
-Use:
-
-```bash
-node scripts/zipzap.mjs first-run --input first-run-request.json
-node scripts/zipzap.mjs initialize --input l5-initialize-request.json
-node scripts/zipzap.mjs source-resolve --input source-resolution-input.json
-```
-
-Use `first-run` for a new project. It must combine read-only discovery,
-visible preference selection, one combined preview, explicit confirmation,
-one project configuration write, and a post-check. Never skip response detail,
-humor, or preferred-team visibility merely because recommended defaults are
-available.
-
-Keep discovery read-only. Store durable project registration in
-`.zipzap/project.json`. Treat `AGENTS.md` as host-managed instructions and do
-not load it twice.
-
-For first-run or repeatable preferences:
-
-```bash
-node scripts/zipzap.mjs onboard --input onboarding-request.json
-```
-
-Prefer a host-rendered `form`; use `stepwise` conversation as fallback. Do not
-require Plan mode. Preview and confirm before writing. Keep team choice a
-preference that risk and assurance may strengthen.
-
-Read [project initialization](references/project-initialization.md) for source
-registration and [guided onboarding](references/onboarding.md) for form,
-reconfiguration, reset, scope, and precedence behavior. Read
-[first run](references/first-run.md) when orchestrating a fresh project.
-
-## Establish Context and Persistence
-
-Keep the active context limited to:
-
-- objective, scope, constraints, exclusions, and acceptance criteria;
-- current profile, role or control function, stage, and handoff;
-- selected project-source locators and loaded fragments;
-- required evidence, gates, risks, Findings, and unresolved decisions.
-
-Keep ordinary work in the session. For durable work, store current Task state
-under `.zipzap/tasks/`, write immutable per-event files under
-`.zipzap/events/`, store Reviews under `.zipzap/reviews/`, capture validation
-Feedback under `.zipzap/feedback/`, and treat `.zipzap/reports/` as
-rebuildable. Keep this project state Git-shareable and outside the installed
-Skill directory.
-
-Use the independent local entry point:
-
-```bash
-node scripts/task.mjs validate --input task.json
-node scripts/task.mjs create --input task.json
-node scripts/task.mjs assess --id task-id
-node scripts/task.mjs feedback --input feedback.json
-```
-
-Create only Task Standard v1 `ready` Tasks or `blocked` Tasks with an explicit
-open blocker. Keep candidate demand outside the Task store. Let `create` reuse
-the same deterministic Ready validation exposed by `validate`.
-
-Use `node scripts/task.mjs <command> --help` for options and `--example` when
-the command exposes a copyable JSON input.
-Associate Git Commits only through an explicit SHA or
-`ZipZap-Task: task-id` trailer. Treat range, path, author, and branch matches
-as candidates. Git activity is evidence of activity, not proof of completion.
-
-Let scripts aggregate Task, Git, verification, and Review facts before asking
-AI to explain them. Preserve sample size, task mix, confidence, evidence
-references, and limitations in reports and capability profiles; do not produce
-an unsupported performance ranking.
-
-Read [execution policy](references/execution-policy.md) when deciding
-persistence or gates. Read [local Task integration](references/task-integration.md)
-before tracking Git, recording Reviews, assessing completion, or reporting.
-
-## Assess Risk and Select Execution
-
-Before L4 evaluation:
-
-1. Assess every signal registered in `config/risk-taxonomy.json`.
-2. Cite request or registered evidence for every present signal.
-3. Mark materially unresolved signals unknown; do not assume absence.
-4. Let deterministic normalization derive risk flags, evidence, gates,
-   approvals, persistence, and required assurance.
-5. Pass only a ready Kernel Request to L4 `evaluate`.
-
-Do not let AI assessment choose a risk level, topology, gate, approval, or
-policy effect. Treat a requested topology as a preference. Resolve unknowns
-with the stated authority.
-
-Use:
-
-```bash
-node scripts/zipzap.mjs normalize-risk --input risk-normalization-input.json
-node scripts/zipzap.mjs evaluate --input kernel-request.json
-```
-
-Select the least costly topology satisfying assurance:
-
-- Solo for bounded, reversible work without independent-assurance needs;
-- Copilot for primary execution plus continuous peer advice;
-- Trio when implementation must be separated from testing and Review;
-- Squad for high-risk work requiring fuller role and context separation.
-
-If capacity is limited, schedule logical members sequentially or require a
-human gate. Never silently downgrade required assurance.
-
-## Execute the Minimal Projection
-
-Let L4 resolve the preset, bind logical participants, route one minimal
-projection, and reconcile material state changes. For routine work, load only:
+Compose one runtime view from:
 
 ```text
-profile capsule
-  + personalization overlay
-  + role capsule or control-function overlay
-  + current stage or checkpoint
-  + triggered policies
-  + applicable project-rule fragments
-  + work and handoff context
+profile capsule + role or control overlay + current stage
++ triggered policy + project-rule fragments
++ work, evidence, Findings, handoff, and exit gate
 ```
 
-The projection must state the participant, authority, objective, required
-output, applicable constraints, evidence obligation, and exit gate. Load a
-complete definition only when creating or changing it, validating coverage,
-resolving authority, or auditing.
-
-Execute proportionate stages:
-
-1. Frame outcome, scope, sources, criteria, and risk.
-2. Plan participants, gates, and evidence.
-3. Produce the requested artifact.
-4. Verify with reproducible checks.
-5. Obtain independent Review when required; otherwise label self-review.
-6. Resolve Findings with explicit disposition and rationale.
-7. Complete only after criteria, evidence, gates, residual risks, and durable
-   state agree.
-
-Use humans for decisions requiring authority, credentials, business judgment,
-approval, or acceptance of material risk. Make every handoff identify outcome,
-changed artifacts, evidence, Findings, decisions, open risks, and requested
-next role.
-
-## Verify and Report Completion
-
-Do not create ceremony that adds no assurance, and do not skip a required gate
-because implementation is finished.
-
-Report:
-
-- delivered outcome and changed artifacts;
-- checks and Reviews performed, including independence and results;
-- acceptance criteria and supporting evidence;
-- Findings and their disposition;
-- residual risks, approvals, limitations, and follow-up work;
-- persistent Task or continuation updates when applicable.
-
-Use precise claims such as `implemented`, `tested`, `self-reviewed`,
-`independently reviewed`, or `accepted by the user`. Do not collapse them into
-an unsupported claim of `done`.
-
-## Load References Only When Triggered
-
-- Runtime composition or L4 audit: [runtime composition](references/runtime-composition.md).
-- Preset debugging: [preset resolver](references/preset-resolver.md).
-- Participant binding: [binding planner](references/binding-planner.md).
-- Coordinator or advisor semantics: [control functions](references/control-functions.md).
-- Projection construction: [context router](references/context-router.md).
-- Runtime change or staleness: [projection reconciler](references/projection-reconciler.md).
-- Role selection or authoring: [role catalog](references/role-catalog.md) and
-  [role contract](references/role-contract.md). Load only the matching full
-  definition: [product](references/role-product.md),
-  [developer](references/role-developer.md),
-  [tester](references/role-tester.md), or
-  [reviewer](references/role-reviewer.md).
-- Profile selection or authoring: [Agent catalog](references/agent-catalog.md)
-  and [Agent Profile contract](references/agent-profile.md). Load only
-  [Owl](references/agent-owl.md), [Fox](references/agent-fox.md),
-  [Wolf](references/agent-wolf.md), [Lynx](references/agent-lynx.md), or
-  [Eagle](references/agent-eagle.md) when that profile needs full inspection.
-- Team selection or authoring: [team catalog](references/team-catalog.md) and
-  [Team Preset contract](references/team-preset.md). Load only
-  [Solo](references/team-solo.md), [Copilot](references/team-copilot.md),
-  [Trio](references/team-trio.md), or [Squad](references/team-squad.md) when
-  that preset needs full inspection.
-
-Query a narrow machine-readable section instead of loading a catalog:
+Locate files and symbols before reading. Read the smallest relevant heading or
+line range, expand only when evidence is insufficient, and treat truncation as
+an incomplete read. Query compact definitions through `catalog`; for example:
 
 ```bash
-node scripts/zipzap.mjs catalog --kind roles --id developer --section capsule
+node scripts/zipzap.mjs catalog \
+  --kind execution-profiles \
+  --id design-diagnostic \
+  --section capsule
 ```
+
+Read [the context router](references/context-router.md) for source loading,
+budgets, and projection details.
+
+## Initialize, Persist, and Complete Selectively
+
+Discover sources read-only, preview changes, then write confirmed registration
+to `.zipzap/project.json`. Keep installation separate from project
+initialization. Read [project initialization](references/project-initialization.md),
+[onboarding](references/onboarding.md), or
+[First Run](references/first-run.md) only for those flows.
+
+Keep persistent project state under `.zipzap/`, outside the installed Skill.
+Use `scripts/task.mjs` only when a Task is justified. Treat Git activity as
+candidate evidence, not completion. Persist Review snapshots with current
+artifact versions and independence. Record token counts only from exact host
+telemetry; otherwise record unavailable without estimating.
+
+Read [Task integration](references/task-integration.md) before Task mutation,
+Git tracking, persistent Review, reporting, feedback, or usage recording.
+
+Complete with outcomes, evidence, actual test and Review coverage, Finding
+dispositions, approvals, residual risk, limitations, and continuation state.
+Use precise labels such as `implemented`, `tested`, `self-reviewed`,
+`independently-reviewed`, or `accepted-by-user`.
 
 ## Adapt and Distribute
 
-Before relying on scripts, project writes, concurrency, distinct contexts, or
-state, assess the host through `config/compatibility.json`. Prefer native
-execution, then the optional Node adapter, then direct JSON. Missing Node may
-disable acceleration but must not make ZipZap unusable. Never weaken output
-semantics or assurance to fit an adapter.
+Use the Host Capability Matrix to report Multi-Agent contexts, guided forms,
+exact token telemetry, Goal budgeting, Node acceleration, and project state
+with explicit fallbacks. Missing Node may reduce acceleration but must not
+weaken semantics. Read [Host capabilities](references/host-capabilities.md)
+only when adapting or explaining a host.
 
-Treat L7 as distribution control, not another execution interface. Let
-`config/lifecycle.json` and lifecycle schemas govern build, verification,
-publish, install, upgrade, and rollback:
-
-```bash
-node scripts/zipzap.mjs lifecycle --input lifecycle-request.json
-```
-
-Let the host installer own authorized file mutation and recoverable backup.
-Never install runtime packages. Keep installation separate from project
-initialization and preserve project-owned `.zipzap/` state across lifecycle
-operations. After an upgrade, run `verify-upgrade` against the expected
-release manifest. Compare any supplied pre-upgrade project-manifest hash,
-validate installed bytes and interfaces, inspect project compatibility
-read-only, and route missing setup to `first-run`, `onboard`, or source
-refresh without silently changing project state. Read
-[lifecycle checks](references/lifecycle.md) when performing those operations.
+Install no runtime packages. Let the host installer own authorized mutation
+and backup, preserve project-owned `.zipzap/` state across upgrades, and read
+[lifecycle control](references/lifecycle.md) only for build, verification,
+installation, upgrade, rollback, or publication.

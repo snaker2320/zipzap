@@ -25,6 +25,11 @@ function baseInput(overrides = {}) {
       required_gates: [],
       required_evidence: []
     },
+    host_capability: {
+      concurrency_limit: 2,
+      distinct_context_limit: 5,
+      multi_agent_authorization: "granted"
+    },
     ...overrides
   };
 }
@@ -47,7 +52,8 @@ function baseKernelRequest(overrides = {}) {
     },
     host: {
       concurrency_limit: 2,
-      distinct_context_limit: 5
+      distinct_context_limit: 5,
+      multi_agent_authorization: "granted"
     },
     ...overrides
   };
@@ -59,14 +65,15 @@ test("catalogs are internally valid", () => {
   assert.deepEqual(result.counts, {
     invariants: 8,
     agents: 5,
-    roles: 4,
-    teams: 4,
-    control_functions: 2,
-    risk_signals: 11,
-    task_policies: 10,
+      roles: 4,
+      teams: 4,
+      control_functions: 2,
+      execution_profiles: 1,
+      risk_signals: 11,
+    task_policies: 12,
     onboarding_questions: 6,
     adapters: 3,
-    releases: 3
+    releases: 4
   });
 });
 
@@ -76,6 +83,19 @@ test("queries a role capsule without loading the full catalog", () => {
     capsule.must_not.includes("Claim independent review or unauthorized approval."),
     true
   );
+});
+
+test("queries the compact design diagnostic capsule", () => {
+  const capsule = queryCatalog(
+    catalogs,
+    "execution-profiles",
+    "design-diagnostic",
+    "capsule"
+  );
+  assert.equal(capsule.role, "reviewer");
+  assert.equal(capsule.stage, "review");
+  assert.equal(capsule.claim_limit, "advisory");
+  assert.match(capsule.prohibited.join(" "), /Run tests/);
 });
 
 test("bundled runtime schemas match the L4 Kernel envelope", () => {
@@ -119,16 +139,20 @@ test("L4 Kernel returns one ready next action", () => {
   assert.equal(result.next_action.participant.profile, "wolf");
   assert.equal(result.next_action.participant.role, "developer");
   assert.equal(result.assurance.mode, "independent-from-developer");
+  assert.equal(
+    result.next_action.instructions.source_access.includes(
+      "Treat truncation as incomplete evidence, never as proof of absence."
+    ),
+    true
+  );
 });
 
-test("L4 Kernel requests participant selection without exposing internals", () => {
+test("L4 Kernel defaults routine work to Developer Produce without prompting", () => {
   const result = evaluateKernel(baseKernelRequest(), catalogs);
-  assert.equal(result.status, "decision-required");
-  assert.equal(result.next_action, null);
-  assert.equal(
-    result.decisions_required[0].code,
-    "participant-selection-required"
-  );
+  assert.equal(result.status, "ready");
+  assert.equal(result.next_action.participant.role, "developer");
+  assert.equal(result.next_action.participant.stage, "produce");
+  assert.deepEqual(result.decisions_required, []);
   assert.deepEqual(Object.keys(result).sort(), [
     "assurance",
     "continuation",
@@ -206,7 +230,9 @@ test("selects Trio and projects Developer Produce", () => {
   const result = compose(
     baseInput({
       host_capability: {
-        concurrency_limit: 2
+        concurrency_limit: 2,
+        distinct_context_limit: 5,
+        multi_agent_authorization: "granted"
       },
       work_signals: {
         ...baseInput().work_signals,
@@ -235,7 +261,9 @@ test("selects Squad for regulated data and respects concurrency", () => {
   const result = compose(
     baseInput({
       host_capability: {
-        concurrency_limit: 2
+        concurrency_limit: 2,
+        distinct_context_limit: 5,
+        multi_agent_authorization: "granted"
       },
       work_signals: {
         ...baseInput().work_signals,
@@ -268,6 +296,11 @@ test("projects Copilot Advisor without role authority", () => {
           humor: "none"
         }
       },
+      host_capability: {
+        concurrency_limit: 2,
+        distinct_context_limit: 2,
+        multi_agent_authorization: "granted"
+      },
       work_signals: {
         ...baseInput().work_signals,
         required_gates: [
@@ -296,6 +329,82 @@ test("projects Copilot Advisor without role authority", () => {
     result.runtime_projection.instructions.control_function_overlay,
     null
   );
+});
+
+test("requires explicit authorization before binding multiple Agent contexts", () => {
+  const request = baseKernelRequest({
+    governance: {
+      risk_flags: [],
+      required_gates: ["second-context"],
+      required_evidence: [],
+      project_sources: []
+    },
+    host: {
+      concurrency_limit: 2,
+      distinct_context_limit: 2,
+      multi_agent_authorization: "unknown"
+    },
+    state: {
+      current_role: "developer",
+      current_stage: "produce"
+    }
+  });
+  const result = evaluateKernel(request, catalogs);
+  assert.equal(result.status, "decision-required");
+  assert.equal(result.next_action, null);
+  assert.equal(
+    result.decisions_required[0].code,
+    "multi-agent-authorization-required"
+  );
+});
+
+test("does not downgrade denied Multi-Agent assurance to Solo", () => {
+  const request = baseKernelRequest({
+    governance: {
+      risk_flags: [],
+      required_gates: ["second-context"],
+      required_evidence: [],
+      project_sources: []
+    },
+    host: {
+      concurrency_limit: 2,
+      distinct_context_limit: 2,
+      multi_agent_authorization: "denied"
+    },
+    state: {
+      current_role: "developer",
+      current_stage: "produce"
+    }
+  });
+  const result = evaluateKernel(request, catalogs);
+  assert.equal(result.status, "blocked");
+  assert.equal(result.next_action, null);
+  assert.equal(result.assurance.mode, "unavailable");
+  assert.equal(
+    result.assurance.limitations.some((item) =>
+      item.includes("Multi-Agent execution was denied")
+    ),
+    true
+  );
+});
+
+test("Solo remains available without a Multi-Agent authorization decision", () => {
+  const result = evaluateKernel(
+    baseKernelRequest({
+      host: {
+        concurrency_limit: 1,
+        distinct_context_limit: 1,
+        multi_agent_authorization: "unknown"
+      },
+      state: {
+        current_role: "developer",
+        current_stage: "produce"
+      }
+    }),
+    catalogs
+  );
+  assert.equal(result.status, "ready");
+  assert.equal(result.assurance.mode, "self");
 });
 
 test("supersedes a projection on a normal stage transition", () => {

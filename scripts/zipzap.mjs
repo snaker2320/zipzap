@@ -88,7 +88,8 @@ const ZIPZAP_COMMANDS = {
   "normalize-risk": {
     summary: "Normalize evidence-backed risk assessment deterministically.",
     usage: "normalize-risk --input <file> [--compact]",
-    schema: "schemas/risk-normalization-input.schema.json"
+    schema: "schemas/risk-normalization-input.schema.json",
+    example: "examples/zipzap/design-diagnostic.json"
   },
   conform: {
     summary: "Assess host compatibility for one L5 operation.",
@@ -348,14 +349,22 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
     teams: readJson(path.join(configDir, "teams.json")),
     controlFunctions: readJson(path.join(configDir, "control-functions.json")),
     runtimePolicy: readJson(path.join(configDir, "runtime-policy.json")),
+    executionProfiles: readJson(
+      path.join(configDir, "execution-profiles.json")
+    ),
     riskTaxonomy: readJson(path.join(configDir, "risk-taxonomy.json")),
     taskPolicy: readJson(path.join(configDir, "task-policy.json")),
     onboarding: readJson(path.join(configDir, "onboarding.json")),
     compatibility: readJson(path.join(configDir, "compatibility.json")),
+    experience: readJson(path.join(configDir, "experience.json")),
     lifecycle: readJson(path.join(configDir, "lifecycle.json")),
     schemas: {
       l5Input: readJson(path.join(schemaDir, "l5-input.schema.json")),
       l5Output: readJson(path.join(schemaDir, "l5-output.schema.json")),
+      userView: readJson(path.join(schemaDir, "user-view.schema.json")),
+      hostCapabilityMatrix: readJson(
+        path.join(schemaDir, "host-capability-matrix.schema.json")
+      ),
       l5AdapterInput: readJson(
         path.join(schemaDir, "l5-adapter-input.schema.json")
       ),
@@ -398,6 +407,12 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
       taskEvent: readJson(path.join(schemaDir, "task-event.schema.json")),
       feedback: readJson(path.join(schemaDir, "feedback.schema.json")),
       reviewResult: readJson(path.join(schemaDir, "review-result.schema.json")),
+      diagnosticReview: readJson(
+        path.join(schemaDir, "diagnostic-review.schema.json")
+      ),
+      resourceUsage: readJson(
+        path.join(schemaDir, "resource-usage.schema.json")
+      ),
       taskReport: readJson(path.join(schemaDir, "task-report.schema.json")),
       capabilityReport: readJson(
         path.join(schemaDir, "capability-report.schema.json")
@@ -437,10 +452,12 @@ export function validateCatalogs(catalogs) {
   const teams = catalogs.teams.teams ?? {};
   const functions = catalogs.controlFunctions.control_functions ?? {};
   const policy = catalogs.runtimePolicy;
+  const executionProfiles = catalogs.executionProfiles ?? {};
   const riskSignals = catalogs.riskTaxonomy?.signals ?? {};
   const taskPolicy = catalogs.taskPolicy ?? {};
   const onboarding = catalogs.onboarding ?? {};
   const compatibility = catalogs.compatibility ?? {};
+  const experience = catalogs.experience ?? {};
   const lifecycle = catalogs.lifecycle ?? {};
 
   for (const [group, records] of Object.entries({
@@ -572,6 +589,110 @@ export function validateCatalogs(catalogs) {
       if (!ASSURANCE_KEYS.includes(key)) {
         errors.push(`${risk} references unknown assurance key ${key}`);
       }
+    }
+  }
+  for (const [targetId, target] of Object.entries(
+    executionProfiles.assurance_targets ?? {}
+  )) {
+    if (!ID_PATTERN.test(targetId)) {
+      errors.push(`assurance target id is not kebab-case: ${targetId}`);
+    }
+    for (const gate of target.required_gates ?? []) {
+      if (!policy.gate_requirements?.[gate]) {
+        errors.push(`${targetId} references unknown gate ${gate}`);
+      }
+    }
+    if (
+      !Array.isArray(target.required_gates) ||
+      !Array.isArray(target.requires_approval) ||
+      typeof target.persistence_required !== "boolean" ||
+      typeof target.claim_limit !== "string"
+    ) {
+      errors.push(`assurance target is incomplete: ${targetId}`);
+    }
+  }
+  for (const [intent, targetId] of Object.entries(
+    executionProfiles.intent_defaults ?? {}
+  )) {
+    if (
+      !ID_PATTERN.test(intent) ||
+      !executionProfiles.assurance_targets?.[targetId]
+    ) {
+      errors.push(`intent default is invalid: ${intent}`);
+    }
+  }
+  for (const [profileId, executionProfile] of Object.entries(
+    executionProfiles.profiles ?? {}
+  )) {
+    if (!ID_PATTERN.test(profileId)) {
+      errors.push(`execution profile id is not kebab-case: ${profileId}`);
+    }
+    const role = roles[executionProfile.role];
+    if (!role?.stages?.[executionProfile.stage]) {
+      errors.push(
+        `${profileId} references invalid role stage ${executionProfile.role}.${executionProfile.stage}`
+      );
+    }
+    for (const target of executionProfile.match?.assurance_target ?? []) {
+      if (!executionProfiles.assurance_targets?.[target]) {
+        errors.push(`${profileId} references unknown assurance target ${target}`);
+      }
+    }
+    if (
+      ["intent", "scope_depth", "assurance_target"].some(
+        (field) =>
+          !Array.isArray(executionProfile.match?.[field]) ||
+          executionProfile.match[field].length === 0
+      ) ||
+      Object.values(executionProfile.match ?? {}).some(
+        (values) => !Array.isArray(values) || values.length === 0
+      ) ||
+      executionProfile.risk_processing?.require_exposure !== true ||
+      executionProfile.risk_processing?.subject_effects !== "focus-only" ||
+      executionProfile.risk_processing?.action_effects !== "require-upgrade"
+    ) {
+      errors.push(`${profileId} must define deterministic routing policy`);
+    }
+    for (const [signalId, focus] of Object.entries(
+      executionProfile.signal_focus ?? {}
+    )) {
+      if (!riskSignals[signalId]) {
+        errors.push(`${profileId} references unknown risk signal ${signalId}`);
+      }
+      if (!Array.isArray(focus) || focus.length === 0) {
+        errors.push(`${profileId}.${signalId} must define review focus`);
+      }
+    }
+    const budget = executionProfile.default_budget;
+    if (
+      !["light", "standard", "deep"].includes(budget?.evidence) ||
+      !Number.isInteger(budget?.max_source_files) ||
+      budget.max_source_files < 1 ||
+      typeof budget.allow_tests !== "boolean" ||
+      typeof budget.allow_mutations !== "boolean" ||
+      typeof budget.allow_persistence !== "boolean"
+    ) {
+      errors.push(`${profileId} must define a valid default budget`);
+    }
+    for (const field of [
+      "purpose",
+      "context_order",
+      "review_focus",
+      "required_outputs",
+      "exit_gate",
+      "prohibited",
+      "upgrade_triggers"
+    ]) {
+      if (executionProfile.capsule?.[field] == null) {
+        errors.push(`${profileId} capsule must define ${field}`);
+      }
+    }
+    if (
+      executionProfile.capsule?.id !== profileId ||
+      executionProfile.capsule?.role !== executionProfile.role ||
+      executionProfile.capsule?.stage !== executionProfile.stage
+    ) {
+      errors.push(`${profileId} capsule identity must match its route`);
     }
   }
   for (const [signalId, signal] of Object.entries(riskSignals)) {
@@ -764,6 +885,39 @@ export function validateCatalogs(catalogs) {
       errors.push(`compatibility policy must be enabled: ${policyId}`);
     }
   }
+  if (
+    canonicalJson(Object.keys(experience.public_phases ?? {}).sort()) !==
+    canonicalJson(["complete", "initialize", "work"])
+  ) {
+    errors.push("experience must expose initialize, work, and complete phases");
+  }
+  for (const operationId of ["initialize", "execute", "resume", "inspect"]) {
+    if (!experience.public_phases?.[experience.operation_phase?.[operationId]]) {
+      errors.push(`experience must map operation ${operationId}`);
+    }
+  }
+  for (const status of [
+    "ready",
+    "completed",
+    "decision-required",
+    "preview-ready",
+    "blocked"
+  ]) {
+    if (
+      !["silent", "inform", "confirm", "block"].includes(
+        experience.status_interaction?.[status]
+      )
+    ) {
+      errors.push(`experience must map status ${status}`);
+    }
+  }
+  for (const [policyId, enabled] of Object.entries(
+    experience.policies ?? {}
+  )) {
+    if (!ID_PATTERN.test(policyId.replaceAll("_", "-")) || enabled !== true) {
+      errors.push(`experience policy must be enabled: ${policyId}`);
+    }
+  }
 
   if (!SEMVER_PATTERN.test(lifecycle.skill?.current_version ?? "")) {
     errors.push("lifecycle current version must be semantic versioning");
@@ -855,6 +1009,9 @@ export function validateCatalogs(catalogs) {
       roles: Object.keys(roles).length,
       teams: Object.keys(teams).length,
       control_functions: Object.keys(functions).length,
+      execution_profiles: Object.keys(
+        executionProfiles.profiles ?? {}
+      ).length,
       risk_signals: Object.keys(riskSignals).length,
       task_policies: Object.keys(taskPolicy.policies ?? {}).length,
       onboarding_questions: onboardingQuestionIds.size,
@@ -952,7 +1109,14 @@ function validateInput(input, catalogs) {
     throw new Error(`unknown team preset: ${requested}`);
   }
 
-  for (const field of ["required_gates", "risk_flags", "affected_components"]) {
+  for (const field of [
+    "required_gates",
+    "risk_flags",
+    "affected_components",
+    "subject_risk_signals",
+    "action_risk_signals",
+    "review_focus"
+  ]) {
     const value = input.work_signals[field];
     if (value != null && !Array.isArray(value)) {
       throw new Error(`work_signals.${field} must be an array`);
@@ -975,6 +1139,23 @@ function validateInput(input, catalogs) {
       );
     }
   }
+  const executionProfileId = input.work_signals.execution_profile;
+  const executionProfile = executionProfileId
+    ? catalogs.executionProfiles.profiles[executionProfileId]
+    : null;
+  if (executionProfileId && !executionProfile) {
+    throw new Error(`unknown execution profile: ${executionProfileId}`);
+  }
+  if (
+    executionProfile &&
+    state?.current_role &&
+    (state.current_role !== executionProfile.role ||
+      state.current_stage !== executionProfile.stage)
+  ) {
+    throw new Error(
+      `execution profile ${executionProfileId} requires ${executionProfile.role}.${executionProfile.stage}`
+    );
+  }
 }
 
 export function queryCatalog(
@@ -990,6 +1171,8 @@ export function queryCatalog(
     teams: catalogs.teams.teams,
     "control-functions": catalogs.controlFunctions.control_functions,
     "runtime-policy": catalogs.runtimePolicy,
+    "execution-profiles": catalogs.executionProfiles.profiles,
+    experience: catalogs.experience,
     "risk-taxonomy": catalogs.riskTaxonomy.signals,
     "task-policy": catalogs.taskPolicy
   };
@@ -1112,6 +1295,21 @@ export function resolvePreset(input, catalogs, revisions = { preset: 1 }) {
   const host = input.host_capability ?? {};
   const candidate = effective ?? recommendation;
   const memberCount = candidate ? teams[candidate].members.length : 0;
+  const multiAgentAuthorization =
+    host.multi_agent_authorization ?? "unknown";
+  if (effective && memberCount > 1 && multiAgentAuthorization !== "granted") {
+    recommendation = effective;
+    effective = null;
+    status =
+      multiAgentAuthorization === "denied"
+        ? "authorization-denied"
+        : "authorization-required";
+    reasons.push(
+      multiAgentAuthorization === "denied"
+        ? "Multi-Agent execution was denied; required independent assurance remains unavailable."
+        : "The selected topology requires explicit authorization for multiple Agent contexts."
+    );
+  }
   if (
     effective &&
     Number.isInteger(host.distinct_context_limit) &&
@@ -1141,11 +1339,20 @@ export function resolvePreset(input, catalogs, revisions = { preset: 1 }) {
     host_schedule: {
       concurrency_limit: host.concurrency_limit ?? 1,
       distinct_context_limit: host.distinct_context_limit ?? null,
+      multi_agent_authorization: multiAgentAuthorization,
       logical_members: memberCount
     },
     unresolved:
       status === "decision-required"
         ? ["Approve the recommended topology or provide a valid assurance alternative."]
+        : status === "authorization-required"
+          ? [
+              "Authorize Multi-Agent execution, or assign qualified humans to the required independent gates."
+            ]
+          : status === "authorization-denied"
+            ? [
+                "Required independent gates remain blocked until Multi-Agent execution is authorized or qualified humans are assigned."
+              ]
         : status === "capacity-gap"
           ? ["Provide additional distinct contexts or a qualified human substitute."]
           : []
@@ -1601,6 +1808,20 @@ export function routeProjection(
   }
 
   const signals = input.work_signals;
+  const executionProfile = signals.execution_profile
+    ? catalogs.executionProfiles.profiles[signals.execution_profile]
+    : null;
+  if (signals.execution_profile && !executionProfile) {
+    throw new Error(
+      `unknown execution profile: ${signals.execution_profile}`
+    );
+  }
+  const executionBudget = executionProfile
+    ? {
+        ...clone(executionProfile.default_budget),
+        ...clone(signals.execution_budget ?? {})
+      }
+    : null;
   const matchedRules = (signals.project_rules ?? []).filter((rule) =>
     selectorMatches(rule, state, signals)
   );
@@ -1618,6 +1839,9 @@ export function routeProjection(
     role
       ? `stage:${state.current_role}:${state.current_stage}`
       : `checkpoint:${state.current_function}:${state.current_checkpoint}`,
+    ...(executionProfile
+      ? [`execution-profile:${signals.execution_profile}`]
+      : []),
     ...matchedRules.map((rule) => `project-rule:${rule.id}`)
   ];
 
@@ -1640,6 +1864,9 @@ export function routeProjection(
     },
     work: {
       objective: signals.objective ?? null,
+      intent: signals.intent ?? null,
+      scope_depth: signals.scope_depth ?? null,
+      assurance_target: signals.assurance_target ?? null,
       scope_summary: signals.scope_summary ?? null,
       work_type: signals.work_type ?? null,
       requested_action: signals.requested_action ?? null,
@@ -1652,19 +1879,51 @@ export function routeProjection(
       control_function_overlay: controlFunction
         ? clone(controlFunction.overlay)
         : null,
-      stage_overlay: stage ? clone(stage) : null
+      stage_overlay: stage ? clone(stage) : null,
+      execution_profile_overlay: executionProfile
+        ? {
+            ...clone(executionProfile.capsule),
+            claim_limit:
+              signals.claim_limit ??
+              executionProfile.capsule.claim_limit,
+            execution_budget: clone(executionBudget)
+          }
+        : null,
+      source_access: [
+        "Locate with native search or rg before reading.",
+        "Read the smallest relevant heading or line range.",
+        "Expand only when the current evidence is insufficient.",
+        "Treat truncation as incomplete evidence, never as proof of absence.",
+        ...(executionProfile
+          ? [
+              `Stop the initial scan after ${executionBudget.max_source_files} source files and disclose the coverage limit.`,
+              "Do not expand into implementation or tests unless the user authorizes the suggested upgrade."
+            ]
+          : [])
+      ]
     },
     authority: {
       allowed: clone(role?.capsule?.may ?? controlFunction?.overlay?.may ?? []),
-      prohibited: clone(
-        role?.capsule?.must_not ?? controlFunction?.overlay?.must_not ?? []
-      ),
+      prohibited: clone([
+        ...(role?.capsule?.must_not ??
+          controlFunction?.overlay?.must_not ??
+          []),
+        ...(executionProfile?.capsule?.prohibited ?? [])
+      ]),
       requires_approval: clone(signals.requires_approval ?? [])
     },
     outputs: {
-      required: clone(stage?.required_outputs ?? []),
+      required: clone(
+        executionProfile?.capsule?.required_outputs ??
+          stage?.required_outputs ??
+          []
+      ),
       evidence: clone(signals.required_evidence ?? []),
-      exit_gate: clone(stage?.exit_gate ?? [])
+      exit_gate: clone(
+        executionProfile?.capsule?.exit_gate ??
+          stage?.exit_gate ??
+          []
+      )
     },
     sources: {
       required_rule_topics: clone(role?.rule_selectors ?? []),
@@ -1679,7 +1938,8 @@ export function routeProjection(
     },
     assurance: {
       labels: clone(state.assurance_labels ?? []),
-      topology: clone(binding.assurance)
+      topology: clone(binding.assurance),
+      claim_limit: signals.claim_limit ?? null
     },
     unresolved: clone(state.unresolved ?? [])
   };
@@ -1768,6 +2028,58 @@ function reconciliationFor(input, action, revisions, projection) {
   };
 }
 
+function defaultExecutionState(input, catalogs, binding) {
+  if (input.execution_state != null || !binding) return input.execution_state;
+  const executionProfile =
+    catalogs.executionProfiles.profiles[
+      input.work_signals.execution_profile
+    ];
+  if (executionProfile) {
+    const matchingMembers = binding.members.filter((member) =>
+      member.roles.includes(executionProfile.role)
+    );
+    if (matchingMembers.length !== 1) return undefined;
+    return {
+      target_slot: matchingMembers[0].slot,
+      current_role: executionProfile.role,
+      current_stage: executionProfile.stage
+    };
+  }
+  const action = String(
+    input.work_signals.requested_action ?? ""
+  ).toLowerCase();
+  let currentRole = "developer";
+  let currentStage = "produce";
+  if (/(review|audit|diagnos)/.test(action)) {
+    currentRole = "reviewer";
+    currentStage = "review";
+  } else if (/(test|verify|check|retest)/.test(action)) {
+    currentRole = "tester";
+    currentStage = "verify";
+  } else if (/(accept)/.test(action)) {
+    currentRole = "product";
+    currentStage = "accept";
+  } else if (/(define|clarify|frame)/.test(action)) {
+    currentRole = "product";
+    currentStage = "frame";
+  } else if (/(plan)/.test(action)) {
+    currentRole = "developer";
+    currentStage = "plan";
+  }
+  const role = catalogs.roles.roles[currentRole];
+  const matchingMembers = binding.members.filter((member) =>
+    member.roles.includes(currentRole)
+  );
+  if (!role?.stages?.[currentStage] || matchingMembers.length !== 1) {
+    return undefined;
+  }
+  return {
+    target_slot: matchingMembers[0].slot,
+    current_role: currentRole,
+    current_stage: currentStage
+  };
+}
+
 export function compose(input, catalogs = loadCatalogs()) {
   const catalogValidation = validateCatalogs(catalogs);
   if (!catalogValidation.valid) {
@@ -1791,10 +2103,18 @@ export function compose(input, catalogs = loadCatalogs()) {
     personalization,
     revisions
   );
+  const executionState = defaultExecutionState(input, catalogs, teamBinding);
+  const projectionInput =
+    executionState === input.execution_state
+      ? input
+      : {
+          ...input,
+          execution_state: executionState
+        };
   const projectionResult =
     action === "block"
       ? { runtime_projection: null, projection_manifest: null }
-      : routeProjection(input, catalogs, teamBinding, revisions);
+      : routeProjection(projectionInput, catalogs, teamBinding, revisions);
   const reconciliationResult = reconciliationFor(
     input,
     action,
@@ -1824,6 +2144,51 @@ function requestEvidenceRefs(invocation) {
     }
   }
   return refs;
+}
+
+function requestExecutionSemantics(request, catalogs) {
+  const intent =
+    typeof request.intent === "string"
+      ? request.intent.trim().toLowerCase()
+      : null;
+  const assuranceTarget =
+    request.assurance_target ??
+    catalogs.executionProfiles.intent_defaults[intent] ??
+    null;
+  const scopeDepth = request.scope_depth ?? null;
+  const matchValues = {
+    intent,
+    scope_depth: scopeDepth,
+    assurance_target: assuranceTarget
+  };
+  const profileEntry = Object.entries(
+    catalogs.executionProfiles.profiles
+  ).find(([, profile]) =>
+    Object.entries(profile.match).every(([field, accepted]) =>
+      accepted.includes(matchValues[field])
+    )
+  );
+  const profileId = profileEntry?.[0] ?? null;
+  const profile = profileEntry?.[1] ?? null;
+  const budget = profile
+    ? {
+        ...clone(profile.default_budget),
+        ...clone(request.execution_budget ?? {})
+      }
+    : clone(request.execution_budget ?? null);
+  const assurancePolicy = assuranceTarget
+    ? catalogs.executionProfiles.assurance_targets[assuranceTarget]
+    : null;
+  return {
+    intent,
+    scope_depth: scopeDepth,
+    assurance_target: assuranceTarget,
+    assurance_policy: assurancePolicy,
+    profile_id: profileId,
+    profile,
+    execution_budget: budget,
+    claim_limit: assurancePolicy?.claim_limit ?? null
+  };
 }
 
 function validateRiskNormalizationInput(input, catalogs) {
@@ -1901,6 +2266,9 @@ function validateRiskNormalizationInput(input, catalogs) {
     invocation.request,
     [
       "intent",
+      "scope_depth",
+      "assurance_target",
+      "execution_budget",
       "objective",
       "scope",
       "requested_action",
@@ -1915,6 +2283,53 @@ function validateRiskNormalizationInput(input, catalogs) {
   ) {
     throw new Error("risk assessment objective must be a non-empty string");
   }
+  if (
+    invocation.request.scope_depth != null &&
+    !["design-only", "targeted-implementation", "full"].includes(
+      invocation.request.scope_depth
+    )
+  ) {
+    throw new Error("risk assessment scope_depth is invalid");
+  }
+  if (
+    invocation.request.assurance_target != null &&
+    !catalogs.executionProfiles.assurance_targets[
+      invocation.request.assurance_target
+    ]
+  ) {
+    throw new Error("risk assessment assurance_target is invalid");
+  }
+  if (invocation.request.execution_budget != null) {
+    assertAllowedFields(
+      invocation.request.execution_budget,
+      [
+        "evidence",
+        "max_source_files",
+        "allow_tests",
+        "allow_mutations",
+        "allow_persistence"
+      ],
+      "risk assessment execution_budget"
+    );
+    const budget = invocation.request.execution_budget;
+    if (
+      (budget.evidence != null &&
+        !["light", "standard", "deep"].includes(budget.evidence)) ||
+      (budget.max_source_files != null &&
+        (!Number.isInteger(budget.max_source_files) ||
+          budget.max_source_files < 1 ||
+          budget.max_source_files > 100)) ||
+      ["allow_tests", "allow_mutations", "allow_persistence"].some(
+        (field) => budget[field] != null && typeof budget[field] !== "boolean"
+      )
+    ) {
+      throw new Error("risk assessment execution_budget is invalid");
+    }
+  }
+  const executionSemantics = requestExecutionSemantics(
+    invocation.request,
+    catalogs
+  );
 
   if (!Array.isArray(input.assessment.evaluated_signals)) {
     throw new Error("assessment evaluated_signals must be an array");
@@ -1957,12 +2372,13 @@ function validateRiskNormalizationInput(input, catalogs) {
       assertAllowedFields(
         signal,
         group === "present"
-          ? ["id", "evidence_refs", "confidence"]
+          ? ["id", "evidence_refs", "confidence", "exposure"]
           : [
               "id",
               "question",
               "required_authority",
-              "evidence_refs"
+              "evidence_refs",
+              "exposure"
             ],
         `${group} risk signal`
       );
@@ -1982,6 +2398,20 @@ function validateRiskNormalizationInput(input, catalogs) {
         !["high", "medium", "low"].includes(signal.confidence)
       ) {
         throw new Error(`present risk signal requires confidence: ${signal.id}`);
+      }
+      if (
+        signal.exposure != null &&
+        !["subject", "action", "both"].includes(signal.exposure)
+      ) {
+        throw new Error(`risk signal exposure is invalid: ${signal.id}`);
+      }
+      if (
+        executionSemantics.profile?.risk_processing.require_exposure === true &&
+        signal.exposure == null
+      ) {
+        throw new Error(
+          `design diagnostic risk signal requires subject, action, or both exposure: ${signal.id}`
+        );
       }
       for (const ref of refs) {
         if (!evidenceIds.has(ref)) {
@@ -2024,34 +2454,119 @@ export function normalizeRiskAssessment(
   validateRiskNormalizationInput(input, catalogs);
   const invocation = input.assessment_input.invocation;
   const request = invocation.request;
+  const execution = requestExecutionSemantics(request, catalogs);
   const presentSignals = input.assessment.present_signals.map(
     (signal) => signal.id
   );
-  const effects = input.assessment.present_signals.map(
+  const exposureFor = (signal) =>
+    signal.exposure ?? (execution.profile ? null : "action");
+  const subjectSignalRecords = input.assessment.present_signals.filter(
+    (signal) => ["subject", "both"].includes(exposureFor(signal))
+  );
+  const actionSignalRecords = input.assessment.present_signals.filter(
+    (signal) => ["action", "both"].includes(exposureFor(signal))
+  );
+  const subjectUnknownRecords = input.assessment.unknown_signals.filter(
+    (signal) => ["subject", "both"].includes(exposureFor(signal))
+  );
+  const actionUnknownRecords = input.assessment.unknown_signals.filter(
+    (signal) => ["action", "both"].includes(exposureFor(signal))
+  );
+  const actionEffects = actionSignalRecords.map(
     (signal) => catalogs.riskTaxonomy.signals[signal.id].effects
   );
+  const assurancePolicy = execution.assurance_policy ?? {
+    required_gates: [],
+    requires_approval: [],
+    persistence_required: false,
+    claim_limit: null
+  };
+  const reviewFocus = unique([
+    ...(execution.profile?.capsule.review_focus ?? []),
+    ...subjectSignalRecords.flatMap(
+      (signal) => execution.profile?.signal_focus[signal.id] ?? []
+    ),
+    ...subjectUnknownRecords.flatMap(
+      (signal) => execution.profile?.signal_focus[signal.id] ?? []
+    )
+  ]);
   const derived = {
     present_signals: presentSignals,
-    risk_flags: unique(effects.flatMap((effect) => effect.risk_flags)),
+    subject_risk_signals: unique(
+      subjectSignalRecords.map((signal) => signal.id)
+    ),
+    action_risk_signals: unique(
+      actionSignalRecords.map((signal) => signal.id)
+    ),
+    subject_uncertainties: unique(
+      subjectUnknownRecords.map((signal) => signal.id)
+    ),
+    risk_flags: unique(
+      actionEffects.flatMap((effect) => effect.risk_flags)
+    ),
     required_gates: unique(
-      effects.flatMap((effect) => effect.required_gates)
+      [
+        ...actionEffects.flatMap((effect) => effect.required_gates),
+        ...assurancePolicy.required_gates
+      ]
     ),
     required_evidence: unique(
-      effects.flatMap((effect) => effect.required_evidence)
+      [
+        ...actionEffects.flatMap((effect) => effect.required_evidence),
+        ...(execution.profile
+          ? ["authoritative-design-evidence", "coverage-limitations"]
+          : [])
+      ]
     ),
     requires_approval: unique(
-      effects.flatMap((effect) => effect.requires_approval)
+      [
+        ...actionEffects.flatMap((effect) => effect.requires_approval),
+        ...assurancePolicy.requires_approval
+      ]
     ),
     persistence_required:
       invocation.collaboration?.persistence === "persistent" ||
-      effects.some((effect) => effect.persistence_required)
+      actionEffects.some((effect) => effect.persistence_required) ||
+      assurancePolicy.persistence_required,
+    execution_profile: execution.profile_id,
+    assurance_target: execution.assurance_target,
+    claim_limit: execution.claim_limit,
+    review_focus: reviewFocus,
+    execution_budget: clone(execution.execution_budget)
   };
-  const decisions = input.assessment.unknown_signals.map((signal) => ({
+  const decisions = actionUnknownRecords.map((signal) => ({
     code: "risk-signal-unresolved",
     signal: signal.id,
     message: signal.question,
     required_authority: signal.required_authority
   }));
+  if (
+    execution.profile?.risk_processing.action_effects === "require-upgrade" &&
+    actionSignalRecords.length > 0
+  ) {
+    decisions.push({
+      code: "diagnostic-upgrade-required",
+      signal: actionSignalRecords[0].id,
+      message:
+        "The current action carries material risk beyond a read-only design diagnosis. Upgrade the scope before continuing.",
+      required_authority: "user"
+    });
+  }
+  if (
+    execution.profile &&
+    (execution.execution_budget.allow_tests ||
+      execution.execution_budget.allow_mutations ||
+      execution.execution_budget.allow_persistence ||
+      invocation.collaboration?.persistence === "persistent")
+  ) {
+    decisions.push({
+      code: "diagnostic-upgrade-required",
+      signal: "execution-profile",
+      message:
+        "The requested permissions exceed the read-only design diagnostic profile. Choose targeted verification, implementation, or persistent Review.",
+      required_authority: "user"
+    });
+  }
   if (decisions.length) {
     return {
       schema_version: 1,
@@ -2072,6 +2587,10 @@ export function normalizeRiskAssessment(
       id: input.work_id,
       objective: request.objective,
       requested_action: request.requested_action ?? "execute",
+      intent: request.intent ?? null,
+      scope_depth: execution.scope_depth,
+      assurance_target: execution.assurance_target,
+      execution_budget: clone(execution.execution_budget),
       scope: clone(request.scope ?? []),
       scope_summary:
         request.intent ??
@@ -2095,6 +2614,11 @@ export function normalizeRiskAssessment(
     governance: {
       risk_flags: clone(derived.risk_flags),
       required_gates: clone(derived.required_gates),
+      execution_profile: derived.execution_profile,
+      subject_risk_signals: clone(derived.subject_risk_signals),
+      action_risk_signals: clone(derived.action_risk_signals),
+      review_focus: clone(derived.review_focus),
+      claim_limit: derived.claim_limit,
       required_evidence: clone(derived.required_evidence),
       requires_approval: clone(derived.requires_approval),
       project_sources: clone(input.project_sources)
@@ -2157,6 +2681,16 @@ function validateKernelRequest(request) {
       throw new Error(`kernel request host.${field} must be a positive integer`);
     }
   }
+  if (
+    request.host.multi_agent_authorization != null &&
+    !["unknown", "granted", "denied"].includes(
+      request.host.multi_agent_authorization
+    )
+  ) {
+    throw new Error(
+      "kernel request host.multi_agent_authorization must be unknown, granted, or denied"
+    );
+  }
 }
 
 function kernelToRuntimeInput(request) {
@@ -2185,6 +2719,10 @@ function kernelToRuntimeInput(request) {
     host_capability: clone(request.host),
     work_signals: {
       objective: request.work.objective,
+      intent: request.work.intent ?? null,
+      scope_depth: request.work.scope_depth ?? null,
+      assurance_target: request.work.assurance_target ?? null,
+      execution_budget: clone(request.work.execution_budget ?? null),
       scope_summary:
         request.work.scope_summary ??
         (request.work.scope?.length ? request.work.scope.join(", ") : null),
@@ -2197,6 +2735,16 @@ function kernelToRuntimeInput(request) {
       required_assurance: clone(
         request.governance.required_assurance ?? undefined
       ),
+      execution_profile:
+        request.governance.execution_profile ?? null,
+      subject_risk_signals: clone(
+        request.governance.subject_risk_signals ?? []
+      ),
+      action_risk_signals: clone(
+        request.governance.action_risk_signals ?? []
+      ),
+      review_focus: clone(request.governance.review_focus ?? []),
+      claim_limit: request.governance.claim_limit ?? null,
       required_evidence: clone(request.governance.required_evidence),
       requires_approval: clone(request.governance.requires_approval ?? []),
       project_rules: clone(request.governance.project_sources)
@@ -2224,11 +2772,15 @@ function kernelToRuntimeInput(request) {
   };
 }
 
-function assuranceView(binding) {
+function assuranceView(binding, resolution = null) {
   if (!binding) {
     return {
       mode: "unavailable",
-      limitations: ["No executable Team Binding is available."],
+      limitations: unique([
+        "No executable Team Binding is available.",
+        ...(resolution?.reasons ?? []),
+        ...(resolution?.unresolved ?? [])
+      ]),
       capability: null
     };
   }
@@ -2260,6 +2812,16 @@ function assuranceView(binding) {
 
 function decisionView(result) {
   const resolution = result.preset_resolution;
+  if (resolution.status === "authorization-required") {
+    return [
+      {
+        code: "multi-agent-authorization-required",
+        message:
+          "The required assurance needs multiple Agent contexts. Authorize Multi-Agent execution; otherwise the independent gates must pause or be assigned to qualified humans.",
+        options: ["granted", "denied"]
+      }
+    ];
+  }
   if (resolution.status === "decision-required") {
     return [
       {
@@ -2302,6 +2864,8 @@ function nextActionView(projection) {
     participant,
     objective: projection.work.objective,
     requested_action: projection.work.requested_action,
+    execution_profile:
+      projection.instructions.execution_profile_overlay?.id ?? null,
     instructions: clone(projection.instructions),
     required_outputs: clone(projection.outputs.required),
     exit_gate: clone(projection.outputs.exit_gate),
@@ -2315,7 +2879,9 @@ function evaluateKernelDetailed(request, catalogs) {
   const decisions = decisionView(result);
   const resolutionStatus = result.preset_resolution.status;
   const status =
-    resolutionStatus === "blocked" || resolutionStatus === "capacity-gap"
+    resolutionStatus === "blocked" ||
+    resolutionStatus === "capacity-gap" ||
+    resolutionStatus === "authorization-denied"
       ? "blocked"
       : decisions.length
         ? "decision-required"
@@ -2328,7 +2894,7 @@ function evaluateKernelDetailed(request, catalogs) {
     status,
     next_action:
       status === "ready" ? nextActionView(result.runtime_projection) : null,
-    assurance: assuranceView(result.team_binding),
+    assurance: assuranceView(result.team_binding, result.preset_resolution),
     decisions_required: decisions,
     continuation: {
       work_id: request.work.id,
@@ -2371,6 +2937,52 @@ function l5Decision(decision) {
   };
 }
 
+function userExperienceView(
+  operation,
+  status,
+  decisions = [],
+  catalogs = loadCatalogs(),
+  options = {}
+) {
+  const experience = catalogs.experience;
+  const phase = experience.operation_phase[operation];
+  const normalizedStatus =
+    status === "preview-ready" ? "preview-ready" : status;
+  const mode =
+    experience.status_interaction[normalizedStatus] ??
+    (status === "ready" ? "silent" : "inform");
+  const reasonCodes = unique(
+    decisions
+      .map((decision) => decision.code)
+      .filter((code) => typeof code === "string" && code !== "")
+  );
+  const defaultPrompts = {
+    initialize: "Review the setup preview and confirm it.",
+    work: "Provide the required decision so work can continue.",
+    complete: "Resolve the required completion decision."
+  };
+  return {
+    phase,
+    label: experience.public_phases[phase].label,
+    interaction: {
+      mode,
+      reason_codes: reasonCodes,
+      prompt:
+        mode === "confirm"
+          ? options.prompt ??
+            decisions[0]?.message ??
+            defaultPrompts[phase]
+          : null
+    },
+    persistence:
+      phase === "work"
+        ? options.persistence_required === true
+          ? "persistent"
+          : "ephemeral"
+        : null
+  };
+}
+
 function l5Assurance(assurance) {
   return {
     mode:
@@ -2391,6 +3003,9 @@ function l5Execution(nextAction) {
     },
     objective: nextAction.objective,
     requested_action: nextAction.requested_action,
+    ...(nextAction.execution_profile
+      ? { execution_profile: nextAction.execution_profile }
+      : {}),
     instructions: clone(nextAction.instructions),
     required_outputs: clone(nextAction.required_outputs),
     exit_gate: clone(nextAction.exit_gate)
@@ -3473,6 +4088,7 @@ function firstRunState(input, catalogs) {
       "stage",
       "project",
       "enabled_roles",
+      "host",
       "discovery_fingerprint",
       "onboarding_state"
     ],
@@ -3492,6 +4108,9 @@ function firstRunState(input, catalogs) {
     if (!catalogs.roles.roles[roleId]) {
       throw new Error(`first-run references unknown role: ${roleId}`);
     }
+  }
+  if (state.host != null) {
+    validateHostCapabilities(state.host);
   }
   validateOnboardingState(
     {
@@ -3521,24 +4140,66 @@ function firstRunCombinedPreview(discovery, onboardingState, catalogs) {
   };
 }
 
-function firstRunResponse(status, state, discovery, additions = {}) {
+function firstRunResponse(
+  status,
+  state,
+  discovery,
+  additions = {},
+  catalogs = loadCatalogs()
+) {
+  const decisions =
+    status === "preview-ready"
+      ? [
+          {
+            code: "confirm-initialization",
+            message: "Review the setup preview and confirm it."
+          }
+        ]
+      : status === "decision-required"
+        ? [
+            {
+              code: "choose-initialization-preferences",
+              message: "Choose preferences or accept the visible defaults."
+            }
+          ]
+        : [];
   return {
     schema_version: 1,
     status,
     state: clone(state),
     write_performed: additions.write_performed === true,
     discovery: clone(discovery.initialization),
+    user_view: userExperienceView(
+      "initialize",
+      status,
+      decisions,
+      catalogs
+    ),
+    capability_matrix: buildHostCapabilityMatrix(state?.host ?? null),
     ...additions
   };
 }
 
-function firstRunBlocked(discovery, message, actions) {
+function firstRunBlocked(
+  discovery,
+  message,
+  actions,
+  host = null,
+  catalogs = loadCatalogs()
+) {
   return {
     schema_version: 1,
     status: "blocked",
     state: null,
     write_performed: false,
     discovery: discovery ? clone(discovery.initialization) : null,
+    user_view: userExperienceView(
+      "initialize",
+      "blocked",
+      [{ code: "initialization-blocked", message }],
+      catalogs
+    ),
+    capability_matrix: buildHostCapabilityMatrix(host),
     required_actions: actions,
     limitations: [message]
   };
@@ -3553,6 +4214,7 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
       "presentation",
       "project",
       "enabled_roles",
+      "host",
       "state",
       "expected_revision",
       "answer",
@@ -3571,6 +4233,9 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
     if (!input.project?.locator) {
       throw new Error("first-run start requires project.locator");
     }
+    if (input.host != null) {
+      validateHostCapabilities(input.host);
+    }
     const enabledRoles =
       input.enabled_roles ?? Object.keys(catalogs.roles.roles);
     const discovery = firstRunDiscovery(
@@ -3582,7 +4247,9 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
       return firstRunBlocked(
         discovery,
         "Project discovery could not complete.",
-        clone(discovery.initialization.unresolved)
+        clone(discovery.initialization.unresolved),
+        input.host ?? null,
+        catalogs
       );
     }
     if (fs.existsSync(firstRunManifestPath(input.project))) {
@@ -3592,14 +4259,20 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
         [
           "Use `zipzap onboard` to change preferences.",
           "Use `zipzap initialize` with action `refresh` to reconcile registered sources."
-        ]
+        ],
+        input.host ?? null,
+        catalogs
       );
     }
     const onboarding = advanceOnboarding(
       {
         schema_version: 1,
         operation: "start",
-        presentation: input.presentation ?? "form",
+        presentation:
+          input.presentation ??
+          (input.host?.capabilities.includes("guided-form")
+            ? "form"
+            : "stepwise"),
         project: clone(input.project)
       },
       catalogs
@@ -3609,6 +4282,7 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
       stage: "collecting",
       project: clone(input.project),
       enabled_roles: clone(enabledRoles),
+      ...(input.host ? { host: clone(input.host) } : {}),
       discovery_fingerprint: firstRunDiscoveryFingerprint(discovery),
       onboarding_state: clone(onboarding.state)
     };
@@ -3618,7 +4292,8 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
       discovery,
       onboarding.form
         ? { form: clone(onboarding.form) }
-        : { question: clone(onboarding.question) }
+        : { question: clone(onboarding.question) },
+      catalogs
     );
   }
 
@@ -3632,7 +4307,9 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
     return firstRunBlocked(
       discovery,
       "Project discovery could not be refreshed.",
-      clone(discovery.initialization.unresolved)
+      clone(discovery.initialization.unresolved),
+      state.host ?? null,
+      catalogs
     );
   }
   const currentFingerprint = firstRunDiscoveryFingerprint(discovery);
@@ -3645,7 +4322,9 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
         [
           "Inspect the current project configuration.",
           "Restart first-run only if the existing configuration should be replaced."
-        ]
+        ],
+        state.host ?? null,
+        catalogs
       );
     }
     const onboardingState = confirmableOnboardingState(
@@ -3670,7 +4349,7 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
         warnings: [
           "Project sources changed after the previous preview. Review the refreshed preview and confirm again."
         ]
-      });
+      }, catalogs);
     }
     const projectPreferences =
       onboardingState.scope === "project"
@@ -3697,7 +4376,9 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
       return firstRunBlocked(
         discovery,
         "Project configuration did not complete.",
-        clone(configured.initialization.unresolved)
+        clone(configured.initialization.unresolved),
+        state.host ?? null,
+        catalogs
       );
     }
     state.revision += 1;
@@ -3719,7 +4400,7 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
         preferences_visible_before_write: true,
         single_manifest_write: true
       }
-    });
+    }, catalogs);
   }
 
   const onboarding = advanceOnboarding(
@@ -3750,7 +4431,13 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
             catalogs
           )
         };
-  return firstRunResponse(onboarding.status, state, discovery, additions);
+  return firstRunResponse(
+    onboarding.status,
+    state,
+    discovery,
+    additions,
+    catalogs
+  );
 }
 
 function invalidL5Response(envelope, error) {
@@ -3826,12 +4513,23 @@ function invokeL5Detailed(envelope, catalogs) {
         catalogs
       );
       if (normalization.status === "decision-required") {
+        const decisions = normalization.decisions_required.map(l5Decision);
         return {
           response: {
             ...base,
             status: "decision-required",
             summary: "Risk assessment requires authorized clarification.",
-            decisions_required: normalization.decisions_required.map(l5Decision),
+            user_view: userExperienceView(
+              operation,
+              "decision-required",
+              decisions,
+              catalogs,
+              {
+                persistence_required:
+                  normalization.derived_governance?.persistence_required === true
+              }
+            ),
+            decisions_required: decisions,
             continuation: null,
             diagnostics_ref: null
           },
@@ -3845,6 +4543,7 @@ function invokeL5Detailed(envelope, catalogs) {
         catalogs
       );
       const kernel = evaluated.response;
+      const decisions = kernel.decisions_required.map(l5Decision);
       return {
         response: {
           ...base,
@@ -3855,11 +4554,21 @@ function invokeL5Detailed(envelope, catalogs) {
               : kernel.status === "decision-required"
                 ? "A collaboration decision is required."
                 : "The work is blocked by an unmet runtime condition.",
+          user_view: userExperienceView(
+            operation,
+            kernel.status,
+            decisions,
+            catalogs,
+            {
+              persistence_required:
+                normalization.derived_governance.persistence_required === true
+            }
+          ),
           ...(kernel.status === "ready"
             ? { execution: l5Execution(kernel.next_action) }
             : {}),
           assurance: l5Assurance(kernel.assurance),
-          decisions_required: kernel.decisions_required.map(l5Decision),
+          decisions_required: decisions,
           continuation: {
             work_id: kernel.continuation.work_id
           },
@@ -3884,21 +4593,31 @@ function invokeL5Detailed(envelope, catalogs) {
           "initialize requires initialization data and a terminal workflow status"
         );
       }
+      const decisions =
+        envelope.context.workflow_status === "decision-required"
+          ? envelope.context.initialization.unresolved.map(
+              (message, index) => ({
+                code: `initialization-decision-${index + 1}`,
+                message
+              })
+            )
+          : [];
       return {
         response: {
           ...base,
           status: envelope.context.workflow_status,
           summary:
             envelope.context.summary ?? "Project initialization assessed.",
+          user_view: userExperienceView(
+            operation,
+            envelope.context.workflow_status,
+            decisions,
+            catalogs
+          ),
           initialization: clone(envelope.context.initialization),
           ...(envelope.context.workflow_status === "decision-required"
             ? {
-                decisions_required: envelope.context.initialization.unresolved.map(
-                  (message, index) => ({
-                    code: `initialization-decision-${index + 1}`,
-                    message
-                  })
-                )
+                decisions_required: decisions
               }
             : {}),
           diagnostics_ref: null
@@ -3923,6 +4642,12 @@ function invokeL5Detailed(envelope, catalogs) {
           ...base,
           status: envelope.context.workflow_status,
           summary: envelope.context.summary ?? "Inspection completed.",
+          user_view: userExperienceView(
+            operation,
+            envelope.context.workflow_status,
+            [],
+            catalogs
+          ),
           inspection_result: clone(envelope.context.inspection_result),
           diagnostics_ref: null
         },
@@ -4026,6 +4751,15 @@ function taskExecuteRequest(task) {
     request_id: task.task_id,
     request: {
       ...(task.work.intent ? { intent: task.work.intent } : {}),
+      ...(task.work.scope_depth
+        ? { scope_depth: task.work.scope_depth }
+        : {}),
+      ...(task.work.assurance_target
+        ? { assurance_target: task.work.assurance_target }
+        : {}),
+      ...(task.work.execution_budget
+        ? { execution_budget: clone(task.work.execution_budget) }
+        : {}),
       objective: task.work.objective,
       scope: clone(task.work.scope ?? []),
       requested_action: task.work.requested_action ?? "execute",
@@ -4254,6 +4988,16 @@ function validateHostCapabilities(host) {
       throw new Error(`host capabilities limits.${field} must be positive`);
     }
   }
+  if (
+    host.limits.multi_agent_authorization != null &&
+    !["unknown", "granted", "denied"].includes(
+      host.limits.multi_agent_authorization
+    )
+  ) {
+    throw new Error(
+      "host capabilities limits.multi_agent_authorization must be unknown, granted, or denied"
+    );
+  }
   assertObject(host.interfaces, "host capabilities interfaces");
   for (const interfaceId of ["l5", "kernel"]) {
     const versions = host.interfaces[interfaceId];
@@ -4272,6 +5016,156 @@ function validateHostCapabilities(host) {
 function missingValues(available, required) {
   const values = new Set(available ?? []);
   return (required ?? []).filter((value) => !values.has(value));
+}
+
+export function buildHostCapabilityMatrix(host = null) {
+  const unknownEntries = [
+    [
+      "multi-agent",
+      "Multi-Agent contexts",
+      "Assume Solo only; confirm host support before requiring independent Agent contexts."
+    ],
+    ["guided-form", "Guided form", "Use stepwise conversation."],
+    [
+      "exact-token-telemetry",
+      "Exact token telemetry",
+      "Record measurement as unavailable; do not estimate token counts."
+    ],
+    [
+      "goal-budgeting",
+      "Goal budgeting",
+      "Keep an optional Task resource budget without creating a Goal."
+    ],
+    ["node-acceleration", "Node acceleration", "Use the direct JSON contract."],
+    [
+      "project-state",
+      "Project state",
+      "Keep work ephemeral until project access is confirmed."
+    ]
+  ].map(([id, label, fallback]) => ({
+    id,
+    label,
+    status: "unknown",
+    summary: "The host did not report this capability.",
+    fallback
+  }));
+  if (host == null) {
+    return {
+      schema_version: 1,
+      assessed: false,
+      entries: unknownEntries,
+      limitations: [
+        "Host capabilities were not supplied; optional features remain unverified."
+      ]
+    };
+  }
+
+  validateHostCapabilities(host);
+  const capabilities = new Set(host.capabilities);
+  const runtimes = new Set(host.runtimes);
+  const contextLimit = host.limits.distinct_context_limit;
+  const authorization =
+    host.limits.multi_agent_authorization ?? "unknown";
+  let multiAgentStatus = "unavailable";
+  let multiAgentSummary =
+    "Only one distinct Agent context is available.";
+  if (contextLimit > 1 && authorization === "granted") {
+    multiAgentStatus = "available";
+    multiAgentSummary =
+      `Up to ${contextLimit} distinct Agent contexts are authorized.`;
+  } else if (contextLimit > 1 && authorization === "unknown") {
+    multiAgentStatus = "authorization-required";
+    multiAgentSummary =
+      `The host can provide ${contextLimit} contexts, but Multi-Agent use needs authorization.`;
+  } else if (contextLimit > 1 && authorization === "denied") {
+    multiAgentSummary =
+      "The host can provide multiple contexts, but authorization was denied.";
+  }
+
+  const guidedForm = capabilities.has("guided-form");
+  const tokenTelemetry = capabilities.has("token-usage-reporting");
+  const goalBudgeting = capabilities.has("goal-budgeting");
+  const nodeAcceleration =
+    capabilities.has("script-execution") && runtimes.has("node");
+  const projectRead = capabilities.has("project-read");
+  const projectWrite = capabilities.has("project-write");
+  const projectState =
+    capabilities.has("project-state") || (projectRead && projectWrite);
+
+  return {
+    schema_version: 1,
+    assessed: true,
+    entries: [
+      {
+        id: "multi-agent",
+        label: "Multi-Agent contexts",
+        status: multiAgentStatus,
+        summary: multiAgentSummary,
+        fallback:
+          multiAgentStatus === "available"
+            ? null
+            : "Run Solo where sufficient, or assign qualified humans to required independent gates."
+      },
+      {
+        id: "guided-form",
+        label: "Guided form",
+        status: guidedForm ? "available" : "unavailable",
+        summary: guidedForm
+          ? "The host can render page-based onboarding."
+          : "The host did not report page-based onboarding.",
+        fallback: guidedForm ? null : "Use the stepwise conversation contract."
+      },
+      {
+        id: "exact-token-telemetry",
+        label: "Exact token telemetry",
+        status: tokenTelemetry ? "available" : "unavailable",
+        summary: tokenTelemetry
+          ? "The host can report exact task token usage."
+          : "Exact host token telemetry is unavailable.",
+        fallback: tokenTelemetry
+          ? null
+          : "Record measurement as unavailable; do not estimate token counts."
+      },
+      {
+        id: "goal-budgeting",
+        label: "Goal budgeting",
+        status: goalBudgeting ? "available" : "unavailable",
+        summary: goalBudgeting
+          ? "The host can create explicitly authorized budget Goals."
+          : "The host did not report Goal budgeting.",
+        fallback: goalBudgeting
+          ? null
+          : "Keep an optional Task resource budget without creating a Goal."
+      },
+      {
+        id: "node-acceleration",
+        label: "Node acceleration",
+        status: nodeAcceleration ? "available" : "unavailable",
+        summary: nodeAcceleration
+          ? "The zero-dependency Node adapters are available."
+          : "Node script acceleration is unavailable.",
+        fallback: nodeAcceleration ? null : "Use the direct JSON contract."
+      },
+      {
+        id: "project-state",
+        label: "Project state",
+        status: projectState
+          ? "available"
+          : projectRead
+            ? "degraded"
+            : "unavailable",
+        summary: projectState
+          ? "The host can read and write project-owned ZipZap state."
+          : projectRead
+            ? "The host can inspect project state but cannot persist changes."
+            : "Project state access was not reported.",
+        fallback: projectState
+          ? null
+          : "Keep work ephemeral or ask the host for project access."
+      }
+    ],
+    limitations: []
+  };
 }
 
 export function assessHost(
@@ -4435,6 +5329,7 @@ export function assessHost(
     fallback_used: fallbackUsed,
     interface_versions: negotiated,
     governance_preserved: governancePreserved,
+    capability_matrix: buildHostCapabilityMatrix(host),
     checks,
     missing_capabilities: missingCapabilities,
     limitations: unique(limitations)

@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "intent_defaults": {
+    "diagnose": "advisory",
+    "accept": "formal-acceptance"
+  },
+  "assurance_targets": {
+    "advisory": {
+      "required_gates": [],
+      "requires_approval": [],
+      "persistence_required": false,
+      "claim_limit": "advisory"
+    },
+    "self-review": {
+      "required_gates": [],
+      "requires_approval": [],
+      "persistence_required": false,
+      "claim_limit": "self-reviewed"
+    },
+    "independent-review": {
+      "required_gates": [
+        "independent-review-from-developer"
+      ],
+      "requires_approval": [],
+      "persistence_required": false,
+      "claim_limit": "independently-reviewed"
+    },
+    "formal-acceptance": {
+      "required_gates": [
+        "independent-testing-from-developer",
+        "independent-review-from-developer",
+        "reviewer-independent-from-tester",
+        "product-independent-from-coordinator"
+      ],
+      "requires_approval": [
+        "authorized-acceptance-owner"
+      ],
+      "persistence_required": true,
+      "claim_limit": "accepted-by-authorized-owner"
+    }
+  },
+  "profiles": {
+    "design-diagnostic": {
+      "match": {
+        "intent": [
+          "diagnose"
+        ],
+        "scope_depth": [
+          "design-only"
+        ],
+        "assurance_target": [
+          "advisory",
+          "self-review"
+        ]
+      },
+      "role": "reviewer",
+      "stage": "review",
+      "risk_processing": {
+        "require_exposure": true,
+        "subject_effects": "focus-only",
+        "action_effects": "require-upgrade"
+      },
+      "default_budget": {
+        "evidence": "light",
+        "max_source_files": 8,
+        "allow_tests": false,
+        "allow_mutations": false,
+        "allow_persistence": false
+      },
+      "capsule": {
+        "id": "design-diagnostic",
+        "purpose": "Produce a bounded, read-only diagnosis of an existing design without claiming verification or acceptance.",
+        "role": "reviewer",
+        "stage": "review",
+        "claim_limit": "advisory",
+        "context_order": [
+          "project source registry",
+          "authoritative target design",
+          "linked current Task when relevant",
+          "matching Reviewer rules",
+          "Finding-specific implementation fragments only after an upgrade"
+        ],
+        "review_focus": [
+          "state transitions and invariants",
+          "money and value conservation",
+          "authorization and ownership",
+          "failure recovery and idempotency",
+          "auditability and observability",
+          "unresolved business rules"
+        ],
+        "required_outputs": [
+          "diagnostic judgment",
+          "evidence-backed findings",
+          "positive design conclusions",
+          "coverage and production boundary",
+          "owner decisions",
+          "optional upgrade action"
+        ],
+        "exit_gate": [
+          "the result is labeled advisory or self-reviewed",
+          "uninspected implementation and unrun tests are explicit",
+          "material Findings have evidence and an upgrade recommendation"
+        ],
+        "prohibited": [
+          "Modify code, data, schemas, configuration, or project state.",
+          "Run tests, builds, migrations, or production commands.",
+          "Create or update Tasks, Reviews, Findings, or reports on disk.",
+          "Claim independent Review, formal acceptance, completion, production readiness, or approval."
+        ],
+        "upgrade_triggers": [
+          "a blocker or high-severity Finding",
+          "suspected design and implementation mismatch",
+          "a request to change code, data, schema, or configuration",
+          "a request for tests, independent Review, acceptance, completion, or production readiness",
+          "a current-action risk requiring authorization, persistence, or a formal gate"
+        ]
+      },
+      "signal_focus": {
+        "privacy-or-regulated-data": [
+          "data classification, minimization, access, retention, and disclosure"
+        ],
+        "security-critical": [
+          "authentication, authorization, trust boundaries, abuse cases, and secrets"
+        ],
+        "production-destructive": [
+          "destructive transitions, safeguards, recovery, and operator authority"
+        ],
+        "difficult-to-reverse": [
+          "rollback feasibility, compensating actions, and recovery time"
+        ],
+        "external-user-impact": [
+          "user-visible states, compatibility, notification, and support recovery"
+        ],
+        "financial-impact": [
+          "value conservation, settlement states, reconciliation, retries, and audit evidence"
+        ],
+        "shared-interface-or-migration": [
+          "compatibility, ordering, migration states, rollback, and mixed-version behavior"
+        ],
+        "ambiguous-material-requirements": [
+          "unresolved decisions, ownership, invariants, and acceptance boundaries"
+        ],
+        "weak-or-missing-verification": [
+          "unproven assumptions, missing observability, and recommended targeted checks"
+        ],
+        "unfamiliar-technology": [
+          "technology-specific failure modes and unsupported assumptions"
+        ],
+        "authority-or-external-communication": [
+          "decision authority, credentials, external effects, and risk acceptance"
+        ]
+      }
+    }
+  }
+}

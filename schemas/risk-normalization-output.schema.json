@@ -50,6 +50,27 @@
             "type": "string"
           }
         },
+        "subject_risk_signals": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "action_risk_signals": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "subject_uncertainties": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
         "risk_flags": {
           "type": "array",
           "uniqueItems": true,
@@ -80,6 +101,48 @@
         },
         "persistence_required": {
           "type": "boolean"
+        },
+        "execution_profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "assurance_target": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "advisory",
+            "self-review",
+            "independent-review",
+            "formal-acceptance",
+            null
+          ]
+        },
+        "claim_limit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "review_focus": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "execution_budget": {
+          "oneOf": [
+            {
+              "$ref": "./l5-input.schema.json#/$defs/execution_budget"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -96,7 +159,10 @@
         ],
         "properties": {
           "code": {
-            "const": "risk-signal-unresolved"
+            "enum": [
+              "risk-signal-unresolved",
+              "diagnostic-upgrade-required"
+            ]
           },
           "signal": {
             "type": "string"

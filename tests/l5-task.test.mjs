@@ -99,7 +99,8 @@ function adapterInput(taskValue, assessmentValue, overrides = {}) {
     assessment: assessmentValue,
     host: {
       concurrency_limit: 2,
-      distinct_context_limit: 5
+      distinct_context_limit: 5,
+      multi_agent_authorization: "granted"
     },
     project_sources: [],
     state: {
@@ -125,7 +126,8 @@ function invokeEnvelope(taskValue, assessmentValue) {
         assessment: assessmentValue,
         host: {
           concurrency_limit: 2,
-          distinct_context_limit: 5
+          distinct_context_limit: 5,
+          multi_agent_authorization: "granted"
         },
         project_sources: [],
         state: {
@@ -146,11 +148,89 @@ test("unified L5 invoke returns a ready execution view", () => {
   assert.equal(response.ok, true);
   assert.equal(response.operation, "execute");
   assert.equal(response.status, "ready");
+  assert.deepEqual(response.user_view, {
+    phase: "work",
+    label: "Work",
+    interaction: {
+      mode: "silent",
+      reason_codes: [],
+      prompt: null
+    },
+    persistence: "ephemeral"
+  });
   assert.equal(response.execution.participant.profile, "owl");
   assert.equal(response.assurance.mode, "self");
   assert.deepEqual(response.continuation, {
     work_id: "task-1"
   });
+});
+
+test("unified L5 invoke exposes a silent design diagnostic profile", () => {
+  const invocation = {
+    schema_version: 1,
+    operation: "execute",
+    request: {
+      intent: "diagnose",
+      scope_depth: "design-only",
+      assurance_target: "advisory",
+      objective: "Assess whether the settlement design is reasonable.",
+      scope: ["docs/settlement.md"],
+      requested_action: "diagnose-design",
+      constraints: [],
+      acceptance_criteria: [
+        "Material design Findings and limitations are explicit."
+      ]
+    }
+  };
+  const response = invokeL5(
+    {
+      schema_version: 1,
+      request: invocation,
+      context: {
+        risk_normalization: {
+          schema_version: 1,
+          work_id: "settlement-design-diagnostic",
+          work_type: "design-review",
+          affected_components: ["settlement"],
+          assessment_input: {
+            schema_version: 1,
+            taxonomy_version: 1,
+            invocation,
+            evidence: []
+          },
+          assessment: {
+            schema_version: 1,
+            taxonomy_version: 1,
+            evaluated_signals: [...allSignals],
+            present_signals: [
+              {
+                id: "financial-impact",
+                evidence_refs: ["request.objective"],
+                confidence: "high",
+                exposure: "subject"
+              }
+            ],
+            unknown_signals: []
+          },
+          host: {
+            concurrency_limit: 1,
+            distinct_context_limit: 1,
+            multi_agent_authorization: "unknown"
+          },
+          project_sources: []
+        }
+      }
+    },
+    catalogs
+  );
+
+  assert.equal(response.status, "ready");
+  assert.equal(response.user_view.interaction.mode, "silent");
+  assert.equal(response.user_view.persistence, "ephemeral");
+  assert.equal(response.execution.execution_profile, "design-diagnostic");
+  assert.equal(response.execution.participant.role, "reviewer");
+  assert.equal(response.assurance.mode, "self");
+  assert.deepEqual(response.decisions_required, []);
 });
 
 test("unified L5 invoke returns risk decisions without entering L4", () => {
@@ -165,6 +245,11 @@ test("unified L5 invoke returns risk decisions without entering L4", () => {
   );
   assert.equal(response.ok, true);
   assert.equal(response.status, "decision-required");
+  assert.equal(response.user_view.phase, "work");
+  assert.equal(response.user_view.interaction.mode, "confirm");
+  assert.deepEqual(response.user_view.interaction.reason_codes, [
+    "risk-signal-unresolved"
+  ]);
   assert.equal(response.execution, undefined);
   assert.equal(
     response.decisions_required[0].code,
@@ -371,6 +456,10 @@ test("registers the unified L5 and Task Adapter schemas", () => {
   );
   assert.equal(catalogs.schemas.taskEvent.title, "ZipZap Task Event");
   assert.equal(catalogs.schemas.reviewResult.title, "ZipZap Review Result");
+  assert.equal(
+    catalogs.schemas.resourceUsage.title,
+    "ZipZap Resource Usage Record"
+  );
   assert.equal(catalogs.schemas.taskReport.title, "ZipZap Task Report");
   assert.equal(
     catalogs.schemas.capabilityReport.title,

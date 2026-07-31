@@ -169,8 +169,14 @@ test("Task creation defaults to ready and rejects the retired backlog status", (
   const projectRoot = createRepository(context);
   const defaultReady = taskInput();
   delete defaultReady.status;
+  defaultReady.resource_budget = {
+    token_budget: 10000,
+    goal_authorization: "explicit-user",
+    goal_id: "goal-1"
+  };
   const created = run("create", [], projectRoot, defaultReady);
   assert.equal(created.task.status, "ready");
+  assert.equal(created.task.resource_budget.goal_authorization, "explicit-user");
 
   const backlog = {
     ...taskInput(),
@@ -181,6 +187,20 @@ test("Task creation defaults to ready and rejects the retired backlog status", (
     runFailure("create", [], projectRoot, backlog)
   );
   assert.equal(failed.error.code, "invalid-creation-status");
+
+  const unauthorizedGoal = {
+    ...taskInput(),
+    task_id: "unauthorized-goal",
+    resource_budget: {
+      token_budget: 10000,
+      goal_authorization: "not-requested",
+      goal_id: "goal-2"
+    }
+  };
+  const goalFailure = JSON.parse(
+    runFailure("create", [], projectRoot, unauthorizedGoal)
+  );
+  assert.equal(goalFailure.error.code, "invalid-input");
 });
 
 test("Expedite records narrow, authorized, expiring Ready waivers", (context) => {
@@ -352,6 +372,16 @@ test("independent Task CLI stores, tracks, reviews, and reports work", (context)
         subject_id: "reviewer-1",
         independence: "independent"
       },
+      subject_snapshot: {
+        task_revision: 4,
+        git_head: synced.snapshot.repository_head,
+        artifact_refs: [
+          {
+            locator: "app.js",
+            version: synced.snapshot.repository_head
+          }
+        ]
+      },
       created_at: new Date().toISOString(),
       outcome: "approved",
       coverage: {
@@ -380,6 +410,29 @@ test("independent Task CLI stores, tracks, reviews, and reports work", (context)
   assert.equal(transitioned.task.status, "completed");
   assert.equal(transitioned.task.revision, 6);
 
+  const usage = run("record-usage", [], projectRoot, {
+    schema_version: 1,
+    usage_id: "task-1-run",
+    task_id: "task-1",
+    task_revision: 6,
+    recorded_at: new Date().toISOString(),
+    actor_id: "owl",
+    resource_usage: {
+      measurement: "exact",
+      source: "host",
+      input_tokens: 1200,
+      output_tokens: 800,
+      tool_result_tokens: 3000,
+      total_tokens: 5000
+    },
+    goal: {
+      authorization: "explicit-user",
+      token_budget: 10000,
+      goal_id: "goal-1"
+    }
+  });
+  assert.equal(usage.task_revision, 6);
+
   const report = run(
     "report",
     ["--period", "daily", "--scope", "person", "--subject", "user-1"],
@@ -388,6 +441,9 @@ test("independent Task CLI stores, tracks, reviews, and reports work", (context)
   assert.equal(report.tasks.length, 1);
   assert.equal(report.summary.completed_transitions, 1);
   assert.equal(report.tasks[0].completion, "complete");
+  assert.equal(report.resource_usage.measurement, "exact");
+  assert.equal(report.resource_usage.total_tokens, 5000);
+  assert.equal(report.tasks[0].resource_usage.tool_result_tokens, 3000);
 
   const capability = run(
     "capability",
@@ -404,7 +460,7 @@ test("independent Task CLI stores, tracks, reviews, and reports work", (context)
     fs
       .readdirSync(path.join(projectRoot, ".zipzap", "events", "task-1"))
       .filter((name) => name.endsWith(".json")).length,
-    6
+    7
   );
 });
 
@@ -443,6 +499,84 @@ test("reports retain read-only compatibility with legacy monthly JSONL events", 
   assert.equal(report.summary.completed_transitions, 1);
 });
 
+test("does not invent token counts when host telemetry is unavailable", (context) => {
+  const projectRoot = createRepository(context);
+  run("create", [], projectRoot, taskInput());
+  run("record-usage", [], projectRoot, {
+    schema_version: 1,
+    usage_id: "telemetry-unavailable",
+    task_id: "task-1",
+    task_revision: 1,
+    recorded_at: new Date().toISOString(),
+    resource_usage: {
+      measurement: "unavailable",
+      source: "host"
+    }
+  });
+  const report = run(
+    "report",
+    ["--period", "daily", "--scope", "person", "--subject", "user-1"],
+    projectRoot
+  );
+  assert.equal(report.resource_usage.measurement, "unavailable");
+  assert.equal(report.resource_usage.unavailable_records, 1);
+  assert.equal(report.resource_usage.total_tokens, 0);
+
+  const invalid = JSON.parse(
+    runFailure("record-usage", [], projectRoot, {
+      schema_version: 1,
+      usage_id: "fake-estimate",
+      task_id: "task-1",
+      task_revision: 1,
+      recorded_at: new Date().toISOString(),
+      resource_usage: {
+        measurement: "unavailable",
+        source: "estimated",
+        total_tokens: 42
+      }
+    })
+  );
+  assert.equal(invalid.error.code, "invalid-input");
+});
+
+test("reads legacy Review records without snapshots but requires snapshots on update", (context) => {
+  const projectRoot = createRepository(context);
+  run("create", [], projectRoot, taskInput());
+  const legacyReview = {
+    schema_version: 1,
+    review_id: "legacy-review",
+    task_id: "task-1",
+    reviewer: {
+      subject_id: "reviewer-1",
+      independence: "independent"
+    },
+    created_at: new Date().toISOString(),
+    outcome: "approved",
+    coverage: {
+      scope: ["app.js"],
+      limitations: ["Recorded before Review snapshots were introduced."]
+    },
+    findings: [],
+    evidence_refs: ["git:HEAD"]
+  };
+  const reviewDirectory = path.join(projectRoot, ".zipzap", "reviews");
+  fs.mkdirSync(reviewDirectory, { recursive: true });
+  fs.writeFileSync(
+    path.join(reviewDirectory, "legacy-review.json"),
+    `${JSON.stringify(legacyReview, null, 2)}\n`
+  );
+
+  assert.equal(run("assess", ["--id", "task-1"], projectRoot).status, "ready-to-complete");
+  const update = JSON.parse(
+    runFailure("update-review", [], projectRoot, {
+      expected_revision: 1,
+      review: legacyReview
+    })
+  );
+  assert.equal(update.error.code, "invalid-input");
+  assert.match(update.error.message, /subject_snapshot/);
+});
+
 test("captures shareable Feedback with a minimal derived Task snapshot", (context) => {
   const projectRoot = createRepository(context);
   run("create", [], projectRoot, taskInput());
@@ -470,7 +604,7 @@ test("captures shareable Feedback with a minimal derived Task snapshot", (contex
   });
   assert.equal(
     captured.feedback.zipzap_snapshot.skill_version,
-    "0.1.1-beta.1"
+    "0.1.1-beta.2"
   );
   assert.equal(captured.feedback.task_snapshot.task_id, "task-1");
   assert.equal(captured.feedback.task_snapshot.completion, "ready-to-complete");
@@ -635,6 +769,16 @@ test("completion is blocked by Review changes requests", (context) => {
       subject_id: "reviewer-1",
       independence: "independent"
     },
+    subject_snapshot: {
+      task_revision: 1,
+      git_head: null,
+      artifact_refs: [
+        {
+          locator: "app.js",
+          version: null
+        }
+      ]
+    },
     created_at: new Date().toISOString(),
     outcome: "changes-requested",
     coverage: {
@@ -646,6 +790,7 @@ test("completion is blocked by Review changes requests", (context) => {
         id: "finding-1",
         statement: "The implementation has a material defect.",
         severity: "high",
+        priority: "p1",
         blocking: true,
         status: "open",
         evidence_refs: ["git:HEAD"]
@@ -666,6 +811,10 @@ test("completion is blocked by Review changes requests", (context) => {
     expected_revision: 2,
     review: {
       ...blockingReview,
+      subject_snapshot: {
+        ...blockingReview.subject_snapshot,
+        task_revision: 2
+      },
       outcome: "approved",
       findings: [
         {
@@ -678,6 +827,10 @@ test("completion is blocked by Review changes requests", (context) => {
   const reassessed = run("assess", ["--id", "task-1"], projectRoot);
   assert.equal(reassessed.status, "ready-to-complete");
   assert.equal(reassessed.open_findings.blocking, 0);
+  assert.equal(
+    run("show", ["--id", "task-1"], projectRoot).findings[0].priority,
+    "p1"
+  );
 });
 
 test("person reports exclude events from out-of-scope Tasks", (context) => {

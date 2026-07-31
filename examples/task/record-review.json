@@ -8,6 +8,16 @@
       "subject_id": "reviewer-1",
       "independence": "independent"
     },
+    "subject_snapshot": {
+      "task_revision": 1,
+      "git_head": null,
+      "artifact_refs": [
+        {
+          "locator": "src/example.js",
+          "version": null
+        }
+      ]
+    },
     "created_at": "2026-01-01T00:00:00.000Z",
     "outcome": "approved",
     "coverage": {

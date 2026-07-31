@@ -19,7 +19,8 @@ initialized project to `onboard` for preference changes or `initialize` with
 Run:
 
 1. `start` to discover project sources without writing and return the
-   discovery preview with either a form or the first question.
+   discovery preview, Host Capability Matrix, and either a form or the first
+   question.
 2. `submit` for a page form, or repeat `answer` for stepwise presentation.
 3. Present one combined preview containing discovered source routing,
    coverage, all selected preferences, project storage, and warnings.
@@ -37,6 +38,12 @@ Always show the core preference fields before confirmation:
 
 Show team tone and Agent signatures as advanced fields. Let the user accept
 recommended values, but never hide the resulting configuration summary.
+
+Accept optional `host` capabilities on `start`, retain them in serialized
+First Run state, and return the Matrix on every response. Use a form only when
+the caller explicitly requests it or the host reports `guided-form`; otherwise
+fall back to stepwise conversation. An omitted host produces `unknown`
+capability statuses rather than optimistic assumptions.
 
 ## Safety
 

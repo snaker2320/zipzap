@@ -1,24 +1,26 @@
 {
   "schema_version": 1,
-  "id": "solo-basic",
+  "id": "multi-agent-authorization-required",
   "request": {
     "schema_version": 1,
     "work": {
-      "id": "solo-basic",
-      "objective": "Implement a bounded reversible change.",
+      "id": "multi-agent-authorization-required",
+      "objective": "Challenge a material implementation.",
       "requested_action": "modify",
       "scope": [],
       "affected_components": []
     },
     "governance": {
       "risk_flags": [],
-      "required_gates": [],
+      "required_gates": [
+        "second-context"
+      ],
       "required_evidence": [],
       "project_sources": []
     },
     "host": {
-      "concurrency_limit": 1,
-      "distinct_context_limit": 1,
+      "concurrency_limit": 2,
+      "distinct_context_limit": 2,
       "multi_agent_authorization": "unknown"
     },
     "state": {
@@ -27,11 +29,8 @@
     }
   },
   "expected": {
-    "status": "ready",
-    "participant": {
-      "profile": "owl",
-      "assignment": "developer"
-    },
-    "assurance_mode": "self"
+    "status": "decision-required",
+    "participant": null,
+    "assurance_mode": "unavailable"
   }
 }

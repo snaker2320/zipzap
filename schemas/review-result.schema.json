@@ -51,6 +51,49 @@
         }
       }
     },
+    "subject_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_revision",
+        "git_head",
+        "artifact_refs"
+      ],
+      "properties": {
+        "task_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "git_head": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artifact_refs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "locator"
+            ],
+            "properties": {
+              "locator": {
+                "type": "string",
+                "minLength": 1
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "created_at": {
       "type": "string",
       "format": "date-time"
@@ -114,6 +157,14 @@
               "medium",
               "low",
               "advisory"
+            ]
+          },
+          "priority": {
+            "enum": [
+              "p0",
+              "p1",
+              "p2",
+              "p3"
             ]
           },
           "blocking": {

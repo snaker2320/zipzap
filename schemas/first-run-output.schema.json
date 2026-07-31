@@ -9,7 +9,9 @@
     "status",
     "state",
     "write_performed",
-    "discovery"
+    "discovery",
+    "user_view",
+    "capability_matrix"
   ],
   "properties": {
     "schema_version": {
@@ -45,6 +47,12 @@
           "type": "null"
         }
       ]
+    },
+    "user_view": {
+      "$ref": "./user-view.schema.json"
+    },
+    "capability_matrix": {
+      "$ref": "./host-capability-matrix.schema.json"
     },
     "question": {
       "$ref": "./onboarding-output.schema.json#/$defs/question"

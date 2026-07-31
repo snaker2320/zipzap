@@ -26,3 +26,21 @@ host-preloaded source remains governing evidence but is not loaded again.
 Read a matching Markdown heading range when practical; loading an entire small
 document remains valid. A section index is an optional accelerator, not an
 authority source.
+
+For source code or large text, locate before reading:
+
+1. use host-native search or `rg --files` to narrow candidate files;
+2. use a symbol, type, method, or exact keyword search to locate the relevant
+   range;
+3. read only that heading or line range;
+4. expand incrementally only when the evidence is insufficient.
+
+Treat truncated output as an incomplete read. Never infer that a symbol,
+branch, Finding, or constraint is absent merely because a tool result was
+truncated. Record the reason when a whole large file is genuinely required.
+
+For a `design-diagnostic` projection, apply its execution budget as an initial
+coverage boundary. Stop after the configured source-file limit, disclose
+uninspected areas, and offer an expanded diagnostic. Do not load
+Finding-specific implementation fragments, run tests, or persist output until
+the user authorizes an upgraded scope.

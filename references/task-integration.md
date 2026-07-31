@@ -7,6 +7,7 @@ contracts are:
 - `schemas/task-event.schema.json`;
 - `schemas/feedback.schema.json`;
 - `schemas/review-result.schema.json`;
+- `schemas/resource-usage.schema.json`;
 - `schemas/task-report.schema.json`;
 - `schemas/capability-report.schema.json`;
 - `schemas/task-adapter-input.schema.json`;
@@ -134,6 +135,23 @@ from acceptance-criterion evidence, required gates, Review independence, and
 open Findings. A Commit, changed file, or completed-looking status is not
 completion evidence by itself.
 
+Every new persisted Review records a `subject_snapshot`: the reviewed Task
+revision, Git HEAD when available, and versioned artifact locators. A later
+Reviewer must compare it with current state before reusing the result. Keep
+Finding `severity` separate from scheduling `priority` (`p0` to `p3`). For a
+persistent Task, write an authorized Review through `record-review`; for
+ephemeral work, return the same structured shape without writing project
+state.
+
+Use `schemas/diagnostic-review.schema.json` for an ephemeral Design Diagnostic
+Review. It identifies the artifact directly and does not require a Task.
+Persist nothing unless the user later authorizes a Task, durable Finding, or
+formal Review. Promote its evidence and Findings without reconstructing them
+when an upgrade is authorized.
+
+Read legacy Reviews without a snapshot for upgrade compatibility, but treat
+them as stale for reuse and require a current snapshot on the next update.
+
 Use explainable states: `verification-needed`, `review-needed`,
 `changes-requested`, `ready-to-complete`, `complete`, or `blocked`. Reject a
 transition to completed unless the assessment is ready.
@@ -156,6 +174,21 @@ Use Task, Event, Git Snapshot, criteria evidence, and Review Findings. Capabilit
 profiles describe observed AI collaboration outcomes, not authorship share.
 Always expose sample size, work mix, evidence references, confidence, and
 limitations. Do not use the report as a standalone performance ranking.
+
+When the host exposes exact token telemetry, record input, output, tool-result,
+and total tokens as an immutable event:
+
+```bash
+node scripts/task.mjs record-usage --input resource-usage.json
+```
+
+Require the components to equal the total. When telemetry is unavailable,
+record `measurement: unavailable` without token counts; never substitute a
+character-based estimate. A Task may declare `resource_budget`, but create a
+host Goal only when the user explicitly authorized it and the host supports
+Goal budgeting. Reports aggregate exact records and expose unavailable
+records separately. Do not interpret lower token use as higher capability
+without comparable work, risk, role, and outcome evidence.
 
 ## Feedback
 

@@ -7,7 +7,7 @@ default catalog. Use `schemas/onboarding-input.schema.json` and
 
 ## Presentation
 
-Prefer a host-rendered form when available:
+Prefer a host-rendered form only when the Host Capability Matrix reports it:
 
 ```bash
 node scripts/zipzap.mjs onboard --input onboarding-start.json
@@ -17,6 +17,10 @@ Send `presentation: form` to receive all page-ready fields. Send
 `presentation: stepwise` to receive one `question` at a time. Both
 presentations use the same state, validation, preview, and confirmation rules.
 Do not require Plan mode.
+
+When First Run chooses presentation automatically, use `guided-form` when
+available and `stepwise` otherwise. Do not ask users to decide between these
+presentation mechanisms.
 
 Supported operations are:
 
