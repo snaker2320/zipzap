@@ -44,7 +44,8 @@ test("builds a deterministic zero-dependency release manifest", () => {
   const second = buildReleaseManifest(catalogs);
   assert.deepEqual(first, second);
   assert.deepEqual(first.runtime_dependencies, []);
-  assert.equal(first.skill.version, "0.1.0");
+  assert.equal(first.skill.version, "0.1.1-beta.1");
+  assert.equal(first.skill.channel, "beta");
   assert.equal(
     first.files.some((file) => file.path === "SKILL.md"),
     true
@@ -119,6 +120,41 @@ test("blocks a release manifest with a changed hash", () => {
     result.checks.find((check) => check.id === "package-inventory").passed,
     false
   );
+});
+
+test("rejects a release channel that disagrees with the semantic version", () => {
+  const manifest = clone(buildReleaseManifest(catalogs));
+  manifest.skill.channel = "development";
+  assert.throws(
+    () =>
+      assessLifecycle(
+        {
+          schema_version: 1,
+          operation: "verify-release",
+          release_manifest: manifest
+        },
+        catalogs
+      ),
+    /channel development does not match version 0\.1\.1-beta\.1/
+  );
+});
+
+test("upgrades both beta archive and misreported internal versions", () => {
+  const host = compatibleHost();
+  for (const installedVersion of ["0.1.0-beta.1", "0.1.0"]) {
+    const result = assessLifecycle(
+      {
+        schema_version: 1,
+        operation: "upgrade",
+        installed_version: installedVersion,
+        target_version: "0.1.1-beta.1",
+        host_conformance: host
+      },
+      catalogs
+    );
+    assert.equal(result.allowed, true, installedVersion);
+    assert.deepEqual(result.migration_plan, []);
+  }
 });
 
 test("allows installation without initializing project state", () => {

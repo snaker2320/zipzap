@@ -66,7 +66,7 @@ test("catalogs are internally valid", () => {
     task_policies: 10,
     onboarding_questions: 6,
     adapters: 3,
-    releases: 1
+    releases: 3
   });
 });
 

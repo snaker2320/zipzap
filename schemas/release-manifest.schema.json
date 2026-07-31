@@ -34,8 +34,13 @@
           "$ref": "#/$defs/semver"
         },
         "channel": {
-          "type": "string",
-          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          "enum": [
+            "development",
+            "alpha",
+            "beta",
+            "rc",
+            "stable"
+          ]
         }
       }
     },

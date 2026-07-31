@@ -11,6 +11,13 @@ const DEFAULT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SEMVER_PATTERN =
   /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const RELEASE_CHANNELS = new Set([
+  "development",
+  "alpha",
+  "beta",
+  "rc",
+  "stable"
+]);
 const PROJECT_GITIGNORE = `# Derived or machine-local ZipZap state
 /reports/
 /cache/
@@ -747,6 +754,19 @@ export function validateCatalogs(catalogs) {
 
   if (!SEMVER_PATTERN.test(lifecycle.skill?.current_version ?? "")) {
     errors.push("lifecycle current version must be semantic versioning");
+  } else {
+    const expectedChannel = releaseChannelForVersion(
+      lifecycle.skill.current_version
+    );
+    if (
+      !RELEASE_CHANNELS.has(lifecycle.skill?.channel) ||
+      expectedChannel == null ||
+      lifecycle.skill.channel !== expectedChannel
+    ) {
+      errors.push(
+        `lifecycle channel ${lifecycle.skill?.channel ?? "missing"} does not match version ${lifecycle.skill.current_version}`
+      );
+    }
   }
   if ((lifecycle.runtime_dependencies ?? []).length !== 0) {
     errors.push("ZipZap runtime dependencies must remain empty");
@@ -4173,6 +4193,14 @@ function validateReleaseManifest(manifest) {
   ) {
     throw new Error("release manifest must identify a semantic ZipZap version");
   }
+  if (
+    !RELEASE_CHANNELS.has(manifest.skill.channel) ||
+    manifest.skill.channel !== releaseChannelForVersion(manifest.skill.version)
+  ) {
+    throw new Error(
+      `release manifest channel ${manifest.skill.channel ?? "missing"} does not match version ${manifest.skill.version}`
+    );
+  }
   if (!Array.isArray(manifest.runtime_dependencies)) {
     throw new Error("release manifest runtime_dependencies must be an array");
   }
@@ -4230,6 +4258,7 @@ function verifyReleaseManifest(manifest, catalogs) {
       manifest.skill.version === catalogs.lifecycle.skill.current_version,
     metadataMatches:
       manifest.package_format === current.package_format &&
+      manifest.skill.channel === current.skill.channel &&
       canonicalJson(manifest.catalogs) === canonicalJson(current.catalogs) &&
       canonicalJson(manifest.release_requirements) ===
         canonicalJson(current.release_requirements),
@@ -4267,6 +4296,15 @@ function parseSemver(version) {
     parts: core.split(".").map(Number),
     prerelease
   };
+}
+
+function releaseChannelForVersion(version) {
+  const { prerelease } = parseSemver(version);
+  if (prerelease === null) return "stable";
+  const family = prerelease[0];
+  if (family === "dev" || family === "development") return "development";
+  if (["alpha", "beta", "rc"].includes(family)) return family;
+  return null;
 }
 
 function compareSemver(left, right) {

@@ -2,8 +2,8 @@
   "schema_version": 1,
   "skill": {
     "name": "zipzap",
-    "current_version": "0.1.0",
-    "channel": "development"
+    "current_version": "0.1.1-beta.1",
+    "channel": "beta"
   },
   "package": {
     "format": "zipzap-skill-directory",
@@ -51,7 +51,21 @@
   "runtime_dependencies": [],
   "known_releases": [
     {
+      "version": "0.1.0-beta.1",
+      "interfaces": {
+        "l5": 1,
+        "kernel": 1
+      }
+    },
+    {
       "version": "0.1.0",
+      "interfaces": {
+        "l5": 1,
+        "kernel": 1
+      }
+    },
+    {
+      "version": "0.1.1-beta.1",
       "interfaces": {
         "l5": 1,
         "kernel": 1
