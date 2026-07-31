@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "feedback_id": "task-flow-too-verbose",
+  "kind": "problem",
+  "area": "task-management",
+  "summary": "Creating a small Task required unnecessary fields.",
+  "observed": "The Ready check requested scheduling information for a two-hour fix.",
+  "expected": "Small executable Tasks should retain verification rigor with less planning overhead.",
+  "impact": "medium",
+  "reproduction_steps": [
+    "Validate the Task input.",
+    "Review the missing Ready requirements."
+  ],
+  "artifact_refs": [
+    {
+      "kind": "command",
+      "locator": "task:validate",
+      "statement": "The validation output contains the observed missing fields."
+    }
+  ],
+  "task_id": "example-task",
+  "reporter": {
+    "kind": "human",
+    "subject_id": "developer-1"
+  },
+  "environment": {
+    "host_surface": "codex-desktop",
+    "project_type": "application"
+  }
+}

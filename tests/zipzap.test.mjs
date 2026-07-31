@@ -63,7 +63,7 @@ test("catalogs are internally valid", () => {
     teams: 4,
     control_functions: 2,
     risk_signals: 11,
-    task_policies: 7,
+    task_policies: 10,
     onboarding_questions: 6,
     adapters: 3,
     releases: 1

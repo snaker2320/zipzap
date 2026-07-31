@@ -3,12 +3,53 @@
   "task_id": "example-task",
   "revision": 1,
   "status": "ready",
+  "origin": {
+    "kind": "direct"
+  },
   "work": {
+    "kind": "requirement-delivery",
     "objective": "Implement and verify the requested behavior.",
+    "scope": [
+      "Requested behavior"
+    ],
+    "exclusions": [],
+    "requested_action": "implement",
     "work_type": "development",
+    "affected_components": [
+      "target-component"
+    ],
+    "constraints": [],
     "acceptance_criteria": [
-      "The requested behavior is covered by a passing check."
+      {
+        "id": "requested-behavior",
+        "statement": "The requested behavior is covered by a passing check.",
+        "verification": "Run the focused automated check.",
+        "required_evidence": [
+          "Passing test output"
+        ]
+      }
     ]
+  },
+  "planning": {
+    "priority": "medium",
+    "target_finish": "2026-08-07T10:00:00.000Z",
+    "estimate": {
+      "min": 2,
+      "likely": 4,
+      "max": 8,
+      "unit": "hours",
+      "confidence": "medium"
+    }
+  },
+  "accountability": {
+    "role": "developer",
+    "subject_id": "developer-1"
+  },
+  "dependencies": [],
+  "blockers": [],
+  "source_refs": [],
+  "readiness_policy": {
+    "mode": "standard"
   },
   "participants": [
     {

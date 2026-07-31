@@ -11,7 +11,6 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const TASK_STATUSES = new Set([
-  "backlog",
   "ready",
   "in-progress",
   "blocked",
@@ -19,19 +18,52 @@ const TASK_STATUSES = new Set([
   "completed",
   "cancelled"
 ]);
+const TASK_CREATION_STATUSES = new Set(["ready", "blocked"]);
+const NON_WAIVABLE_READY_REQUIREMENTS = new Set([
+  "work.objective",
+  "work.acceptance_criteria",
+  "accountability.role"
+]);
+const EXPEDITE_WAIVABLE_REQUIREMENTS = new Set([
+  "work.affected_components",
+  "planning.target_finish-or-deadline"
+]);
 const OPEN_FINDING_STATUSES = new Set(["open", "deferred"]);
+const TASK_EVENT_TYPES = new Set([
+  "created",
+  "updated",
+  "transitioned",
+  "git-tracking-configured",
+  "git-synced",
+  "review-recorded",
+  "review-updated",
+  "completion-assessed"
+]);
+const PROJECT_GITIGNORE = `# Derived or machine-local ZipZap state
+/reports/
+/cache/
+/state/
+/locks/
+/index.json
+*.tmp
+`;
 const TRANSITIONS = {
-  backlog: new Set(["ready", "cancelled"]),
   ready: new Set(["in-progress", "blocked", "cancelled"]),
   "in-progress": new Set(["blocked", "review", "completed", "cancelled"]),
   blocked: new Set(["ready", "in-progress", "cancelled"]),
-  review: new Set(["in-progress", "blocked", "completed"]),
+  review: new Set(["in-progress", "blocked", "completed", "cancelled"]),
   completed: new Set(["in-progress"]),
-  cancelled: new Set(["backlog"])
+  cancelled: new Set(["ready"])
 };
 const TASK_COMMANDS = {
+  validate: {
+    summary: "Evaluate a Task against Task Standard v1 and Definition of Ready.",
+    usage: "validate [--project <dir>] --input <file> [--compact]",
+    schema: "schemas/task.schema.json",
+    example: "examples/task/create.json"
+  },
   create: {
-    summary: "Create a local Task and its first event.",
+    summary: "Create a project Task and its first immutable event.",
     usage: "create [--project <dir>] --input <file> [--compact]",
     schema: "schemas/task.schema.json",
     example: "examples/task/create.json"
@@ -101,6 +133,17 @@ const TASK_COMMANDS = {
     usage:
       "capability [--project <dir>] [--subject <id>] [--from <date>] [--to <date>] [--compact]",
     schema: "schemas/capability-report.schema.json"
+  },
+  feedback: {
+    summary: "Capture immutable project Feedback with optional Task context.",
+    usage: "feedback [--project <dir>] --input <file> [--compact]",
+    schema: "schemas/feedback.schema.json",
+    example: "examples/task/feedback.json"
+  },
+  "feedback-list": {
+    summary: "List captured Feedback records.",
+    usage: "feedback-list [--project <dir>] [--compact]",
+    schema: "schemas/feedback.schema.json"
   }
 };
 
@@ -141,7 +184,7 @@ function taskGlobalHelp() {
   const commands = Object.entries(TASK_COMMANDS)
     .map(([command, metadata]) => `  ${command.padEnd(16)} ${metadata.summary}`)
     .join("\n");
-  return `ZipZap local Task CLI
+  return `ZipZap project Task CLI
 
 Usage:
   node scripts/task.mjs <command> [options]
@@ -234,6 +277,7 @@ function structuredCliError(error, command) {
       code,
       message: error.message,
       hint,
+      ...(error.details ? { details: error.details } : {}),
       help: knownCommand
         ? `node scripts/task.mjs ${knownCommand} --help`
         : "node scripts/task.mjs --help"
@@ -289,6 +333,287 @@ function assertId(value, label) {
   }
 }
 
+function nonEmptyString(value) {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+function validDateTime(value) {
+  return nonEmptyString(value) && Number.isFinite(Date.parse(value));
+}
+
+function validEstimate(estimate) {
+  return Boolean(
+    estimate &&
+      typeof estimate === "object" &&
+      !Array.isArray(estimate) &&
+      [estimate.min, estimate.likely, estimate.max].every(
+        (value) => typeof value === "number" && value >= 0
+      ) &&
+      estimate.min <= estimate.likely &&
+      estimate.likely <= estimate.max &&
+      ["hours", "days", "points"].includes(estimate.unit) &&
+      ["low", "medium", "high"].includes(estimate.confidence)
+  );
+}
+
+function validAcceptanceCriteria(criteria) {
+  if (!Array.isArray(criteria) || criteria.length === 0) return false;
+  const ids = new Set();
+  return criteria.every((criterion) => {
+    const valid =
+      criterion &&
+      typeof criterion === "object" &&
+      !Array.isArray(criterion) &&
+      ID_PATTERN.test(criterion.id ?? "") &&
+      nonEmptyString(criterion.statement) &&
+      nonEmptyString(criterion.verification) &&
+      Array.isArray(criterion.required_evidence) &&
+      criterion.required_evidence.length > 0 &&
+      criterion.required_evidence.every(nonEmptyString) &&
+      !ids.has(criterion.id);
+    if (valid) ids.add(criterion.id);
+    return valid;
+  });
+}
+
+function taskReadiness(task) {
+  const missing = [];
+  const warnings = [];
+  const decisionsRequired = [];
+  const requireValue = (requirement, condition) => {
+    if (!condition) missing.push(requirement);
+  };
+
+  requireValue(
+    "origin.kind",
+    ["direct", "backlog-item", "review-finding", "imported"].includes(
+      task?.origin?.kind
+    )
+  );
+  if (
+    ["backlog-item", "review-finding", "imported"].includes(
+      task?.origin?.kind
+    )
+  ) {
+    requireValue("origin.ref", nonEmptyString(task.origin.ref));
+  }
+  requireValue(
+    "work.kind",
+    [
+      "requirement-delivery",
+      "defect-fix",
+      "technical-debt-remediation",
+      "research",
+      "maintenance",
+      "other"
+    ].includes(task?.work?.kind)
+  );
+  requireValue("work.objective", nonEmptyString(task?.work?.objective));
+  requireValue(
+    "work.scope",
+    Array.isArray(task?.work?.scope) &&
+      task.work.scope.length > 0 &&
+      task.work.scope.every(nonEmptyString)
+  );
+  requireValue(
+    "work.exclusions",
+    Array.isArray(task?.work?.exclusions) &&
+      task.work.exclusions.every(nonEmptyString)
+  );
+  requireValue(
+    "work.requested_action",
+    nonEmptyString(task?.work?.requested_action)
+  );
+  requireValue(
+    "work.affected_components",
+    Array.isArray(task?.work?.affected_components) &&
+      task.work.affected_components.length > 0 &&
+      task.work.affected_components.every(nonEmptyString)
+  );
+  requireValue(
+    "work.constraints",
+    Array.isArray(task?.work?.constraints) &&
+      task.work.constraints.every(nonEmptyString)
+  );
+  requireValue(
+    "work.acceptance_criteria",
+    validAcceptanceCriteria(task?.work?.acceptance_criteria)
+  );
+  requireValue(
+    "planning.priority",
+    ["critical", "high", "medium", "low"].includes(task?.planning?.priority)
+  );
+  requireValue("planning.estimate", validEstimate(task?.planning?.estimate));
+  requireValue(
+    "planning.target_finish-or-deadline",
+    validDateTime(task?.planning?.target_finish) ||
+      validDateTime(task?.planning?.deadline)
+  );
+  requireValue(
+    "accountability.role",
+    nonEmptyString(task?.accountability?.role)
+  );
+  requireValue(
+    "dependencies",
+    Array.isArray(task?.dependencies) &&
+      task.dependencies.every(
+        (dependency) =>
+          dependency &&
+          nonEmptyString(dependency.ref) &&
+          ["blocks", "requires", "related"].includes(dependency.type)
+      )
+  );
+  const blockerIds = new Set();
+  requireValue(
+    "blockers",
+    Array.isArray(task?.blockers) &&
+      task.blockers.every((blocker) => {
+        const valid =
+          blocker &&
+          ID_PATTERN.test(blocker.id ?? "") &&
+          !blockerIds.has(blocker.id) &&
+          nonEmptyString(blocker.statement) &&
+          ["open", "resolved"].includes(blocker.status) &&
+          nonEmptyString(blocker.resolution_condition);
+        if (valid) blockerIds.add(blocker.id);
+        return valid;
+      })
+  );
+  const sourceIds = new Set();
+  requireValue(
+    "source_refs",
+    Array.isArray(task?.source_refs) &&
+      task.source_refs.every((source) => {
+        const valid =
+          source &&
+          ID_PATTERN.test(source.id ?? "") &&
+          !sourceIds.has(source.id) &&
+          [
+            "project-rule",
+            "requirement",
+            "design",
+            "issue",
+            "decision",
+            "other"
+          ].includes(source.kind) &&
+          nonEmptyString(source.locator);
+        if (valid) sourceIds.add(source.id);
+        return valid;
+      })
+  );
+  requireValue(
+    "readiness_policy.mode",
+    ["standard", "expedite"].includes(task?.readiness_policy?.mode)
+  );
+
+  const policy = task?.readiness_policy;
+  let effectiveMissing = [...new Set(missing)];
+  if (policy?.mode === "expedite") {
+    const waiverValid =
+      nonEmptyString(policy.authority) &&
+      nonEmptyString(policy.reason) &&
+      Array.isArray(policy.waived_requirements) &&
+      policy.waived_requirements.length > 0 &&
+      nonEmptyString(policy.expires_at) &&
+      Number.isFinite(Date.parse(policy.expires_at)) &&
+      Date.parse(policy.expires_at) > Date.now();
+    if (!waiverValid) {
+      decisionsRequired.push("complete-valid-expedite-authorization");
+    } else {
+      const waived = new Set(policy.waived_requirements);
+      for (const requirement of waived) {
+        if (!missing.includes(requirement)) {
+          warnings.push(`waiver-not-needed:${requirement}`);
+        }
+        if (!EXPEDITE_WAIVABLE_REQUIREMENTS.has(requirement)) {
+          decisionsRequired.push(
+            `${NON_WAIVABLE_READY_REQUIREMENTS.has(requirement)
+              ? "non-waivable"
+              : "unsupported-waiver"}:${requirement}`
+          );
+        }
+      }
+      effectiveMissing = missing.filter(
+        (requirement) =>
+          !waived.has(requirement) ||
+          !EXPEDITE_WAIVABLE_REQUIREMENTS.has(requirement)
+      );
+      for (const requirement of missing) {
+        if (!effectiveMissing.includes(requirement)) {
+          warnings.push(`waived:${requirement}`);
+        }
+      }
+    }
+  } else if (
+    Array.isArray(policy?.waived_requirements) &&
+    policy.waived_requirements.length > 0
+  ) {
+    warnings.push("standard-policy-ignores-waivers");
+  }
+
+  const openBlockers = (task?.blockers ?? []).filter(
+    (blocker) => blocker?.status === "open"
+  );
+  if (openBlockers.length > 0) {
+    decisionsRequired.push("resolve-open-blockers");
+  } else if (task?.status === "blocked") {
+    decisionsRequired.push("add-open-blocker");
+  }
+  const requirementsSatisfied =
+    effectiveMissing.length === 0 &&
+    decisionsRequired.every((decision) =>
+      ["resolve-open-blockers", "add-open-blocker"].includes(decision)
+    );
+  const ready = requirementsSatisfied && openBlockers.length === 0;
+  let statusCompatible = false;
+  if (task?.status === "ready") statusCompatible = ready;
+  else if (task?.status === "blocked") {
+    statusCompatible =
+      requirementsSatisfied &&
+      openBlockers.length > 0 &&
+      !decisionsRequired.includes("add-open-blocker");
+  } else if (["in-progress", "review", "completed"].includes(task?.status)) {
+    statusCompatible = ready;
+  } else if (task?.status === "cancelled") {
+    statusCompatible = true;
+  } else {
+    decisionsRequired.push("choose-valid-task-status");
+  }
+
+  return {
+    standard_version: 1,
+    ready,
+    status_compatible: statusCompatible,
+    missing: effectiveMissing,
+    warnings: [...new Set(warnings)],
+    decisions_required: [...new Set(decisionsRequired)]
+  };
+}
+
+function assertCreationReady(task) {
+  const report = taskReadiness(task);
+  if (!TASK_CREATION_STATUSES.has(task.status)) {
+    const error = new Error(
+      `Task creation status must be ready or blocked: ${task.status}`
+    );
+    error.code = "invalid-creation-status";
+    error.hint = "Create an execution-ready Task or record an explicit blocker.";
+    error.details = report;
+    throw error;
+  }
+  if (!report.status_compatible) {
+    const error = new Error(
+      `Task does not satisfy Task Standard v1 for status ${task.status}`
+    );
+    error.code = "task-not-ready";
+    error.hint =
+      "Run `node scripts/task.mjs validate --input <file>` and resolve its missing fields or decisions.";
+    error.details = report;
+    throw error;
+  }
+  return report;
+}
+
 function projectPath(projectRoot, locator) {
   const resolved = path.resolve(projectRoot, locator);
   const relative = path.relative(projectRoot, resolved);
@@ -305,6 +630,7 @@ function layout(projectRoot) {
     tasks: path.join(zipzap, "tasks"),
     events: path.join(zipzap, "events"),
     reviews: path.join(zipzap, "reviews"),
+    feedback: path.join(zipzap, "feedback"),
     reports: path.join(zipzap, "reports")
   };
 }
@@ -316,9 +642,14 @@ function ensureLayout(projectRoot) {
     directories.tasks,
     directories.events,
     directories.reviews,
+    directories.feedback,
     directories.reports
   ]) {
     fs.mkdirSync(directory, { recursive: true });
+  }
+  const gitignore = path.join(directories.zipzap, ".gitignore");
+  if (!fs.existsSync(gitignore)) {
+    fs.writeFileSync(gitignore, PROJECT_GITIGNORE);
   }
   return directories;
 }
@@ -341,8 +672,111 @@ function validateTask(task) {
   if (!TASK_STATUSES.has(task.status)) {
     throw new Error(`invalid Task status: ${task.status}`);
   }
-  if (!task.work?.objective || !Array.isArray(task.evidence)) {
-    throw new Error("Task requires work.objective and evidence");
+  if (
+    !task.origin ||
+    !task.work ||
+    !task.planning ||
+    !task.accountability ||
+    !Array.isArray(task.dependencies) ||
+    !Array.isArray(task.blockers) ||
+    !Array.isArray(task.source_refs) ||
+    !task.readiness_policy ||
+    !Array.isArray(task.evidence)
+  ) {
+    throw new Error("Task is missing Task Standard v1 fields");
+  }
+  if (
+    !["direct", "backlog-item", "review-finding", "imported"].includes(
+      task.origin.kind
+    ) ||
+    (task.origin.kind !== "direct" && !nonEmptyString(task.origin.ref))
+  ) {
+    throw new Error("Task origin is invalid");
+  }
+  if (
+    ![
+      "requirement-delivery",
+      "defect-fix",
+      "technical-debt-remediation",
+      "research",
+      "maintenance",
+      "other"
+    ].includes(task.work.kind) ||
+    !nonEmptyString(task.work.objective) ||
+    !Array.isArray(task.work.scope) ||
+    task.work.scope.length === 0 ||
+    !Array.isArray(task.work.exclusions) ||
+    !nonEmptyString(task.work.requested_action) ||
+    !Array.isArray(task.work.affected_components) ||
+    !Array.isArray(task.work.constraints) ||
+    !validAcceptanceCriteria(task.work.acceptance_criteria)
+  ) {
+    throw new Error("Task work or acceptance criteria is invalid");
+  }
+  if (
+    !["critical", "high", "medium", "low"].includes(task.planning.priority) ||
+    !validEstimate(task.planning.estimate)
+  ) {
+    throw new Error("Task planning estimate is invalid");
+  }
+  if (
+    !nonEmptyString(task.accountability.role) ||
+    !["standard", "expedite"].includes(task.readiness_policy.mode)
+  ) {
+    throw new Error("Task accountability or readiness policy is invalid");
+  }
+  if (
+    task.readiness_policy.mode === "expedite" &&
+    (!nonEmptyString(task.readiness_policy.authority) ||
+      !nonEmptyString(task.readiness_policy.reason) ||
+      !Array.isArray(task.readiness_policy.waived_requirements) ||
+      task.readiness_policy.waived_requirements.length === 0 ||
+      task.readiness_policy.waived_requirements.some(
+        (requirement) => !EXPEDITE_WAIVABLE_REQUIREMENTS.has(requirement)
+      ) ||
+      !validDateTime(task.readiness_policy.expires_at))
+  ) {
+    throw new Error("Task expedite authorization is invalid");
+  }
+  if (
+    task.work.scope.some((item) => !nonEmptyString(item)) ||
+    task.work.exclusions.some((item) => !nonEmptyString(item)) ||
+    task.work.affected_components.some((item) => !nonEmptyString(item)) ||
+    task.work.constraints.some((item) => !nonEmptyString(item)) ||
+    task.dependencies.some(
+      (dependency) =>
+        !dependency ||
+        !nonEmptyString(dependency.ref) ||
+        !["blocks", "requires", "related"].includes(dependency.type)
+    )
+  ) {
+    throw new Error("Task work list or dependency is invalid");
+  }
+  for (const blocker of task.blockers) {
+    if (
+      !ID_PATTERN.test(blocker?.id ?? "") ||
+      !nonEmptyString(blocker.statement) ||
+      !["open", "resolved"].includes(blocker.status) ||
+      !nonEmptyString(blocker.resolution_condition)
+    ) {
+      throw new Error(`Task blocker is invalid: ${blocker?.id ?? "unknown"}`);
+    }
+  }
+  for (const source of task.source_refs) {
+    if (
+      !ID_PATTERN.test(source?.id ?? "") ||
+      ![
+        "project-rule",
+        "requirement",
+        "design",
+        "issue",
+        "decision",
+        "other"
+      ].includes(source.kind) ||
+      !nonEmptyString(source.locator)
+    ) {
+      throw new Error(`Task source reference is invalid: ${source?.id ?? "unknown"}`);
+    }
   }
   for (const participant of task.participants ?? []) {
     if (
@@ -388,13 +822,34 @@ function listTasks(projectRoot) {
     .map((name) => validateTask(readJson(path.join(directory, name))));
 }
 
+function validateTaskEvent(event) {
+  assertObject(event, "Task event");
+  if (
+    event.schema_version !== 1 ||
+    !nonEmptyString(event.event_id) ||
+    !ID_PATTERN.test(event.task_id ?? "") ||
+    !TASK_EVENT_TYPES.has(event.type) ||
+    !validDateTime(event.occurred_at) ||
+    !event.data ||
+    typeof event.data !== "object" ||
+    Array.isArray(event.data)
+  ) {
+    throw new Error(`Task event is invalid: ${event?.event_id ?? "unknown"}`);
+  }
+  return event;
+}
+
 function appendEvent(projectRoot, event) {
+  validateTaskEvent(event);
   const directories = ensureLayout(projectRoot);
-  const month = event.occurred_at.slice(0, 7);
-  fs.appendFileSync(
-    path.join(directories.events, `${month}.jsonl`),
-    `${JSON.stringify(event)}\n`
-  );
+  const taskDirectory = path.join(directories.events, event.task_id);
+  fs.mkdirSync(taskDirectory, { recursive: true });
+  const filePath = path.join(taskDirectory, `${event.event_id}.json`);
+  if (fs.existsSync(filePath)) {
+    throw new Error(`Task event already exists: ${event.event_id}`);
+  }
+  writeJsonAtomic(filePath, event);
+  return filePath;
 }
 
 function taskEvent(taskId, type, data, options = {}) {
@@ -417,25 +872,43 @@ function taskEvent(taskId, type, data, options = {}) {
 function readEvents(projectRoot, from, to) {
   const directory = layout(projectRoot).events;
   if (!fs.existsSync(directory)) return [];
-  const events = [];
-  for (const name of fs.readdirSync(directory).filter((item) =>
-    item.endsWith(".jsonl")
-  )) {
+  const eventsById = new Map();
+  const visitJsonEvents = (current) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const entryPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        visitJsonEvents(entryPath);
+      } else if (entry.isFile() && entry.name.endsWith(".json")) {
+        const event = validateTaskEvent(readJson(entryPath));
+        eventsById.set(event.event_id, event);
+      }
+    }
+  };
+  visitJsonEvents(directory);
+  for (const name of fs
+    .readdirSync(directory)
+    .filter((item) => item.endsWith(".jsonl"))) {
     const lines = fs
       .readFileSync(path.join(directory, name), "utf8")
       .split(/\r?\n/)
       .filter(Boolean);
     for (const line of lines) {
-      const event = JSON.parse(line);
-      const timestamp = Date.parse(event.occurred_at);
-      if (timestamp >= from.getTime() && timestamp <= to.getTime()) {
-        events.push(event);
+      const event = validateTaskEvent(JSON.parse(line));
+      if (!eventsById.has(event.event_id)) {
+        eventsById.set(event.event_id, event);
       }
     }
   }
-  return events.sort((left, right) =>
-    left.occurred_at.localeCompare(right.occurred_at)
-  );
+  return [...eventsById.values()]
+    .filter((event) => {
+      const timestamp = Date.parse(event.occurred_at);
+      return timestamp >= from.getTime() && timestamp <= to.getTime();
+    })
+    .sort(
+      (left, right) =>
+        left.occurred_at.localeCompare(right.occurred_at) ||
+        left.event_id.localeCompare(right.event_id)
+    );
 }
 
 function reviewFile(projectRoot, reviewId) {
@@ -479,6 +952,150 @@ function listReviews(projectRoot, taskId = null, from = null, to = null) {
       const timestamp = Date.parse(review.created_at);
       return timestamp >= from.getTime() && timestamp <= to.getTime();
     });
+}
+
+function feedbackFile(projectRoot, feedbackId) {
+  assertId(feedbackId, "Feedback ID");
+  return path.join(layout(projectRoot).feedback, `${feedbackId}.json`);
+}
+
+function validateFeedback(feedback) {
+  assertObject(feedback, "Feedback");
+  if (feedback.schema_version !== 1) {
+    throw new Error("Feedback schema_version must be 1");
+  }
+  assertId(feedback.feedback_id, "Feedback feedback_id");
+  if (
+    !["problem", "suggestion", "success", "question"].includes(feedback.kind) ||
+    ![
+      "initialization",
+      "source-routing",
+      "risk-assessment",
+      "team-selection",
+      "execution",
+      "task-management",
+      "git-tracking",
+      "review",
+      "reporting",
+      "performance",
+      "other"
+    ].includes(feedback.area) ||
+    !nonEmptyString(feedback.summary) ||
+    !nonEmptyString(feedback.observed) ||
+    !["blocker", "high", "medium", "low"].includes(feedback.impact) ||
+    !Array.isArray(feedback.artifact_refs)
+  ) {
+    throw new Error("Feedback core fields are invalid");
+  }
+  if (feedback.task_id != null) {
+    assertId(feedback.task_id, "Feedback task_id");
+  }
+  for (const reference of feedback.artifact_refs) {
+    if (
+      !reference ||
+      ![
+        "task",
+        "review",
+        "event",
+        "command",
+        "git",
+        "file",
+        "other"
+      ].includes(reference.kind) ||
+      !nonEmptyString(reference.locator)
+    ) {
+      throw new Error("Feedback artifact reference is invalid");
+    }
+  }
+  if (feedback.created_at != null && !validDateTime(feedback.created_at)) {
+    throw new Error("Feedback created_at is invalid");
+  }
+  return feedback;
+}
+
+function createFeedback(projectRoot, input) {
+  assertObject(input, "Feedback input");
+  ensureLayout(projectRoot);
+  const task = input.task_id ? loadTask(projectRoot, input.task_id) : null;
+  const reviews = task ? listReviews(projectRoot, task.task_id) : [];
+  const assessment = task ? completionAssessment(task, reviews) : null;
+  const lifecycle = readJson(path.join(DEFAULT_ROOT, "config", "lifecycle.json"));
+  const automaticTaskRef = task
+    ? {
+        kind: "task",
+        locator: `.zipzap/tasks/${task.task_id}.json`,
+        statement: "Task snapshot source for this Feedback."
+      }
+    : null;
+  const artifactRefs = clone(input.artifact_refs ?? []);
+  if (
+    automaticTaskRef &&
+    !artifactRefs.some(
+      (reference) =>
+        reference.kind === automaticTaskRef.kind &&
+        reference.locator === automaticTaskRef.locator
+    )
+  ) {
+    artifactRefs.push(automaticTaskRef);
+  }
+  const feedback = validateFeedback({
+    ...clone(input),
+    schema_version: 1,
+    artifact_refs: artifactRefs,
+    created_at: input.created_at ?? now(),
+    zipzap_snapshot: {
+      skill_version: lifecycle.skill.current_version,
+      task_standard_version: 1
+    },
+    ...(task
+      ? {
+          task_snapshot: {
+            task_id: task.task_id,
+            revision: task.revision,
+            status: task.status,
+            work_kind: task.work.kind,
+            completion: assessment.status,
+            effective_team: task.runtime_snapshot?.effective_team ?? null,
+            review_count: reviews.length,
+            open_findings:
+              assessment.open_findings.blocking +
+              assessment.open_findings.non_blocking
+          }
+        }
+      : {})
+  });
+  const filePath = feedbackFile(projectRoot, feedback.feedback_id);
+  if (fs.existsSync(filePath)) {
+    throw new Error(`Feedback already exists: ${feedback.feedback_id}`);
+  }
+  writeJsonAtomic(filePath, feedback);
+  return {
+    feedback,
+    locator: path
+      .relative(projectRoot, filePath)
+      .split(path.sep)
+      .join("/")
+  };
+}
+
+function listFeedback(projectRoot) {
+  const directory = layout(projectRoot).feedback;
+  if (!fs.existsSync(directory)) return [];
+  return fs
+    .readdirSync(directory)
+    .filter((name) => name.endsWith(".json"))
+    .sort()
+    .map((name) => validateFeedback(readJson(path.join(directory, name))))
+    .map((feedback) => ({
+      feedback_id: feedback.feedback_id,
+      kind: feedback.kind,
+      area: feedback.area,
+      impact: feedback.impact,
+      summary: feedback.summary,
+      task_id: feedback.task_id ?? null,
+      created_at: feedback.created_at ?? null,
+      locator: `.zipzap/feedback/${feedback.feedback_id}.json`
+    }));
 }
 
 function runGit(repository, args, options = {}) {
@@ -669,7 +1286,7 @@ function scanGit(projectRoot, task) {
 
 function criterionIds(task) {
   return (task.work.acceptance_criteria ?? []).map(
-    (_criterion, index) => `criterion-${index + 1}`
+    (criterion) => criterion.id
   );
 }
 
@@ -1210,15 +1827,17 @@ function output(value, compact) {
 
 function createTask(projectRoot, input) {
   const createdAt = input.created_at ?? now();
-  const task = validateTask(normalizeParticipantIdentities({
+  const candidate = normalizeParticipantIdentities({
     ...clone(input),
     schema_version: 1,
     revision: input.revision ?? 1,
-    status: input.status ?? "backlog",
+    status: input.status ?? "ready",
     evidence: clone(input.evidence ?? []),
     created_at: createdAt,
     updated_at: input.updated_at ?? createdAt
-  }));
+  });
+  const readiness = assertCreationReady(candidate);
+  const task = validateTask(candidate);
   const filePath = taskFile(projectRoot, task.task_id);
   if (fs.existsSync(filePath)) {
     throw new Error(`Task already exists: ${task.task_id}`);
@@ -1226,7 +1845,9 @@ function createTask(projectRoot, input) {
   saveTask(projectRoot, task);
   const event = taskEvent(task.task_id, "created", {
     status: task.status,
-    objective: task.work.objective
+    objective: task.work.objective,
+    task_standard_version: readiness.standard_version,
+    ready: readiness.ready
   }, {
     next_revision: task.revision
   });
@@ -1243,10 +1864,26 @@ function updateTask(projectRoot, input) {
       `Task revision mismatch: expected ${input.expected_revision}, stored ${current.revision}`
     );
   }
+  if (next.status !== current.status) {
+    throw new Error(
+      "Task update cannot change status; use the transition command"
+    );
+  }
   next.schema_version = 1;
   next.revision = current.revision + 1;
   next.created_at = current.created_at;
   next.updated_at = now();
+  const readiness = taskReadiness(next);
+  if (!readiness.status_compatible) {
+    const error = new Error(
+      `Task update is incompatible with status ${next.status}`
+    );
+    error.code = "task-not-ready";
+    error.hint =
+      "Keep the Task compatible with its current status or use an atomic transition.";
+    error.details = readiness;
+    throw error;
+  }
   saveTask(projectRoot, next);
   const event = taskEvent(next.task_id, "updated", {}, {
     actor_id: input.actor_id,
@@ -1270,14 +1907,92 @@ function applyAdapterPatch(projectRoot, input) {
       `Task patch revision mismatch: stored ${task.revision}, patch ${patch.base_revision}->${patch.next_revision}`
     );
   }
+  const priorStatus = task.status;
+  if (
+    patch.status !== priorStatus &&
+    !TRANSITIONS[priorStatus]?.has(patch.status)
+  ) {
+    throw new Error(
+      `invalid Task transition: ${priorStatus} -> ${patch.status}`
+    );
+  }
   task.revision = patch.next_revision;
   task.status = patch.status;
+  if (patch.status === "blocked") {
+    const existingOpen = (task.blockers ?? []).some(
+      (blocker) => blocker.status === "open"
+    );
+    if (!existingOpen) {
+      const decisions = input.response?.decisions_required ?? [];
+      if (decisions.length === 0) {
+        throw new Error(
+          "A blocked Task patch requires an open blocker or L5 decision"
+        );
+      }
+      const usedBlockerIds = new Set(
+        (task.blockers ?? []).map((blocker) => blocker.id)
+      );
+      let decisionSequence = 1;
+      task.blockers = [
+        ...(task.blockers ?? []),
+        ...decisions.map((decision) => {
+          while (usedBlockerIds.has(`l5-decision-${decisionSequence}`)) {
+            decisionSequence += 1;
+          }
+          const id = `l5-decision-${decisionSequence}`;
+          usedBlockerIds.add(id);
+          decisionSequence += 1;
+          return {
+            id,
+            statement:
+              decision.message ?? decision.question ?? decision.code,
+            status: "open",
+            resolution_condition:
+              decision.required_authority
+                ? `Decision supplied by ${decision.required_authority}.`
+                : "Resolve the L5 decision and reassess the Task.",
+            owner_role: decision.required_authority ?? "coordinator"
+          };
+        })
+      ];
+    }
+  } else if (priorStatus === "blocked") {
+    task.blockers = (task.blockers ?? []).map((blocker) =>
+      blocker.status === "open" && blocker.id.startsWith("l5-decision-")
+        ? { ...blocker, status: "resolved" }
+        : blocker
+    );
+  }
   task.risk_assessment = clone(patch.risk_assessment);
   task.governance_snapshot = clone(patch.governance_snapshot);
   if (patch.runtime_snapshot == null) delete task.runtime_snapshot;
   else task.runtime_snapshot = clone(patch.runtime_snapshot);
   if (patch.continuation == null) delete task.continuation;
   else task.continuation = clone(patch.continuation);
+  if (patch.status === "completed") {
+    const assessment = completionAssessment(
+      task,
+      listReviews(projectRoot, task.task_id)
+    );
+    if (!["ready-to-complete", "complete"].includes(assessment.status)) {
+      throw new Error(
+        `Task cannot complete while assessment is ${assessment.status}`
+      );
+    }
+  }
+  if (["in-progress", "review", "blocked"].includes(patch.status)) {
+    const readiness = taskReadiness(task);
+    if (!readiness.status_compatible) {
+      const error = new Error(
+        `L5 patch is incompatible with Task status ${patch.status}`
+      );
+      error.code = "task-not-ready";
+      error.hint =
+        "Resolve Ready requirements or explicit blockers before applying the patch.";
+      error.details = readiness;
+      throw error;
+    }
+  }
   delete task.completion_assessment;
   task.updated_at = now();
   saveTask(projectRoot, task);
@@ -1311,6 +2026,47 @@ function transitionTask(projectRoot, input) {
   if (!TRANSITIONS[task.status]?.has(input.status)) {
     throw new Error(`invalid Task transition: ${task.status} -> ${input.status}`);
   }
+  let addedBlocker = null;
+  const resolvedBlockerIds = new Set(input.resolve_blocker_ids ?? []);
+  if (input.status === "blocked" && input.blocker) {
+    addedBlocker = clone(input.blocker);
+    if ((task.blockers ?? []).some((blocker) => blocker.id === addedBlocker.id)) {
+      throw new Error(`Task blocker already exists: ${addedBlocker.id}`);
+    }
+    task.blockers = [...(task.blockers ?? []), addedBlocker];
+  }
+  if (task.status === "blocked" && input.status !== "blocked") {
+    task.blockers = (task.blockers ?? []).map((blocker) =>
+      blocker.status === "open" && resolvedBlockerIds.has(blocker.id)
+        ? { ...blocker, status: "resolved" }
+        : blocker
+    );
+  }
+  if (["ready", "in-progress", "review"].includes(input.status)) {
+    const readiness = taskReadiness({ ...task, status: input.status });
+    if (!readiness.status_compatible) {
+      const error = new Error(
+        `Task cannot transition to ${input.status} until it is ready`
+      );
+      error.code = "task-not-ready";
+      error.hint = "Resolve missing Ready requirements and open blockers first.";
+      error.details = readiness;
+      throw error;
+    }
+  }
+  if (input.status === "blocked") {
+    const readiness = taskReadiness({ ...task, status: "blocked" });
+    if (!readiness.status_compatible) {
+      const error = new Error(
+        "Task cannot transition to blocked without an open blocker"
+      );
+      error.code = "blocker-required";
+      error.hint =
+        "Add a blocker with status open and a resolution condition, then retry.";
+      error.details = readiness;
+      throw error;
+    }
+  }
   if (input.status === "completed") {
     const assessment = completionAssessment(
       task,
@@ -1333,7 +2089,9 @@ function transitionTask(projectRoot, input) {
     {
       from: priorStatus,
       to: task.status,
-      reason: input.reason ?? null
+      reason: input.reason ?? null,
+      blocker_added: addedBlocker?.id ?? null,
+      blockers_resolved: [...resolvedBlockerIds]
     },
     {
       actor_id: input.actor_id,
@@ -1572,7 +2330,13 @@ async function main() {
     );
   }
   let result;
-  if (options.command === "create") {
+  if (options.command === "validate") {
+    const input = readInput(options.input, options.command);
+    result = taskReadiness({
+      ...clone(input),
+      status: input.status ?? "ready"
+    });
+  } else if (options.command === "create") {
     result = createTask(projectRoot, readInput(options.input, options.command));
   } else if (options.command === "show") {
     result = loadTask(projectRoot, options.id);
@@ -1699,6 +2463,13 @@ async function main() {
     }
   } else if (options.command === "capability") {
     result = buildCapabilityReport(projectRoot, options);
+  } else if (options.command === "feedback") {
+    result = createFeedback(
+      projectRoot,
+      readInput(options.input, options.command)
+    );
+  } else if (options.command === "feedback-list") {
+    result = listFeedback(projectRoot);
   } else {
     throw new Error(`unknown task command: ${options.command}`);
   }

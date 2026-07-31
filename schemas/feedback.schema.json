@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/feedback.schema.json",
+  "title": "ZipZap Feedback Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "feedback_id",
+    "kind",
+    "area",
+    "summary",
+    "observed",
+    "impact",
+    "artifact_refs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "feedback_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "kind": {
+      "enum": [
+        "problem",
+        "suggestion",
+        "success",
+        "question"
+      ]
+    },
+    "area": {
+      "enum": [
+        "initialization",
+        "source-routing",
+        "risk-assessment",
+        "team-selection",
+        "execution",
+        "task-management",
+        "git-tracking",
+        "review",
+        "reporting",
+        "performance",
+        "other"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "observed": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expected": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recommendation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "impact": {
+      "enum": [
+        "blocker",
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "reproduction_steps": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "artifact_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact_ref"
+      }
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "reporter": {
+      "$ref": "#/$defs/reporter"
+    },
+    "environment": {
+      "$ref": "#/$defs/environment"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "zipzap_snapshot": {
+      "$ref": "#/$defs/zipzap_snapshot"
+    },
+    "task_snapshot": {
+      "$ref": "#/$defs/task_snapshot"
+    }
+  },
+  "$defs": {
+    "artifact_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "locator"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "task",
+            "review",
+            "event",
+            "command",
+            "git",
+            "file",
+            "other"
+          ]
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "reporter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "human",
+            "agent"
+          ]
+        },
+        "subject_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "host_surface": {
+          "type": "string",
+          "minLength": 1
+        },
+        "project_type": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "zipzap_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "skill_version",
+        "task_standard_version"
+      ],
+      "properties": {
+        "skill_version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "task_standard_version": {
+          "const": 1
+        }
+      }
+    },
+    "task_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "revision",
+        "status",
+        "work_kind",
+        "completion",
+        "review_count",
+        "open_findings"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "type": "string"
+        },
+        "work_kind": {
+          "type": "string"
+        },
+        "completion": {
+          "type": "string"
+        },
+        "effective_team": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "review_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "open_findings": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

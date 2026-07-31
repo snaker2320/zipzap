@@ -1,5 +1,22 @@
 {
   "schema_version": 1,
+  "task_standard": {
+    "version": 1,
+    "creation_statuses": [
+      "ready",
+      "blocked"
+    ],
+    "default_status": "ready",
+    "non_waivable_requirements": [
+      "work.objective",
+      "work.acceptance_criteria",
+      "accountability.role"
+    ],
+    "expedite_waivable_requirements": [
+      "work.affected_components",
+      "planning.target_finish-or-deadline"
+    ]
+  },
   "persistence_triggers": [
     "cross-session-continuity",
     "multi-participant-coordination",
@@ -27,7 +44,11 @@
     "locator": ".zipzap/tasks",
     "format": "one-json-file-per-task",
     "event_locator": ".zipzap/events",
+    "event_format": "one-json-file-per-event",
+    "legacy_event_format": "monthly-jsonl-read-only",
     "review_locator": ".zipzap/reviews",
+    "feedback_locator": ".zipzap/feedback",
+    "feedback_format": "one-json-file-per-feedback",
     "report_locator": ".zipzap/reports"
   },
   "policies": {
@@ -37,6 +58,9 @@
     "team_preference_is_non_authoritative": true,
     "effective_team_is_derived": true,
     "adapters_return_patches_only": true,
-    "project_rules_are_not_copied": true
+    "project_rules_are_not_copied": true,
+    "events_are_immutable": true,
+    "feedback_is_project_local": true,
+    "project_state_is_git_shareable": true
   }
 }

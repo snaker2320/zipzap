@@ -118,15 +118,24 @@ Keep the active context limited to:
 - required evidence, gates, risks, Findings, and unresolved decisions.
 
 Keep ordinary work in the session. For durable work, store current Task state
-under `.zipzap/tasks/`, append events under `.zipzap/events/`, store Reviews
-under `.zipzap/reviews/`, and treat `.zipzap/reports/` as rebuildable.
+under `.zipzap/tasks/`, write immutable per-event files under
+`.zipzap/events/`, store Reviews under `.zipzap/reviews/`, capture validation
+Feedback under `.zipzap/feedback/`, and treat `.zipzap/reports/` as
+rebuildable. Keep this project state Git-shareable and outside the installed
+Skill directory.
 
 Use the independent local entry point:
 
 ```bash
+node scripts/task.mjs validate --input task.json
 node scripts/task.mjs create --input task.json
 node scripts/task.mjs assess --id task-id
+node scripts/task.mjs feedback --input feedback.json
 ```
+
+Create only Task Standard v1 `ready` Tasks or `blocked` Tasks with an explicit
+open blocker. Keep candidate demand outside the Task store. Let `create` reuse
+the same deterministic Ready validation exposed by `validate`.
 
 Use `node scripts/task.mjs <command> --help` for options and `--example` when
 the command exposes a copyable JSON input.

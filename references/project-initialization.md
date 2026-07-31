@@ -118,5 +118,10 @@ Keep persistent Tasks as one JSON file per Task under `.zipzap/tasks/`. Keep an
 optional `.zipzap/index.json` derived and rebuildable; do not require it for
 small projects or native host search.
 
+Keep Git-shareable Reviews, Feedback, and immutable per-event JSON under
+`.zipzap/`. Generate `.zipzap/.gitignore` for reports, caches, indexes, locks,
+temporary files, and machine-local state. Never place project collaboration
+records in the installed Skill directory.
+
 After initialization, report authoritative sources, active roles and profiles,
 configured gates, persistence policy, and unresolved decisions.

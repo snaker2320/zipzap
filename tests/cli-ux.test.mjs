@@ -37,7 +37,7 @@ test("ZipZap CLI exposes global and command help without input", () => {
 test("Task CLI exposes global and command help without a project", () => {
   const global = run(taskScript, ["--help"]);
   assert.equal(global.status, 0);
-  assert.match(global.stdout, /ZipZap local Task CLI/);
+  assert.match(global.stdout, /ZipZap project Task CLI/);
   assert.match(global.stdout, /record-review\s+Record Review evidence/);
 
   const command = run(taskScript, ["create", "--help"]);
@@ -74,6 +74,23 @@ test("CLI examples are valid JSON and representative inputs execute", (context) 
   );
   assert.equal(created.status, 0, created.stderr);
   assert.equal(JSON.parse(created.stdout).task.task_id, "example-task");
+
+  const feedbackExample = run(
+    taskScript,
+    ["feedback", "--example", "--compact"]
+  );
+  assert.equal(feedbackExample.status, 0);
+  const feedbackInput = JSON.parse(feedbackExample.stdout);
+  const captured = run(
+    taskScript,
+    ["feedback", "--project", project, "--compact"],
+    JSON.stringify(feedbackInput)
+  );
+  assert.equal(captured.status, 0, captured.stderr);
+  assert.equal(
+    JSON.parse(captured.stdout).feedback.feedback_id,
+    "task-flow-too-verbose"
+  );
 });
 
 test("CLI input failures provide structured corrective guidance", () => {

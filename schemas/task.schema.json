@@ -9,7 +9,14 @@
     "task_id",
     "revision",
     "status",
+    "origin",
     "work",
+    "planning",
+    "accountability",
+    "dependencies",
+    "blockers",
+    "source_refs",
+    "readiness_policy",
     "evidence"
   ],
   "properties": {
@@ -26,13 +33,60 @@
     },
     "status": {
       "enum": [
-        "backlog",
         "ready",
         "in-progress",
         "blocked",
         "review",
         "completed",
         "cancelled"
+      ]
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "direct",
+            "backlog-item",
+            "review-finding",
+            "imported"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "backlog-item",
+                  "review-finding",
+                  "imported"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "ref"
+            ]
+          }
+        }
       ]
     },
     "created_at": {
@@ -57,9 +111,26 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "objective"
+        "kind",
+        "objective",
+        "scope",
+        "exclusions",
+        "requested_action",
+        "affected_components",
+        "constraints",
+        "acceptance_criteria"
       ],
       "properties": {
+        "kind": {
+          "enum": [
+            "requirement-delivery",
+            "defect-fix",
+            "technical-debt-remediation",
+            "research",
+            "maintenance",
+            "other"
+          ]
+        },
         "intent": {
           "type": "string"
         },
@@ -69,13 +140,24 @@
         },
         "scope": {
           "type": "array",
+          "minItems": 1,
           "uniqueItems": true,
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "exclusions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
           }
         },
         "requested_action": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "work_type": {
           "type": [
@@ -87,7 +169,8 @@
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         "constraints": {
@@ -98,11 +181,118 @@
         },
         "acceptance_criteria": {
           "type": "array",
+          "minItems": 1,
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/acceptance_criterion"
           }
         }
       }
+    },
+    "planning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "priority",
+        "estimate"
+      ],
+      "properties": {
+        "priority": {
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "not_before": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "target_start": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "target_finish": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "deadline": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "deadline_type": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "target",
+            "committed",
+            "regulatory",
+            null
+          ]
+        },
+        "estimate": {
+          "$ref": "#/$defs/estimate"
+        },
+        "plan_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "accountability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role"
+      ],
+      "properties": {
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/dependency"
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/blocker"
+      }
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source_ref"
+      }
+    },
+    "readiness_policy": {
+      "$ref": "#/$defs/readiness_policy"
     },
     "evidence": {
       "type": "array",
@@ -271,6 +461,226 @@
     }
   },
   "$defs": {
+    "acceptance_criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "statement",
+        "verification",
+        "required_evidence"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verification": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_evidence": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "estimate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min",
+        "likely",
+        "max",
+        "unit",
+        "confidence"
+      ],
+      "properties": {
+        "min": {
+          "type": "number",
+          "minimum": 0
+        },
+        "likely": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max": {
+          "type": "number",
+          "minimum": 0
+        },
+        "unit": {
+          "enum": [
+            "hours",
+            "days",
+            "points"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "type"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": [
+            "blocks",
+            "requires",
+            "related"
+          ]
+        }
+      }
+    },
+    "blocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "statement",
+        "status",
+        "resolution_condition"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "open",
+            "resolved"
+          ]
+        },
+        "resolution_condition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_role": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "source_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "locator"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "kind": {
+          "enum": [
+            "project-rule",
+            "requirement",
+            "design",
+            "issue",
+            "decision",
+            "other"
+          ]
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "readiness_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "standard",
+            "expedite"
+          ]
+        },
+        "authority": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "waived_requirements": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "work.affected_components",
+              "planning.target_finish-or-deadline"
+            ]
+          }
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "expedite"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "authority",
+              "reason",
+              "waived_requirements",
+              "expires_at"
+            ]
+          }
+        }
+      ]
+    },
     "participant": {
       "type": "object",
       "additionalProperties": false,

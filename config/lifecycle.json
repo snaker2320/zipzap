@@ -38,6 +38,7 @@
       "schemas/risk-normalization-output.schema.json",
       "schemas/task.schema.json",
       "schemas/task-event.schema.json",
+      "schemas/feedback.schema.json",
       "schemas/review-result.schema.json",
       "schemas/task-report.schema.json",
       "schemas/capability-report.schema.json",

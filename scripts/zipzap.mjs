@@ -11,6 +11,14 @@ const DEFAULT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SEMVER_PATTERN =
   /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const PROJECT_GITIGNORE = `# Derived or machine-local ZipZap state
+/reports/
+/cache/
+/state/
+/locks/
+/index.json
+*.tmp
+`;
 const ASSURANCE_KEYS = [
   "second_context",
   "peer_challenge",
@@ -368,6 +376,7 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
       ),
       task: readJson(path.join(schemaDir, "task.schema.json")),
       taskEvent: readJson(path.join(schemaDir, "task-event.schema.json")),
+      feedback: readJson(path.join(schemaDir, "feedback.schema.json")),
       reviewResult: readJson(path.join(schemaDir, "review-result.schema.json")),
       taskReport: readJson(path.join(schemaDir, "task-report.schema.json")),
       capabilityReport: readJson(
@@ -587,6 +596,39 @@ export function validateCatalogs(catalogs) {
     "review",
     "completed"
   ]);
+  if (
+    taskPolicy.local_store?.event_format !== "one-json-file-per-event" ||
+    taskPolicy.local_store?.legacy_event_format !==
+      "monthly-jsonl-read-only" ||
+    taskPolicy.local_store?.feedback_locator !== ".zipzap/feedback" ||
+    taskPolicy.local_store?.feedback_format !==
+      "one-json-file-per-feedback"
+  ) {
+    errors.push("task policy must define Git-shareable events and Feedback");
+  }
+  if (
+    taskPolicy.task_standard?.version !== 1 ||
+    taskPolicy.task_standard?.default_status !== "ready" ||
+    JSON.stringify(taskPolicy.task_standard?.creation_statuses) !==
+      JSON.stringify(["ready", "blocked"]) ||
+    (taskPolicy.task_standard?.non_waivable_requirements ?? []).some(
+      (requirement) =>
+        ![
+          "work.objective",
+          "work.acceptance_criteria",
+          "accountability.role"
+        ].includes(requirement)
+    ) ||
+    JSON.stringify(
+      taskPolicy.task_standard?.expedite_waivable_requirements
+    ) !==
+      JSON.stringify([
+        "work.affected_components",
+        "planning.target_finish-or-deadline"
+      ])
+  ) {
+    errors.push("task policy must define Task Standard v1 Ready creation");
+  }
   for (const workflowStatus of [
     "ready",
     "decision-required",
@@ -3251,6 +3293,10 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
         projectRoot,
         catalogs.taskPolicy.local_store.review_locator
       );
+      const feedbackDirectory = projectFilePath(
+        projectRoot,
+        catalogs.taskPolicy.local_store.feedback_locator
+      );
       const reportDirectory = projectFilePath(
         projectRoot,
         catalogs.taskPolicy.local_store.report_locator
@@ -3260,9 +3306,14 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
         taskDirectory,
         eventDirectory,
         reviewDirectory,
+        feedbackDirectory,
         reportDirectory
       ]) {
         fs.mkdirSync(directory, { recursive: true });
+      }
+      const gitignorePath = path.join(zipzapDirectory, ".gitignore");
+      if (!fs.existsSync(gitignorePath)) {
+        fs.writeFileSync(gitignorePath, PROJECT_GITIGNORE);
       }
       const temporaryPath = `${manifestPath}.tmp`;
       fs.writeFileSync(temporaryPath, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -3270,7 +3321,7 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
       changes.push({
         action: existingManifest ? "update" : "create",
         target: manifestLocator,
-        reason: "Registered project source locators and local Task storage."
+        reason: "Registered project source locators and project Task storage."
       });
       changes.push({
         action: "retain",
@@ -3279,8 +3330,9 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
       });
       changes.push({
         action: "retain",
-        target: ".zipzap/{events,reviews,reports}",
-        reason: "Task history, Review evidence, and derived reports stay local."
+        target: ".zipzap/{events,reviews,feedback,reports}",
+        reason:
+          "Git-shareable evidence and Feedback remain project-owned; reports are derived."
       });
     } catch (error) {
       const failed = {
@@ -3530,6 +3582,36 @@ function validateTask(task) {
   if (!Array.isArray(task.evidence)) {
     throw new Error("task.evidence must be an array");
   }
+  for (const field of [
+    "dependencies",
+    "blockers",
+    "source_refs"
+  ]) {
+    if (!Array.isArray(task[field])) {
+      throw new Error(`task.${field} must be an array`);
+    }
+  }
+  for (const field of [
+    "origin",
+    "planning",
+    "accountability",
+    "readiness_policy"
+  ]) {
+    assertObject(task[field], `task.${field}`);
+  }
+  if (
+    !Array.isArray(task.work.acceptance_criteria) ||
+    task.work.acceptance_criteria.length === 0 ||
+    task.work.acceptance_criteria.some(
+      (criterion) =>
+        !criterion ||
+        !ID_PATTERN.test(criterion.id ?? "") ||
+        typeof criterion.statement !== "string" ||
+        criterion.statement.trim() === ""
+    )
+  ) {
+    throw new Error("task.work.acceptance_criteria is invalid");
+  }
   const evidenceIds = new Set();
   for (const evidence of task.evidence) {
     if (
@@ -3563,7 +3645,9 @@ function taskExecuteRequest(task) {
       scope: clone(task.work.scope ?? []),
       requested_action: task.work.requested_action ?? "execute",
       constraints: clone(task.work.constraints ?? []),
-      acceptance_criteria: clone(task.work.acceptance_criteria ?? [])
+      acceptance_criteria: (task.work.acceptance_criteria ?? []).map(
+        (criterion) => criterion.statement
+      )
     },
     ...(hasCollaboration
       ? {

@@ -36,15 +36,47 @@ function task(overrides = {}) {
     task_id: "task-1",
     revision: 1,
     status: "ready",
+    origin: {
+      kind: "direct"
+    },
     work: {
+      kind: "requirement-delivery",
       intent: "Deliver a bounded change.",
       objective: "Implement the requested behavior.",
       scope: ["component-a"],
+      exclusions: [],
       requested_action: "modify",
       work_type: "development",
       affected_components: ["component-a"],
       constraints: [],
-      acceptance_criteria: ["Tests pass."]
+      acceptance_criteria: [
+        {
+          id: "tests-pass",
+          statement: "Tests pass.",
+          verification: "Run the focused test suite.",
+          required_evidence: ["Passing test output"]
+        }
+      ]
+    },
+    planning: {
+      priority: "medium",
+      target_finish: "2030-01-01T00:00:00.000Z",
+      estimate: {
+        min: 1,
+        likely: 2,
+        max: 4,
+        unit: "hours",
+        confidence: "medium"
+      }
+    },
+    accountability: {
+      role: "developer"
+    },
+    dependencies: [],
+    blockers: [],
+    source_refs: [],
+    readiness_policy: {
+      mode: "standard"
     },
     evidence: [
       {
@@ -222,6 +254,9 @@ test("task preparation retains evidence locators and team preference", () => {
   const prepared = prepareTaskAssessment(taskValue, catalogs);
   assert.equal(prepared.invocation.collaboration.team_preset, "copilot");
   assert.equal(prepared.invocation.collaboration.persistence, "persistent");
+  assert.deepEqual(prepared.invocation.request.acceptance_criteria, [
+    "Tests pass."
+  ]);
   assert.equal(prepared.evidence[0].locator, "docs/rules.md");
 });
 

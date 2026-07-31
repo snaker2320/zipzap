@@ -170,7 +170,7 @@ test("discovers sources read-only and reports role coverage", (context) => {
   );
 });
 
-test("configures local source registry and local Task storage", (context) => {
+test("configures project source registry and project Task storage", (context) => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-configure-"));
   context.after(() => fs.rmSync(projectRoot, { recursive: true, force: true }));
   fs.mkdirSync(path.join(projectRoot, "docs", "standards"), {
@@ -233,12 +233,16 @@ test("configures local source registry and local Task storage", (context) => {
     fs.existsSync(path.join(projectRoot, ".zipzap", "tasks")),
     true
   );
-  for (const directory of ["events", "reviews", "reports"]) {
+  for (const directory of ["events", "reviews", "feedback", "reports"]) {
     assert.equal(
       fs.existsSync(path.join(projectRoot, ".zipzap", directory)),
       true
     );
   }
+  assert.match(
+    fs.readFileSync(path.join(projectRoot, ".zipzap", ".gitignore"), "utf8"),
+    /\/reports\//
+  );
   assert.equal(
     fs.existsSync(
       path.join(projectRoot, ".zipzap", "standards", "development.md")
@@ -310,4 +314,16 @@ test("registers source-resolution schemas and local Task policy", () => {
   );
   assert.equal(catalogs.taskPolicy.local_store.adapter, "local-json");
   assert.equal(catalogs.taskPolicy.local_store.locator, ".zipzap/tasks");
+  assert.deepEqual(catalogs.taskPolicy.task_standard.creation_statuses, [
+    "ready",
+    "blocked"
+  ]);
+  assert.equal(
+    catalogs.taskPolicy.local_store.event_format,
+    "one-json-file-per-event"
+  );
+  assert.equal(
+    catalogs.schemas.feedback.title,
+    "ZipZap Feedback Record"
+  );
 });

@@ -54,8 +54,10 @@ The project is in active product and workflow design. Its current structure is:
 
 Project-specific business rules remain in each project's own source of truth.
 ZipZap registers and loads those rules when needed instead of copying them.
-Persistent Tasks are maintained locally as `.zipzap/tasks/<task-id>.json`.
-Task events, Review evidence, and derived reports remain under `.zipzap/`.
+Persistent Tasks are maintained in the project as
+`.zipzap/tasks/<task-id>.json`. Immutable per-event files, Review evidence,
+Feedback, and derived reports remain under `.zipzap/`. Commit shared project
+state to Git; do not commit each developer's installed Skill.
 
 Except for Codex-required `SKILL.md` frontmatter and `agents/openai.yaml`, the
 ZipZap runtime format is JSON. Markdown contains semantic guidance only.
@@ -71,6 +73,7 @@ node scripts/zipzap.mjs invoke --help
 node scripts/zipzap.mjs invoke --example
 
 node scripts/task.mjs --help
+node scripts/task.mjs validate --input task.json
 node scripts/task.mjs create --example
 ```
 
@@ -108,12 +111,22 @@ changes before applying them and can be rerun or reset later.
 Use the independent zero-dependency entry point:
 
 ```bash
+node scripts/task.mjs validate --input task.json
 node scripts/task.mjs create --input task.json
 node scripts/task.mjs track-git --input git-tracking.json
 node scripts/task.mjs sync-git --id task-id
 node scripts/task.mjs assess --id task-id
 node scripts/task.mjs report --period weekly --scope team
+node scripts/task.mjs feedback --input feedback.json
 ```
+
+Task Standard v1 creates only `ready` or explicitly `blocked` Tasks; candidate
+work does not use a Task `backlog` status. Acceptance criteria carry stable IDs
+so evidence can reference them without positional inference.
+
+Feedback is stored at `.zipzap/feedback/<feedback-id>.json` with the current
+ZipZap version and an optional minimal Task snapshot, making real-use problems
+easy to reproduce without copying project source.
 
 Confirm Commit association with an explicit SHA or
 `ZipZap-Task: task-id` trailer. The script returns compact Git statistics and
