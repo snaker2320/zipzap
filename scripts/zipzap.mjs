@@ -50,6 +50,12 @@ const ZIPZAP_COMMANDS = {
     schema: "schemas/l5-input.schema.json",
     example: "examples/zipzap/initialize.json"
   },
+  "first-run": {
+    summary: "Guide discovery, visible preferences, preview, and configuration.",
+    usage: "first-run --input <file> [--compact]",
+    schema: "schemas/first-run-input.schema.json",
+    example: "examples/zipzap/first-run.json"
+  },
   onboard: {
     summary: "Start or advance guided preference setup.",
     usage: "onboard --input <file> [--compact]",
@@ -135,7 +141,8 @@ const ZIPZAP_COMMANDS = {
     usage: "install-check --input <file> [--compact]"
   },
   lifecycle: {
-    summary: "Assess a build, verify, publish, install, upgrade, or rollback.",
+    summary:
+      "Assess build, publish, install, upgrade, post-upgrade, or rollback.",
     usage: "lifecycle --input <file> [--compact]",
     schema: "schemas/lifecycle-input.schema.json",
     example: "examples/zipzap/lifecycle.json"
@@ -360,6 +367,12 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
       ),
       onboardingOutput: readJson(
         path.join(schemaDir, "onboarding-output.schema.json")
+      ),
+      firstRunInput: readJson(
+        path.join(schemaDir, "first-run-input.schema.json")
+      ),
+      firstRunOutput: readJson(
+        path.join(schemaDir, "first-run-output.schema.json")
       ),
       sourceResolutionInput: readJson(
         path.join(schemaDir, "source-resolution-input.schema.json")
@@ -2954,6 +2967,20 @@ function writeProjectOnboarding(state, input, catalogs) {
   };
 }
 
+function confirmableOnboardingState(input, catalogs) {
+  const state = validateOnboardingState(input, catalogs);
+  const pending = pendingOnboardingQuestions(state, catalogs);
+  if (pending.length > 0 && state.mode !== "reset") {
+    throw new Error(
+      `confirm requires completed onboarding questions: ${pending
+        .map((question) => question.id)
+        .join(", ")}`
+    );
+  }
+  if (!state.scope) throw new Error("confirm requires a configuration scope");
+  return state;
+}
+
 export function advanceOnboarding(input, catalogs = loadCatalogs()) {
   assertAllowedFields(
     input,
@@ -3011,7 +3038,10 @@ export function advanceOnboarding(input, catalogs = loadCatalogs()) {
     });
   }
 
-  const state = validateOnboardingState(input, catalogs);
+  const state =
+    operation === "confirm"
+      ? confirmableOnboardingState(input, catalogs)
+      : validateOnboardingState(input, catalogs);
   if (operation === "answer") {
     assertObject(input.answer, "onboarding answer");
     const pending = pendingOnboardingQuestions(state, catalogs);
@@ -3079,15 +3109,6 @@ export function advanceOnboarding(input, catalogs = loadCatalogs()) {
     });
   }
 
-  const pending = pendingOnboardingQuestions(state, catalogs);
-  if (pending.length > 0 && state.mode !== "reset") {
-    throw new Error(
-      `confirm requires completed onboarding questions: ${pending
-        .map((question) => question.id)
-        .join(", ")}`
-    );
-  }
-  if (!state.scope) throw new Error("confirm requires a configuration scope");
   let configurationRevision = state.base_configuration_revision;
   let writePerformed = false;
   if (state.scope === "project") {
@@ -3396,6 +3417,340 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
     "completed",
     catalogs
   );
+}
+
+function firstRunDiscovery(project, enabledRoles, catalogs) {
+  return initializeProject(
+    {
+      schema_version: 1,
+      operation: "initialize",
+      project: clone(project),
+      initialization: {
+        action: "discover",
+        persistence: "session",
+        ...(enabledRoles?.length
+          ? { enabled_roles: clone(enabledRoles) }
+          : {})
+      }
+    },
+    catalogs
+  );
+}
+
+function firstRunDiscoveryFingerprint(discovery) {
+  const sources = discovery.initialization.sources
+    .map((source) => ({
+      id: source.id,
+      locator: source.locator,
+      version: source.version
+    }))
+    .sort((left, right) => left.locator.localeCompare(right.locator));
+  return `sha256:${crypto
+    .createHash("sha256")
+    .update(canonicalJson(sources))
+    .digest("hex")}`;
+}
+
+function firstRunManifestPath(project) {
+  return path.join(path.resolve(project.locator), ".zipzap", "project.json");
+}
+
+function firstRunState(input, catalogs) {
+  assertObject(input.state, "first-run state");
+  if (
+    !Number.isInteger(input.expected_revision) ||
+    input.expected_revision !== input.state.revision
+  ) {
+    throw new Error(
+      `first-run revision mismatch: expected ${input.expected_revision}, state ${input.state.revision}`
+    );
+  }
+  const state = clone(input.state);
+  assertAllowedFields(
+    state,
+    [
+      "revision",
+      "stage",
+      "project",
+      "enabled_roles",
+      "discovery_fingerprint",
+      "onboarding_state"
+    ],
+    "first-run state"
+  );
+  if (
+    !Number.isInteger(state.revision) ||
+    state.revision < 1 ||
+    !["collecting", "preview-ready"].includes(state.stage) ||
+    !state.project?.locator ||
+    !Array.isArray(state.enabled_roles) ||
+    !state.discovery_fingerprint
+  ) {
+    throw new Error("first-run state is invalid");
+  }
+  for (const roleId of state.enabled_roles) {
+    if (!catalogs.roles.roles[roleId]) {
+      throw new Error(`first-run references unknown role: ${roleId}`);
+    }
+  }
+  validateOnboardingState(
+    {
+      state: state.onboarding_state,
+      expected_revision: state.onboarding_state?.revision
+    },
+    catalogs
+  );
+  return state;
+}
+
+function firstRunCombinedPreview(discovery, onboardingState, catalogs) {
+  return {
+    discovery: clone(discovery.initialization),
+    preferences: onboardingPreview(onboardingState),
+    project_storage: {
+      manifest: ".zipzap/project.json",
+      tasks: catalogs.taskPolicy.local_store.locator,
+      events: catalogs.taskPolicy.local_store.event_locator,
+      reviews: catalogs.taskPolicy.local_store.review_locator,
+      feedback: catalogs.taskPolicy.local_store.feedback_locator
+    },
+    warnings: [
+      "No project files are written until this combined preview is confirmed.",
+      "Project rules remain in their discovered source locations; ZipZap stores routing metadata only."
+    ]
+  };
+}
+
+function firstRunResponse(status, state, discovery, additions = {}) {
+  return {
+    schema_version: 1,
+    status,
+    state: clone(state),
+    write_performed: additions.write_performed === true,
+    discovery: clone(discovery.initialization),
+    ...additions
+  };
+}
+
+function firstRunBlocked(discovery, message, actions) {
+  return {
+    schema_version: 1,
+    status: "blocked",
+    state: null,
+    write_performed: false,
+    discovery: discovery ? clone(discovery.initialization) : null,
+    required_actions: actions,
+    limitations: [message]
+  };
+}
+
+export function runFirstRun(input, catalogs = loadCatalogs()) {
+  assertAllowedFields(
+    input,
+    [
+      "schema_version",
+      "operation",
+      "presentation",
+      "project",
+      "enabled_roles",
+      "state",
+      "expected_revision",
+      "answer",
+      "answers"
+    ],
+    "first-run input"
+  );
+  if (input.schema_version !== 1) {
+    throw new Error("first-run schema_version must be 1");
+  }
+  if (!["start", "answer", "submit", "confirm"].includes(input.operation)) {
+    throw new Error(`unsupported first-run operation: ${input.operation}`);
+  }
+
+  if (input.operation === "start") {
+    if (!input.project?.locator) {
+      throw new Error("first-run start requires project.locator");
+    }
+    const enabledRoles =
+      input.enabled_roles ?? Object.keys(catalogs.roles.roles);
+    const discovery = firstRunDiscovery(
+      input.project,
+      enabledRoles,
+      catalogs
+    );
+    if (discovery.status === "blocked") {
+      return firstRunBlocked(
+        discovery,
+        "Project discovery could not complete.",
+        clone(discovery.initialization.unresolved)
+      );
+    }
+    if (fs.existsSync(firstRunManifestPath(input.project))) {
+      return firstRunBlocked(
+        discovery,
+        "This project is already initialized.",
+        [
+          "Use `zipzap onboard` to change preferences.",
+          "Use `zipzap initialize` with action `refresh` to reconcile registered sources."
+        ]
+      );
+    }
+    const onboarding = advanceOnboarding(
+      {
+        schema_version: 1,
+        operation: "start",
+        presentation: input.presentation ?? "form",
+        project: clone(input.project)
+      },
+      catalogs
+    );
+    const state = {
+      revision: 1,
+      stage: "collecting",
+      project: clone(input.project),
+      enabled_roles: clone(enabledRoles),
+      discovery_fingerprint: firstRunDiscoveryFingerprint(discovery),
+      onboarding_state: clone(onboarding.state)
+    };
+    return firstRunResponse(
+      "decision-required",
+      state,
+      discovery,
+      onboarding.form
+        ? { form: clone(onboarding.form) }
+        : { question: clone(onboarding.question) }
+    );
+  }
+
+  const state = firstRunState(input, catalogs);
+  const discovery = firstRunDiscovery(
+    state.project,
+    state.enabled_roles,
+    catalogs
+  );
+  if (discovery.status === "blocked") {
+    return firstRunBlocked(
+      discovery,
+      "Project discovery could not be refreshed.",
+      clone(discovery.initialization.unresolved)
+    );
+  }
+  const currentFingerprint = firstRunDiscoveryFingerprint(discovery);
+
+  if (input.operation === "confirm") {
+    if (fs.existsSync(firstRunManifestPath(state.project))) {
+      return firstRunBlocked(
+        discovery,
+        "Project configuration appeared after the first-run preview.",
+        [
+          "Inspect the current project configuration.",
+          "Restart first-run only if the existing configuration should be replaced."
+        ]
+      );
+    }
+    const onboardingState = confirmableOnboardingState(
+      {
+        state: state.onboarding_state,
+        expected_revision: state.onboarding_state.revision
+      },
+      catalogs
+    );
+    if (state.stage !== "preview-ready") {
+      throw new Error("first-run confirm requires a combined preview");
+    }
+    if (currentFingerprint !== state.discovery_fingerprint) {
+      state.revision += 1;
+      state.discovery_fingerprint = currentFingerprint;
+      return firstRunResponse("preview-ready", state, discovery, {
+        preview: firstRunCombinedPreview(
+          discovery,
+          onboardingState,
+          catalogs
+        ),
+        warnings: [
+          "Project sources changed after the previous preview. Review the refreshed preview and confirm again."
+        ]
+      });
+    }
+    const projectPreferences =
+      onboardingState.scope === "project"
+        ? clone(onboardingState.configuration)
+        : null;
+    const configured = initializeProject(
+      {
+        schema_version: 1,
+        operation: "initialize",
+        project: clone(state.project),
+        initialization: {
+          action: "configure",
+          persistence: "project",
+          enabled_roles: clone(state.enabled_roles),
+          sources: clone(discovery.initialization.manifest.sources),
+          ...(projectPreferences
+            ? { preferences: projectPreferences }
+            : {})
+        }
+      },
+      catalogs
+    );
+    if (configured.status !== "completed") {
+      return firstRunBlocked(
+        discovery,
+        "Project configuration did not complete.",
+        clone(configured.initialization.unresolved)
+      );
+    }
+    state.revision += 1;
+    return firstRunResponse("completed", state, discovery, {
+      write_performed: configured.initialization.write_performed,
+      initialization: clone(configured.initialization),
+      configuration: clone(onboardingState.configuration),
+      preference_storage: onboardingStorage(onboardingState.scope),
+      limitations:
+        onboardingState.scope === "project"
+          ? []
+          : [
+              `The host must apply ${onboardingState.scope}-scoped preferences to ${onboardingStorage(onboardingState.scope).target}.`
+            ],
+      post_check: {
+        manifest_present: fs.existsSync(firstRunManifestPath(state.project)),
+        sources_registered:
+          configured.initialization.sources.length,
+        preferences_visible_before_write: true,
+        single_manifest_write: true
+      }
+    });
+  }
+
+  const onboarding = advanceOnboarding(
+    {
+      schema_version: 1,
+      operation: input.operation,
+      project: clone(state.project),
+      state: clone(state.onboarding_state),
+      expected_revision: state.onboarding_state.revision,
+      ...(input.answer ? { answer: clone(input.answer) } : {}),
+      ...(input.answers ? { answers: clone(input.answers) } : {})
+    },
+    catalogs
+  );
+  state.revision += 1;
+  state.discovery_fingerprint = currentFingerprint;
+  state.onboarding_state = clone(onboarding.state);
+  state.stage =
+    onboarding.status === "preview-ready" ? "preview-ready" : "collecting";
+  const additions = onboarding.form
+    ? { form: clone(onboarding.form) }
+    : onboarding.question
+      ? { question: clone(onboarding.question) }
+      : {
+          preview: firstRunCombinedPreview(
+            discovery,
+            onboarding.state,
+            catalogs
+          )
+        };
+  return firstRunResponse(onboarding.status, state, discovery, additions);
 }
 
 function invalidL5Response(envelope, error) {
@@ -4397,6 +4752,117 @@ function migrationRequired(lifecycle, fromRelease, toRelease) {
   );
 }
 
+function inspectUpgradeProject(project, catalogs) {
+  if (!project?.locator) return null;
+  const projectRoot = path.resolve(project.locator);
+  if (!fs.existsSync(projectRoot) || !fs.statSync(projectRoot).isDirectory()) {
+    return {
+      status: "blocked",
+      manifest_present: false,
+      manifest_compatible: false,
+      manifest_sha256: "absent",
+      preferences_status: "unknown",
+      source_status: {
+        unchanged: 0,
+        stale: 0,
+        unavailable: 0
+      },
+      next_route: null,
+      limitations: [
+        `Project locator is not an available directory: ${project.locator}`
+      ]
+    };
+  }
+  const manifestPath = path.join(projectRoot, ".zipzap", "project.json");
+  if (!fs.existsSync(manifestPath)) {
+    return {
+      status: "first-run-required",
+      manifest_present: false,
+      manifest_compatible: true,
+      manifest_sha256: "absent",
+      preferences_status: "missing",
+      source_status: {
+        unchanged: 0,
+        stale: 0,
+        unavailable: 0
+      },
+      next_route: "first-run",
+      limitations: []
+    };
+  }
+  let manifest;
+  try {
+    manifest = validateProjectManifest(readJson(manifestPath), catalogs);
+  } catch (error) {
+    return {
+      status: "blocked",
+      manifest_present: true,
+      manifest_compatible: false,
+      manifest_sha256: hashFile(manifestPath),
+      preferences_status: "unknown",
+      source_status: {
+        unchanged: 0,
+        stale: 0,
+        unavailable: 0
+      },
+      next_route: null,
+      limitations: [`Project manifest is incompatible: ${error.message}`]
+    };
+  }
+  const personalization = manifest.collaboration?.personalization;
+  const configuredCorePreferences =
+    Boolean(manifest.collaboration?.preferred_preset) &&
+    Boolean(personalization?.response_detail) &&
+    Boolean(personalization?.humor);
+  const refresh = initializeProject(
+    {
+      schema_version: 1,
+      operation: "initialize",
+      project: {
+        id: manifest.project_id,
+        locator: projectRoot
+      },
+      initialization: {
+        action: "refresh",
+        persistence: "session"
+      }
+    },
+    catalogs
+  );
+  const sourceStatus = {
+    unchanged: 0,
+    stale: 0,
+    unavailable: 0
+  };
+  for (const source of refresh.initialization.sources) {
+    if (source.status === "stale") sourceStatus.stale += 1;
+    else if (source.status === "unavailable") sourceStatus.unavailable += 1;
+    else sourceStatus.unchanged += 1;
+  }
+  const sourcesNeedAttention =
+    sourceStatus.stale > 0 || sourceStatus.unavailable > 0;
+  return {
+    status: configuredCorePreferences
+      ? sourcesNeedAttention
+        ? "refresh-required"
+        : "ready"
+      : "onboarding-required",
+    manifest_present: true,
+    manifest_compatible: true,
+    manifest_sha256: hashFile(manifestPath),
+    preferences_status: configuredCorePreferences
+      ? "configured"
+      : "missing",
+    source_status: sourceStatus,
+    next_route: configuredCorePreferences
+      ? sourcesNeedAttention
+        ? "initialize-refresh"
+        : null
+      : "onboard",
+    limitations: clone(refresh.initialization.unresolved)
+  };
+}
+
 function validateLifecycleRequest(request) {
   assertObject(request, "lifecycle request");
   const allowedFields = new Set([
@@ -4408,7 +4874,9 @@ function validateLifecycleRequest(request) {
     "installed_version",
     "target_version",
     "backup_available",
-    "project_state_preserved"
+    "project_state_preserved",
+    "project",
+    "previous_project_manifest_sha256"
   ]);
   for (const field of Object.keys(request)) {
     if (!allowedFields.has(field)) {
@@ -4424,6 +4892,7 @@ function validateLifecycleRequest(request) {
     "publish",
     "install",
     "upgrade",
+    "verify-upgrade",
     "rollback"
   ]);
   if (!operations.has(request.operation)) {
@@ -4435,6 +4904,12 @@ function validateLifecycleRequest(request) {
     publish: ["release_manifest", "evidence"],
     install: ["target_version", "host_conformance"],
     upgrade: ["installed_version", "target_version", "host_conformance"],
+    "verify-upgrade": [
+      "installed_version",
+      "target_version",
+      "host_conformance",
+      "release_manifest"
+    ],
     rollback: [
       "installed_version",
       "target_version",
@@ -4448,6 +4923,22 @@ function validateLifecycleRequest(request) {
       throw new Error(`${request.operation} requires ${field}`);
     }
   }
+  if (request.project) {
+    assertAllowedFields(request.project, ["id", "locator"], "lifecycle project");
+    if (!request.project.locator) {
+      throw new Error("lifecycle project requires locator");
+    }
+  }
+  if (
+    request.previous_project_manifest_sha256 != null &&
+    !/^(?:absent|sha256:[a-f0-9]{64})$/.test(
+      request.previous_project_manifest_sha256
+    )
+  ) {
+    throw new Error(
+      "previous_project_manifest_sha256 must be absent or a SHA-256 reference"
+    );
+  }
 }
 
 export function assessLifecycle(request, catalogs = loadCatalogs()) {
@@ -4456,7 +4947,9 @@ export function assessLifecycle(request, catalogs = loadCatalogs()) {
   const checks = [];
   const requiredActions = [];
   const migrationPlan = [];
+  const nextActions = [];
   let releaseManifest = null;
+  let projectCheck = null;
 
   if (request.operation === "build-release") {
     const catalogValidation = validateCatalogs(catalogs);
@@ -4560,7 +5053,10 @@ export function assessLifecycle(request, catalogs = loadCatalogs()) {
       "Runtime dependency installation is forbidden."
     );
 
-    if (request.operation === "upgrade") {
+    if (
+      request.operation === "upgrade" ||
+      request.operation === "verify-upgrade"
+    ) {
       const fromRelease = knownRelease(lifecycle, request.installed_version);
       const toRelease = knownRelease(lifecycle, request.target_version);
       lifecycleCheck(
@@ -4595,6 +5091,97 @@ export function assessLifecycle(request, catalogs = loadCatalogs()) {
         "Register a migration for this interface or major-version transition."
       );
       if (migration) migrationPlan.push(clone(migration));
+    }
+
+    if (request.operation === "verify-upgrade") {
+      const verification = verifyReleaseManifest(
+        request.release_manifest,
+        catalogs
+      );
+      const catalogValidation = validateCatalogs(catalogs);
+      lifecycleCheck(
+        checks,
+        "post-upgrade-catalog-valid",
+        catalogValidation.valid,
+        "Installed catalogs and schemas are valid after upgrade.",
+        "Repair the installed Skill before using the upgraded version."
+      );
+      lifecycleCheck(
+        checks,
+        "post-upgrade-release-version",
+        verification.versionMatches,
+        "Installed release metadata matches the target version.",
+        "The installed version or channel does not match the target release."
+      );
+      lifecycleCheck(
+        checks,
+        "post-upgrade-package-inventory",
+        verification.inventoryMatches,
+        "Installed package bytes match the expected release manifest.",
+        `Reinstall the target package; differences: ${JSON.stringify(verification.details)}`
+      );
+      lifecycleCheck(
+        checks,
+        "post-upgrade-required-files",
+        verification.requiredFilesPresent,
+        "All required Skill files remain available after upgrade.",
+        `Restore required files: ${verification.details.requiredMissing.join(", ")}`
+      );
+      lifecycleCheck(
+        checks,
+        "post-upgrade-interface-versions",
+        verification.interfacesMatch,
+        "Installed interfaces match the target contracts.",
+        "Reinstall a package with the expected interface contracts."
+      );
+      lifecycleCheck(
+        checks,
+        "post-upgrade-runtime-dependencies",
+        verification.dependencyPolicyPreserved,
+        "The upgrade preserved the zero-dependency runtime policy.",
+        "Remove undeclared runtime dependencies from the installed Skill."
+      );
+    }
+
+    if (
+      request.project &&
+      ["install", "upgrade", "verify-upgrade"].includes(request.operation)
+    ) {
+      projectCheck = inspectUpgradeProject(request.project, catalogs);
+      lifecycleCheck(
+        checks,
+        "project-manifest-compatible",
+        projectCheck.manifest_compatible,
+        "Project state is absent or compatible with the installed Skill.",
+        projectCheck.limitations.join(" ") ||
+          "Repair or migrate the project manifest before continuing."
+      );
+      if (request.operation === "verify-upgrade") {
+        lifecycleCheck(
+          checks,
+          "project-state-preserved",
+          request.previous_project_manifest_sha256 != null &&
+            request.previous_project_manifest_sha256 ===
+              projectCheck.manifest_sha256,
+          "Project-owned state was preserved byte-for-byte during upgrade.",
+          request.previous_project_manifest_sha256 == null
+            ? "Provide the pre-upgrade project manifest SHA-256 snapshot."
+            : "Restore or explicitly migrate the changed project manifest."
+        );
+      }
+      if (projectCheck.next_route === "first-run") {
+        nextActions.push(
+          "Run `node scripts/zipzap.mjs first-run` for this project."
+        );
+      } else if (projectCheck.next_route === "onboard") {
+        nextActions.push(
+          "Run `node scripts/zipzap.mjs onboard` to review and store visible core preferences."
+        );
+      } else if (projectCheck.next_route === "initialize-refresh") {
+        nextActions.push(
+          "Review the reported source changes, then run `initialize` with action `refresh` after authorization."
+        );
+      }
     }
 
     if (request.operation === "rollback") {
@@ -4632,6 +5219,22 @@ export function assessLifecycle(request, catalogs = loadCatalogs()) {
     }
   }
 
+  if (request.operation === "install" && !request.project) {
+    nextActions.push(
+      "Run `node scripts/zipzap.mjs first-run` when initializing a project."
+    );
+  }
+  if (request.operation === "upgrade") {
+    nextActions.push(
+      "After installer-managed mutation, run lifecycle operation `verify-upgrade` with the expected release manifest."
+    );
+  }
+  if (request.operation === "verify-upgrade" && !request.project) {
+    nextActions.push(
+      "Verify each active project's manifest snapshot, source status, and onboarding completeness separately."
+    );
+  }
+
   for (const check of checks) {
     if (!check.passed) requiredActions.push(check.message);
   }
@@ -4644,7 +5247,9 @@ export function assessLifecycle(request, catalogs = loadCatalogs()) {
     release_manifest: releaseManifest,
     checks,
     required_actions: unique(requiredActions),
-    migration_plan: migrationPlan
+    migration_plan: migrationPlan,
+    project_check: projectCheck,
+    next_actions: unique(nextActions)
   };
 }
 
@@ -4828,6 +5433,13 @@ async function main() {
   const input = readInput(inputPath, command);
   if (command === "initialize") {
     const result = initializeProject(input, catalogs);
+    process.stdout.write(
+      `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
+    );
+    return;
+  }
+  if (command === "first-run") {
+    const result = runFirstRun(input, catalogs);
     process.stdout.write(
       `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
     );

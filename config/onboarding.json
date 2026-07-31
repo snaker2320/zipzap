@@ -177,6 +177,8 @@
     "personalization_cannot_change_governance": true,
     "preferred_preset_is_non_authoritative": true,
     "plan_mode_is_optional": true,
-    "page_and_conversation_share_contract": true
+    "page_and_conversation_share_contract": true,
+    "core_preferences_visible_before_confirm": true,
+    "embedded_first_run_single_write": true
   }
 }

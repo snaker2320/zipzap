@@ -53,6 +53,11 @@ authority, project rules, gates, evidence, or independence.
 Never write during `start`, `answer`, `submit`, or `reset`. Require
 `preview-ready` followed by `confirm`.
 
+When First Run embeds onboarding, let its final confirmation apply the
+validated configuration together with project source registration. Do not
+call project-scoped onboarding confirmation separately and create an
+intermediate manifest.
+
 - Store project scope in `.zipzap/project.json`.
 - Return user scope to `host-user-state`; the host must apply it.
 - Return session scope to `session-state`; the host must apply it.

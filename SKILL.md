@@ -42,8 +42,8 @@ validating, or debugging the public boundary.
 
 Classify before acting:
 
-1. Initialize collaboration when project sources, roles, preferences, or gates
-   are not registered.
+1. Route a new project through `first-run`; use direct initialization only
+   when the caller already supplied or explicitly accepted complete settings.
 2. Execute bounded work with an ephemeral context by default.
 3. Persist a Task when continuity, coordination, approval, progress tracking,
    durable Findings, or risk governance adds value.
@@ -86,9 +86,16 @@ and versions without copying source content.
 Use:
 
 ```bash
+node scripts/zipzap.mjs first-run --input first-run-request.json
 node scripts/zipzap.mjs initialize --input l5-initialize-request.json
 node scripts/zipzap.mjs source-resolve --input source-resolution-input.json
 ```
+
+Use `first-run` for a new project. It must combine read-only discovery,
+visible preference selection, one combined preview, explicit confirmation,
+one project configuration write, and a post-check. Never skip response detail,
+humor, or preferred-team visibility merely because recommended defaults are
+available.
 
 Keep discovery read-only. Store durable project registration in
 `.zipzap/project.json`. Treat `AGENTS.md` as host-managed instructions and do
@@ -106,7 +113,8 @@ preference that risk and assurance may strengthen.
 
 Read [project initialization](references/project-initialization.md) for source
 registration and [guided onboarding](references/onboarding.md) for form,
-reconfiguration, reset, scope, and precedence behavior.
+reconfiguration, reset, scope, and precedence behavior. Read
+[first run](references/first-run.md) when orchestrating a fresh project.
 
 ## Establish Context and Persistence
 
@@ -288,4 +296,9 @@ node scripts/zipzap.mjs lifecycle --input lifecycle-request.json
 Let the host installer own authorized file mutation and recoverable backup.
 Never install runtime packages. Keep installation separate from project
 initialization and preserve project-owned `.zipzap/` state across lifecycle
-operations.
+operations. After an upgrade, run `verify-upgrade` against the expected
+release manifest. Compare any supplied pre-upgrade project-manifest hash,
+validate installed bytes and interfaces, inspect project compatibility
+read-only, and route missing setup to `first-run`, `onboard`, or source
+refresh without silently changing project state. Read
+[lifecycle checks](references/lifecycle.md) when performing those operations.

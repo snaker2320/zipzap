@@ -12,7 +12,9 @@
     "release_manifest",
     "checks",
     "required_actions",
-    "migration_plan"
+    "migration_plan",
+    "project_check",
+    "next_actions"
   ],
   "properties": {
     "schema_version": {
@@ -25,6 +27,7 @@
         "publish",
         "install",
         "upgrade",
+        "verify-upgrade",
         "rollback"
       ]
     },
@@ -108,9 +111,110 @@
           }
         }
       }
+    },
+    "project_check": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/project_check"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "next_actions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     }
   },
   "$defs": {
+    "project_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "manifest_present",
+        "manifest_compatible",
+        "manifest_sha256",
+        "preferences_status",
+        "source_status",
+        "next_route",
+        "limitations"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "ready",
+            "first-run-required",
+            "onboarding-required",
+            "refresh-required",
+            "blocked"
+          ]
+        },
+        "manifest_present": {
+          "type": "boolean"
+        },
+        "manifest_compatible": {
+          "type": "boolean"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^(?:absent|sha256:[a-f0-9]{64})$"
+        },
+        "preferences_status": {
+          "enum": [
+            "configured",
+            "missing",
+            "unknown"
+          ]
+        },
+        "source_status": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "unchanged",
+            "stale",
+            "unavailable"
+          ],
+          "properties": {
+            "unchanged": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "stale": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unavailable": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "next_route": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            null,
+            "first-run",
+            "onboard",
+            "initialize-refresh"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "semver": {
       "type": "string",
       "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"

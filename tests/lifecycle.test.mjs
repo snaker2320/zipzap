@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
   assessHost,
   assessLifecycle,
   buildReleaseManifest,
+  initializeProject,
   loadCatalogs
 } from "../scripts/zipzap.mjs";
 
@@ -73,6 +77,18 @@ test("builds a deterministic zero-dependency release manifest", () => {
   assert.equal(
     first.files.some(
       (file) => file.path === "schemas/onboarding-output.schema.json"
+    ),
+    true
+  );
+  assert.equal(
+    first.files.some(
+      (file) => file.path === "schemas/first-run-output.schema.json"
+    ),
+    true
+  );
+  assert.equal(
+    first.files.some(
+      (file) => file.path === "examples/zipzap/first-run.json"
     ),
     true
   );
@@ -155,6 +171,165 @@ test("upgrades both beta archive and misreported internal versions", () => {
     assert.equal(result.allowed, true, installedVersion);
     assert.deepEqual(result.migration_plan, []);
   }
+});
+
+test("routes uninitialized and incomplete projects during upgrade checks", (context) => {
+  const projectRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "zipzap-upgrade-project-")
+  );
+  context.after(() =>
+    fs.rmSync(projectRoot, { recursive: true, force: true })
+  );
+  const host = compatibleHost();
+  const uninitialized = assessLifecycle(
+    {
+      schema_version: 1,
+      operation: "upgrade",
+      installed_version: "0.1.0-beta.1",
+      target_version: "0.1.1-beta.1",
+      host_conformance: host,
+      project: {
+        id: "example",
+        locator: projectRoot
+      }
+    },
+    catalogs
+  );
+  assert.equal(uninitialized.allowed, true);
+  assert.equal(uninitialized.project_check.status, "first-run-required");
+  assert.equal(uninitialized.project_check.manifest_sha256, "absent");
+  assert.match(uninitialized.next_actions.join(" "), /first-run/);
+
+  fs.mkdirSync(path.join(projectRoot, "docs"), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, "docs", "development.md"),
+    "# Development\n"
+  );
+  initializeProject(
+    {
+      schema_version: 1,
+      operation: "initialize",
+      project: {
+        id: "example",
+        locator: projectRoot
+      },
+      initialization: {
+        action: "configure",
+        persistence: "project"
+      }
+    },
+    catalogs
+  );
+  const preflight = assessLifecycle(
+    {
+      schema_version: 1,
+      operation: "upgrade",
+      installed_version: "0.1.0-beta.1",
+      target_version: "0.1.1-beta.1",
+      host_conformance: host,
+      project: {
+        id: "example",
+        locator: projectRoot
+      }
+    },
+    catalogs
+  );
+  assert.equal(preflight.allowed, true);
+  assert.equal(preflight.project_check.status, "onboarding-required");
+  assert.match(preflight.next_actions.join(" "), /onboard/);
+
+  const verified = assessLifecycle(
+    {
+      schema_version: 1,
+      operation: "verify-upgrade",
+      installed_version: "0.1.0-beta.1",
+      target_version: "0.1.1-beta.1",
+      host_conformance: host,
+      release_manifest: buildReleaseManifest(catalogs),
+      project: {
+        id: "example",
+        locator: projectRoot
+      },
+      previous_project_manifest_sha256:
+        preflight.project_check.manifest_sha256
+    },
+    catalogs
+  );
+  assert.equal(verified.allowed, true);
+  assert.equal(
+    verified.checks.find(
+      (check) => check.id === "project-state-preserved"
+    ).passed,
+    true
+  );
+  assert.match(verified.next_actions.join(" "), /onboard/);
+});
+
+test("blocks post-upgrade verification when project state changed", (context) => {
+  const projectRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "zipzap-upgrade-change-")
+  );
+  context.after(() =>
+    fs.rmSync(projectRoot, { recursive: true, force: true })
+  );
+  fs.mkdirSync(path.join(projectRoot, ".zipzap"), { recursive: true });
+  const manifestPath = path.join(projectRoot, ".zipzap", "project.json");
+  fs.writeFileSync(
+    manifestPath,
+    `${JSON.stringify({
+      schema_version: 1,
+      project_id: "example",
+      revision: 1,
+      sources: [],
+      collaboration: {
+        preferred_preset: "auto",
+        personalization: {
+          response_detail: "balanced",
+          humor: "light"
+        }
+      }
+    }, null, 2)}\n`
+  );
+  const preflight = assessLifecycle(
+    {
+      schema_version: 1,
+      operation: "upgrade",
+      installed_version: "0.1.0-beta.1",
+      target_version: "0.1.1-beta.1",
+      host_conformance: compatibleHost(),
+      project: {
+        locator: projectRoot
+      }
+    },
+    catalogs
+  );
+  const priorHash = preflight.project_check.manifest_sha256;
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  manifest.revision = 2;
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  const verified = assessLifecycle(
+    {
+      schema_version: 1,
+      operation: "verify-upgrade",
+      installed_version: "0.1.0-beta.1",
+      target_version: "0.1.1-beta.1",
+      host_conformance: compatibleHost(),
+      release_manifest: buildReleaseManifest(catalogs),
+      project: {
+        locator: projectRoot
+      },
+      previous_project_manifest_sha256: priorHash
+    },
+    catalogs
+  );
+  assert.equal(verified.allowed, false);
+  assert.equal(
+    verified.checks.find(
+      (check) => check.id === "project-state-preserved"
+    ).passed,
+    false
+  );
 });
 
 test("allows installation without initializing project state", () => {

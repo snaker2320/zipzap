@@ -30,6 +30,8 @@
       "schemas/l5-adapter-input.schema.json",
       "schemas/onboarding-input.schema.json",
       "schemas/onboarding-output.schema.json",
+      "schemas/first-run-input.schema.json",
+      "schemas/first-run-output.schema.json",
       "schemas/source-resolution-input.schema.json",
       "schemas/source-resolution-output.schema.json",
       "schemas/risk-assessment-input.schema.json",
@@ -87,6 +89,10 @@
     "preserve_project_manifest_on_upgrade": true,
     "backup_required_for_rollback": true,
     "major_interface_change_requires_migration": true,
-    "runtime_dependency_install_forbidden": true
+    "runtime_dependency_install_forbidden": true,
+    "first_run_requires_visible_preview": true,
+    "post_upgrade_validation_required": true,
+    "project_state_reconciliation_is_read_only": true,
+    "missing_preferences_trigger_onboarding": true
   }
 }

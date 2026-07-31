@@ -18,6 +18,9 @@ Inspect the project before proposing configuration. Look for:
 - commands or tools that produce verification evidence.
 
 Prefer established project conventions over a ZipZap-specific parallel system.
+For a new project, use the First Run adapter so discovery and preference
+selection reach one combined preview before configuration. Do not treat a
+plain initialization confirmation as consent to unseen preference defaults.
 
 ## Registration
 

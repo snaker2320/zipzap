@@ -39,6 +39,11 @@ the onboarding state machine, then pass its confirmed `configuration` as
 `initialization.preferences`. Direct callers may provide the same object
 without running the guide.
 
+Treat `first-run` as the corresponding orchestration adapter for a fresh
+project. It sequences discovery and onboarding, presents one combined preview,
+and calls the same L5 `initialize` contract only after confirmation. It is not
+an additional L5 operation.
+
 Keep page rendering, stepwise questioning, and host user-state writes outside
 the stable L5 interface. Keep preference validation, project-manifest storage,
 and governance boundaries identical across presentations.

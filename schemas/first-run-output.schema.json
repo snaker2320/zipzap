@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/first-run-output.schema.json",
+  "title": "ZipZap First Run Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "state",
+    "write_performed",
+    "discovery"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "enum": [
+        "decision-required",
+        "preview-ready",
+        "completed",
+        "blocked"
+      ]
+    },
+    "state": {
+      "oneOf": [
+        {
+          "$ref": "./first-run-input.schema.json#/$defs/state"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "write_performed": {
+      "type": "boolean"
+    },
+    "discovery": {
+      "oneOf": [
+        {
+          "$ref": "./l5-output.schema.json#/$defs/initialization"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "question": {
+      "$ref": "./onboarding-output.schema.json#/$defs/question"
+    },
+    "form": {
+      "$ref": "./onboarding-output.schema.json#/properties/form"
+    },
+    "preview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "discovery",
+        "preferences",
+        "project_storage",
+        "warnings"
+      ],
+      "properties": {
+        "discovery": {
+          "$ref": "./l5-output.schema.json#/$defs/initialization"
+        },
+        "preferences": {
+          "$ref": "./onboarding-output.schema.json#/properties/preview"
+        },
+        "project_storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "manifest",
+            "tasks",
+            "events",
+            "reviews",
+            "feedback"
+          ],
+          "properties": {
+            "manifest": {
+              "type": "string"
+            },
+            "tasks": {
+              "type": "string"
+            },
+            "events": {
+              "type": "string"
+            },
+            "reviews": {
+              "type": "string"
+            },
+            "feedback": {
+              "type": "string"
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "initialization": {
+      "$ref": "./l5-output.schema.json#/$defs/initialization"
+    },
+    "configuration": {
+      "$ref": "./onboarding-input.schema.json#/$defs/configuration"
+    },
+    "preference_storage": {
+      "$ref": "./onboarding-output.schema.json#/properties/storage"
+    },
+    "post_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manifest_present",
+        "sources_registered",
+        "preferences_visible_before_write",
+        "single_manifest_write"
+      ],
+      "properties": {
+        "manifest_present": {
+          "type": "boolean"
+        },
+        "sources_registered": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "preferences_visible_before_write": {
+          "const": true
+        },
+        "single_manifest_write": {
+          "const": true
+        }
+      }
+    },
+    "required_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
