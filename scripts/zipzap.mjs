@@ -2507,10 +2507,20 @@ function discoverProjectFiles(projectRoot) {
 
 function discoveredSource(projectRoot, locator) {
   const metadata = inferredSourceMetadata(locator);
+  const normalizedLocator = locator.replaceAll("\\", "/");
+  const readableId = slug(
+    normalizedLocator.replace(/\.[^.]+$/, ""),
+    "document"
+  );
+  const locatorHash = crypto
+    .createHash("sha256")
+    .update(normalizedLocator)
+    .digest("hex")
+    .slice(0, 12);
   const id =
-    metadata.kind === "instructions" && locator === "AGENTS.md"
+    metadata.kind === "instructions" && normalizedLocator === "AGENTS.md"
       ? "repository-instructions"
-      : `source-${slug(locator.replace(/\.[^.]+$/, ""), "document")}`;
+      : `source-${readableId}-${locatorHash}`;
   return {
     id,
     locator,

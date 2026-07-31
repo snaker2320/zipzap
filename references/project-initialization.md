@@ -30,6 +30,14 @@ Register an authoritative source with enough information to route and load it:
 - conditions under which it must be loaded;
 - precedence or conflict rule when multiple sources apply.
 
+For automatically discovered files, derive the identifier from an ASCII slug
+plus the first 12 hexadecimal characters of the SHA-256 hash of the normalized
+project-relative locator. Preserve Unicode in the locator itself. This keeps
+identifiers deterministic and valid while preventing different Unicode names
+with the same ASCII portion from colliding. Keep `repository-instructions` as
+the special identifier for the root `AGENTS.md`. Never rewrite an explicitly
+configured source identifier.
+
 Treat ordinary Markdown headings and links as the default document structure.
 Do not require ZipZap-specific anchors or copy document content into the
 registry. Treat `AGENTS.md` as host-managed instructions; it is not a document

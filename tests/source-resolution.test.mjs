@@ -160,6 +160,12 @@ test("discovers sources read-only and reports role coverage", (context) => {
   assert.equal(result.initialization.persistence, "session");
   assert.equal(result.initialization.write_performed, false);
   assert.equal(result.initialization.sources.length, 2);
+  assert.equal(
+    result.initialization.sources.find(
+      (source) => source.locator === "AGENTS.md"
+    ).id,
+    "repository-instructions"
+  );
   assert.deepEqual(
     result.initialization.coverage[0].covered_topics.sort(),
     ["coding", "repository-instructions"]
@@ -168,6 +174,76 @@ test("discovers sources read-only and reports role coverage", (context) => {
     fs.existsSync(path.join(projectRoot, ".zipzap", "project.json")),
     false
   );
+});
+
+test("keeps discovered Unicode source locators and generates unique stable IDs", (context) => {
+  const projectRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "zipzap-unicode-discover-")
+  );
+  context.after(() => fs.rmSync(projectRoot, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(projectRoot, "docs"), { recursive: true });
+  const locators = [
+    "docs/2026-07-16-需求.md",
+    "docs/2026-07-16-缺陷.md",
+    "docs/2026-07-16-技术债.md"
+  ];
+  const expectedIds = new Map([
+    [locators[0], "source-docs-2026-07-16-d6c374ec1ba7"],
+    [locators[1], "source-docs-2026-07-16-964b460965aa"],
+    [locators[2], "source-docs-2026-07-16-cf841833689c"]
+  ]);
+  for (const locator of locators) {
+    fs.writeFileSync(path.join(projectRoot, locator), `# ${locator}\n`);
+  }
+  const request = {
+    schema_version: 1,
+    operation: "initialize",
+    project: {
+      id: "example",
+      locator: projectRoot
+    },
+    initialization: {
+      action: "discover",
+      persistence: "project"
+    }
+  };
+
+  const first = initializeProject(request, catalogs);
+  const second = initializeProject(request, catalogs);
+  const firstSources = first.initialization.sources;
+  const secondIdsByLocator = new Map(
+    second.initialization.sources.map((source) => [source.locator, source.id])
+  );
+
+  assert.deepEqual(
+    firstSources.map((source) => source.locator).sort(),
+    [...locators].sort()
+  );
+  assert.equal(new Set(firstSources.map((source) => source.id)).size, 3);
+  for (const source of firstSources) {
+    assert.equal(source.id, expectedIds.get(source.locator));
+    assert.equal(secondIdsByLocator.get(source.locator), source.id);
+  }
+
+  const configured = initializeProject(
+    {
+      ...request,
+      initialization: {
+        action: "configure",
+        persistence: "project"
+      }
+    },
+    catalogs
+  );
+  assert.equal(configured.status, "completed");
+  const stored = JSON.parse(
+    fs.readFileSync(path.join(projectRoot, ".zipzap", "project.json"), "utf8")
+  );
+  assert.deepEqual(
+    stored.sources.map((source) => source.locator).sort(),
+    [...locators].sort()
+  );
+  assert.equal(new Set(stored.sources.map((source) => source.id)).size, 3);
 });
 
 test("configures project source registry and project Task storage", (context) => {
@@ -228,6 +304,7 @@ test("configures project source registry and project Task storage", (context) =>
     stored.collaboration.personalization.response_detail,
     "balanced"
   );
+  assert.equal(stored.sources[0].id, "development-standard");
   assert.equal(stored.sources[0].locator, "docs/standards/development.md");
   assert.equal(
     fs.existsSync(path.join(projectRoot, ".zipzap", "tasks")),
