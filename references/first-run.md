@@ -10,9 +10,10 @@ Treat First Run as a presentation and orchestration adapter above L5. Do not
 add a fifth L5 operation. Keep direct `initialize` and `onboard` calls
 available for automation and later reconfiguration.
 
-Use First Run only when `.zipzap/project.json` does not exist. Route an
-initialized project to `onboard` for preference changes or `initialize` with
-`refresh` for source reconciliation.
+Use project First Run only when `.zipzap/project.json` does not exist. When it
+already exists, treat the person as a joining member: route to `onboard` with
+user scope and do not rewrite the shared manifest. Use `initialize` with
+`refresh` only for explicit source reconciliation.
 
 ## Sequence
 
@@ -25,8 +26,8 @@ Run:
 3. Present one combined preview containing discovered source routing,
    coverage, all selected preferences, project storage, and warnings.
 4. `confirm` the exact state revision and discovery fingerprint.
-5. Configure project sources and project-scoped preferences in one project
-   manifest write.
+5. Configure project sources in one shared manifest write and store user-scoped
+   preferences separately in Git-ignored `.zipzap/state/preferences.json`.
 6. Return the stored initialization and post-check result.
 
 Always show the core preference fields before confirmation:
@@ -52,6 +53,7 @@ project sources change after preview, return a refreshed preview and require
 confirmation again. If another process creates the project manifest, stop and
 route to inspection instead of overwriting it.
 
-For user- or session-scoped preferences, initialize project sources once and
-return the validated preference configuration for the host to apply. Do not
-pretend the CLI persisted host-owned state.
+For user-scoped project preferences, persist only differences from project
+defaults in `.zipzap/state/preferences.json`. For user scope without a project,
+or for session scope, return the validated configuration for the host to apply.
+Do not pretend the CLI persisted host-owned state.

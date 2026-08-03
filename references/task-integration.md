@@ -41,6 +41,11 @@ Write each immutable event to
 Review results in `.zipzap/reviews/` and Feedback in `.zipzap/feedback/`.
 Treat `.zipzap/reports/` as derived and rebuildable.
 
+Store an authorized cross-context handoff as one immutable file under
+`.zipzap/handoffs/<work-id>/<handoff-id>.json`. Commit persistent handoffs with
+the Task when they are needed for team continuity. Do not overwrite a handoff;
+create a new ID that cites the updated artifacts and next action.
+
 Commit project-owned Tasks, Reviews, Events, and Feedback to the project Git
 repository. Keep the Skill installation outside the project. The generated
 `.zipzap/.gitignore` excludes only derived or machine-local state.
@@ -189,6 +194,12 @@ host Goal only when the user explicitly authorized it and the host supports
 Goal budgeting. Reports aggregate exact records and expose unavailable
 records separately. Do not interpret lower token use as higher capability
 without comparable work, risk, role, and outcome evidence.
+
+Persist the effective team, actual logical participants, active perspective,
+assurance mode, and execution stamp in the derived runtime snapshot. The Task
+completion assessment returns the same execution view and a conservative
+completion label. Render the stamp before the final task outcome so a reader
+can distinguish Solo self-work from peer challenge or independent Review.
 
 ## Feedback
 

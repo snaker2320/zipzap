@@ -17,34 +17,15 @@
     }
   },
   "context": {
-    "risk_normalization": {
+    "output_detail": "standard",
+    "compiler": {
       "schema_version": 1,
       "work_id": "example-work",
       "work_type": "development",
       "affected_components": [
         "example-component"
       ],
-      "assessment_input": {
-        "schema_version": 1,
-        "taxonomy_version": 1,
-        "invocation": {
-          "schema_version": 1,
-          "operation": "execute",
-          "request": {
-            "intent": "Change the requested behavior.",
-            "objective": "Deliver a bounded verified outcome.",
-            "scope": [
-              "example component"
-            ],
-            "requested_action": "modify",
-            "constraints": [],
-            "acceptance_criteria": [
-              "The requested behavior is verified."
-            ]
-          }
-        },
-        "evidence": []
-      },
+      "evidence": [],
       "assessment": {
         "schema_version": 1,
         "taxonomy_version": 1,
@@ -68,11 +49,11 @@
         "concurrency_limit": 1,
         "distinct_context_limit": 1
       },
-      "project_sources": [],
       "state": {
         "current_role": "developer",
         "current_stage": "produce"
-      }
+      },
+      "cache_mode": "off"
     }
   }
 }

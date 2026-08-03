@@ -30,6 +30,19 @@ accountable decision, and `block` when work cannot proceed. Do not expose
 layer names or ask for participant selection when the requested action has one
 safe default.
 
+For ready Work, also return `collaboration_view` and `execution_stamp`.
+`collaboration_view` is the public projection of existing routing facts: active
+perspective, requested preference and source, effective and minimum-sufficient
+team, logical members, assurance, and persistence. Do not make AI reconstruct
+these fields from diagnostics. Its focused contract is
+[`schemas/collaboration-view.schema.json`](../schemas/collaboration-view.schema.json).
+
+The adapter context may request `compact`, `standard`, or `diagnostic`
+`output_detail`. Default to `standard`; map a personal concise response
+preference to `compact`. Compact output retains the stamp and member count but
+may omit the roster. Diagnostic output alone includes selection explanations,
+schedule, revisions, and the projection digest.
+
 ## Operations
 
 - `initialize`: discover, configure, or refresh project collaboration sources.
@@ -47,6 +60,20 @@ The optional runner accepts
 `schemas/l5-adapter-input.schema.json`, which wraps the public request with
 host-owned context. Keep that wrapper internal; it does not expand caller
 authority.
+
+For normal `execute`, prefer `context.compiler` over a caller-assembled
+`risk_normalization`. The compiler accepts the AI-produced risk assessment,
+Host limits, work metadata, and optional runtime state. It then loads the
+project manifest when available, resolves personal and shared preferences,
+normalizes governance, bounds sources and Findings, selects and binds the
+team, composes the Projection, and returns one execution capsule. The legacy
+`risk_normalization` form remains valid for adapters that already own those
+steps. Never supply both forms.
+
+`compile` exposes the same path with a compiler report for diagnostics; it is
+not another user action. Its contracts are
+`schemas/context-compiler-input.schema.json` and
+`schemas/context-compiler-output.schema.json`.
 
 For `initialize`, require an explicit action:
 
@@ -85,6 +112,16 @@ duplicate them in the runtime context.
 
 Let the caller supply intent, objective, scope, constraints, acceptance
 criteria, collaboration preferences, and a continuation reference.
+
+When `project.locator` is available, resolve preferences before team selection:
+
+```text
+request > .zipzap/state/preferences.json > project.json shared default > ZipZap default
+```
+
+Risk assessment continues to evaluate the caller's work facts. Preference
+hydration may affect presentation and topology selection, never risk evidence
+or governance effects.
 
 For structured routing, accept:
 
@@ -146,6 +183,18 @@ workflow conditions with `ok: true` and one of:
 Return only the next execution view by default. Keep Preset Resolution,
 Binding, Projection revisions, reconciliation actions, implementation adapter,
 and runtime paths behind an optional diagnostic reference.
+
+For ephemeral Work, derive the final claim through `complete` and
+`schemas/completion-input.schema.json`. Its returned Completion View preserves
+the execution stamp and distinguishes implementation, tests, self-Review,
+independent Review, and user acceptance from their cited evidence. It must
+remain partial when an artifact change lacks implementation evidence and must
+never promote passing tests or sequential self-checks to independent Review.
+
+Pass context transitions through `schemas/handoff-input.schema.json`. Project
+handoffs are immutable records at
+`.zipzap/handoffs/<work-id>/<handoff-id>.json`; ephemeral handoffs return the
+same record without writing.
 
 ## Adapter Boundary
 

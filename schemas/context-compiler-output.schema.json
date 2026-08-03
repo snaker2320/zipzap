@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/context-compiler-output.schema.json",
+  "title": "ZipZap Context Compiler Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "response",
+    "compiler_report"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "response": {
+      "$ref": "./l5-output.schema.json"
+    },
+    "compiler_report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "work_id",
+        "project_sources",
+        "budget",
+        "cache"
+      ],
+      "properties": {
+        "work_id": {
+          "type": "string"
+        },
+        "project_sources": {
+          "type": "object"
+        },
+        "budget": {
+          "type": "object"
+        },
+        "cache": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

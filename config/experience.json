@@ -31,7 +31,8 @@
     "work_persistence": "ephemeral",
     "team_preference": "auto",
     "routine_status": "silent",
-    "small_reversible_team": "solo"
+    "small_reversible_team": "solo",
+    "output_detail": "standard"
   },
   "interrupt_only_for": [
     "material-ambiguity",
@@ -46,6 +47,9 @@
     "no_task_for_routine_ephemeral_work": true,
     "no_preference_prompt_when_defaults_apply": true,
     "no_status_prompt_for_ready_work": true,
-    "one_prompt_for_one_accountable_decision": true
+    "one_prompt_for_one_accountable_decision": true,
+    "execution_stamp_before_result": true,
+    "compact_output_omits_full_roster": true,
+    "diagnostics_are_explicit_only": true
   }
 }

@@ -81,6 +81,7 @@
           "additionalProperties": false,
           "required": [
             "manifest",
+            "personal_preferences",
             "tasks",
             "events",
             "reviews",
@@ -88,6 +89,9 @@
           ],
           "properties": {
             "manifest": {
+              "type": "string"
+            },
+            "personal_preferences": {
               "type": "string"
             },
             "tasks": {
@@ -128,7 +132,8 @@
         "manifest_present",
         "sources_registered",
         "preferences_visible_before_write",
-        "single_manifest_write"
+        "single_manifest_write",
+        "personal_preferences_stored"
       ],
       "properties": {
         "manifest_present": {
@@ -143,6 +148,9 @@
         },
         "single_manifest_write": {
           "const": true
+        },
+        "personal_preferences_stored": {
+          "type": "boolean"
         }
       }
     },

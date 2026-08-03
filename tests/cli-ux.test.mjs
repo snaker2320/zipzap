@@ -58,7 +58,44 @@ test("CLI examples are valid JSON and representative inputs execute", (context) 
     JSON.stringify(invocation)
   );
   assert.equal(invoked.status, 0, invoked.stderr);
-  assert.equal(JSON.parse(invoked.stdout).status, "ready");
+  const invokedOutput = JSON.parse(invoked.stdout);
+  assert.equal(invokedOutput.status, "ready");
+  assert.equal(invokedOutput.collaboration_view.selection.effective, "solo");
+  assert.match(invokedOutput.execution_stamp, /^solo/);
+
+  const compiled = run(
+    zipzapScript,
+    ["compile", "--compact"],
+    JSON.stringify(invocation)
+  );
+  assert.equal(compiled.status, 0, compiled.stderr);
+  assert.equal(JSON.parse(compiled.stdout).response.status, "ready");
+
+  const completionExample = run(
+    zipzapScript,
+    ["complete", "--example", "--compact"]
+  );
+  assert.equal(completionExample.status, 0);
+  const completed = run(
+    zipzapScript,
+    ["complete", "--compact"],
+    completionExample.stdout
+  );
+  assert.equal(completed.status, 0, completed.stderr);
+  assert.equal(JSON.parse(completed.stdout).completion_label, "tested");
+
+  const handoffExample = run(
+    zipzapScript,
+    ["handoff", "--example", "--compact"]
+  );
+  assert.equal(handoffExample.status, 0);
+  const handedOff = run(
+    zipzapScript,
+    ["handoff", "--compact"],
+    handoffExample.stdout
+  );
+  assert.equal(handedOff.status, 0, handedOff.stderr);
+  assert.equal(JSON.parse(handedOff.stdout).persistence, "ephemeral");
 
   const diagnosticExample = run(
     zipzapScript,

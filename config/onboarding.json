@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "defaults": {
-    "scope": "project",
+    "scope": "user",
     "preferred_preset": "auto",
     "personalization": {
       "response_detail": "balanced",
@@ -23,13 +23,13 @@
         {
           "value": "project",
           "label": "Project",
-          "description": "Store preferences in .zipzap/project.json.",
-          "recommended": true
+          "description": "Share intentional team defaults through .zipzap/project.json."
         },
         {
           "value": "user",
           "label": "User",
-          "description": "Ask the host to store preferences for this user."
+          "description": "Store personal preferences in Git-ignored .zipzap/state/preferences.json.",
+          "recommended": true
         },
         {
           "value": "session",
@@ -173,12 +173,15 @@
     "preview_before_write": true,
     "configuration_is_repeatable": true,
     "request_overrides_project": true,
-    "project_overrides_user": true,
+    "request_overrides_user": true,
+    "user_overrides_project_default": true,
     "personalization_cannot_change_governance": true,
     "preferred_preset_is_non_authoritative": true,
     "plan_mode_is_optional": true,
     "page_and_conversation_share_contract": true,
     "core_preferences_visible_before_confirm": true,
-    "embedded_first_run_single_write": true
+    "embedded_first_run_single_write": true,
+    "personal_preferences_are_git_ignored": true,
+    "existing_project_uses_member_onboarding": true
   }
 }

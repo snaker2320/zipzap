@@ -63,6 +63,10 @@
       "default_budget": {
         "evidence": "light",
         "max_source_files": 8,
+        "max_source_bytes": 60000,
+        "max_tool_output_bytes": 30000,
+        "max_findings_expansion": 8,
+        "allow_full_file_read": false,
         "allow_tests": false,
         "allow_mutations": false,
         "allow_persistence": false

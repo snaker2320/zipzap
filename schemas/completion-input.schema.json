@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/completion-input.schema.json",
+  "title": "ZipZap Ephemeral Completion Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "work_id",
+    "collaboration_view",
+    "outcome",
+    "evidence",
+    "tests",
+    "review",
+    "findings",
+    "approvals",
+    "residual_risks",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "work_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "collaboration_view": {
+      "$ref": "./collaboration-view.schema.json"
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "summary",
+        "artifact_change"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "succeeded",
+            "partial",
+            "blocked",
+            "failed"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_change": {
+          "type": "boolean"
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence"
+      }
+    },
+    "tests": {
+      "$ref": "#/$defs/check"
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "outcome",
+        "evidence_refs"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "none",
+            "self",
+            "independent"
+          ]
+        },
+        "outcome": {
+          "enum": [
+            "not-run",
+            "approved",
+            "changes-requested",
+            "blocked"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "approvals": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/approval"
+      }
+    },
+    "residual_risks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "continuation": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "locator",
+        "statement"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "kind": {
+          "enum": [
+            "analysis",
+            "artifact",
+            "implementation",
+            "test",
+            "review",
+            "approval"
+          ]
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "evidence_refs"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "not-run",
+            "passed",
+            "failed",
+            "partial"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "severity",
+        "status",
+        "blocking",
+        "summary"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "enum": [
+            "blocker",
+            "major",
+            "minor",
+            "note"
+          ]
+        },
+        "status": {
+          "enum": [
+            "open",
+            "accepted",
+            "resolved",
+            "dismissed"
+          ]
+        },
+        "blocking": {
+          "type": "boolean"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority",
+        "status",
+        "evidence_ref"
+      ],
+      "properties": {
+        "authority": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "granted",
+            "denied",
+            "pending"
+          ]
+        },
+        "evidence_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

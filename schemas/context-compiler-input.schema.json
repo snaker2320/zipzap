@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/context-compiler-input.schema.json",
+  "title": "ZipZap Context Compiler Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "work_id",
+    "assessment",
+    "host"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "work_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "work_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "affected_components": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "./risk-assessment-input.schema.json#/properties/evidence/items"
+      }
+    },
+    "assessment": {
+      "$ref": "./risk-assessment-output.schema.json"
+    },
+    "host": {
+      "$ref": "./runtime-input.schema.json#/$defs/host"
+    },
+    "project_sources": {
+      "type": "array",
+      "items": {
+        "$ref": "./runtime-input.schema.json#/$defs/project_source"
+      }
+    },
+    "state": {
+      "$ref": "./runtime-input.schema.json#/$defs/state"
+    },
+    "cache_mode": {
+      "enum": [
+        "off",
+        "read-only",
+        "read-write"
+      ],
+      "default": "read-write"
+    }
+  }
+}

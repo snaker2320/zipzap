@@ -396,6 +396,11 @@ test("independent Task CLI stores, tracks, reviews, and reports work", (context)
 
   const assessed = run("assess", ["--id", "task-1"], projectRoot);
   assert.equal(assessed.status, "ready-to-complete");
+  assert.equal(
+    assessed.completion_label,
+    "verified-ready-to-complete"
+  );
+  assert.equal(assessed.execution_view, null);
   assert.deepEqual(assessed.criteria, {
     verified: 1,
     total: 1
@@ -604,7 +609,7 @@ test("captures shareable Feedback with a minimal derived Task snapshot", (contex
   });
   assert.equal(
     captured.feedback.zipzap_snapshot.skill_version,
-    "0.1.1-beta.2"
+    "0.1.1-beta.3"
   );
   assert.equal(captured.feedback.task_snapshot.task_id, "task-1");
   assert.equal(captured.feedback.task_snapshot.completion, "ready-to-complete");
@@ -698,13 +703,44 @@ test("applies an L5 Task Patch with optimistic revision checks", (context) => {
         requires_approval: [],
         persistence_required: true
       },
-      runtime_snapshot: null,
+      runtime_snapshot: {
+        derived: true,
+        effective_team: "solo",
+        assurance_mode: "self",
+        taxonomy_version: 1,
+        runtime_policy_version: 1,
+        task_revision: 1,
+        binding_revision: 1,
+        execution_stamp:
+          "solo · Owl / developer.produce · 1 member · self · persistent",
+        participants: [
+          {
+            slot: "primary",
+            profile: "owl",
+            display_name: "Owl",
+            roles: ["product", "developer", "tester", "reviewer"],
+            functions: ["coordinator"],
+            active: true
+          }
+        ],
+        active_perspective: {
+          slot: "primary",
+          profile: "owl",
+          display_name: "Owl",
+          role: "developer",
+          stage: "produce"
+        }
+      },
       continuation: null,
       invalidates_previous_runtime: false
     }
   });
   assert.equal(applied.task.revision, 2);
   assert.equal(applied.task.governance_snapshot.derived, true);
+  const assessed = run("assess", ["--id", "task-1"], projectRoot);
+  assert.equal(assessed.execution_view.effective_team, "solo");
+  assert.equal(assessed.execution_view.participants[0].display_name, "Owl");
+  assert.match(assessed.execution_view.stamp, /^solo/);
 });
 
 test("a blocked L5 patch materializes its decision as a Task blocker", (context) => {

@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -159,10 +162,135 @@ test("unified L5 invoke returns a ready execution view", () => {
     persistence: "ephemeral"
   });
   assert.equal(response.execution.participant.profile, "owl");
+  assert.equal(response.execution.participant.stage, "produce");
+  assert.deepEqual(response.execution.source_locators, []);
+  assert.equal(response.collaboration_view.selection.effective, "solo");
+  assert.equal(response.collaboration_view.selection.preference, "auto");
+  assert.equal(response.collaboration_view.members.length, 1);
+  assert.equal(response.collaboration_view.members[0].active, true);
+  assert.match(response.execution_stamp, /^solo · Owl \/ developer\.produce/);
   assert.equal(response.assurance.mode, "self");
   assert.deepEqual(response.continuation, {
     work_id: "task-1"
   });
+});
+
+test("merges personal preferences before runtime team selection", (context) => {
+  const projectRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "zipzap-runtime-preferences-")
+  );
+  context.after(() =>
+    fs.rmSync(projectRoot, { recursive: true, force: true })
+  );
+  fs.mkdirSync(path.join(projectRoot, ".zipzap", "state"), {
+    recursive: true
+  });
+  fs.writeFileSync(
+    path.join(projectRoot, ".zipzap", "project.json"),
+    `${JSON.stringify({
+      schema_version: 1,
+      project_id: "runtime-project",
+      revision: 1,
+      sources: [],
+      collaboration: {
+        preferred_preset: "solo"
+      }
+    }, null, 2)}\n`
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, ".zipzap", "state", "preferences.json"),
+    `${JSON.stringify({
+      schema_version: 1,
+      project_id: "runtime-project",
+      revision: 1,
+      overrides: {
+        preferred_preset: "copilot",
+        personalization: {
+          response_detail: "balanced",
+          agent_aliases: {
+            wolf: "Builder One"
+          }
+        }
+      }
+    }, null, 2)}\n`
+  );
+  const taskValue = task();
+  const assessmentInput = prepareTaskAssessment(taskValue, catalogs);
+  assessmentInput.invocation.project = {
+    id: "runtime-project",
+    locator: projectRoot
+  };
+  const response = invokeL5(
+    {
+      schema_version: 1,
+      request: assessmentInput.invocation,
+      context: {
+        risk_normalization: {
+          schema_version: 1,
+          work_id: taskValue.task_id,
+          work_type: taskValue.work.work_type,
+          affected_components: taskValue.work.affected_components,
+          assessment_input: assessmentInput,
+          assessment: assessment(),
+          host: {
+            concurrency_limit: 2,
+            distinct_context_limit: 5,
+            multi_agent_authorization: "granted"
+          },
+          project_sources: [],
+          state: {
+            current_role: "developer",
+            current_stage: "produce"
+          }
+        }
+      }
+    },
+    catalogs
+  );
+
+  assert.equal(response.status, "ready");
+  assert.equal(response.collaboration_view.selection.preference, "copilot");
+  assert.equal(
+    response.collaboration_view.selection.preference_source,
+    "personal"
+  );
+  assert.equal(response.collaboration_view.selection.effective, "copilot");
+  assert.equal(response.collaboration_view.member_count, 2);
+  assert.equal(
+    response.collaboration_view.members[0].display_name,
+    "Builder One"
+  );
+});
+
+test("compact output keeps the execution stamp without the full roster", () => {
+  const taskValue = task();
+  const envelope = invokeEnvelope(taskValue, assessment());
+  envelope.context.output_detail = "compact";
+  const response = invokeL5(envelope, catalogs);
+
+  assert.equal(response.status, "ready");
+  assert.equal(response.collaboration_view.output_detail, "compact");
+  assert.equal(response.collaboration_view.members, undefined);
+  assert.equal(response.collaboration_view.member_count, 1);
+  assert.equal(typeof response.execution_stamp, "string");
+});
+
+test("diagnostic output exposes routing provenance and projection digest", () => {
+  const taskValue = task();
+  const envelope = invokeEnvelope(taskValue, assessment());
+  envelope.context.output_detail = "diagnostic";
+  const response = invokeL5(envelope, catalogs);
+
+  assert.equal(response.status, "ready");
+  assert.equal(response.collaboration_view.output_detail, "diagnostic");
+  assert.deepEqual(
+    response.collaboration_view.diagnostics.selection_reasons,
+    ["Selected the least costly registered preset satisfying required assurance."]
+  );
+  assert.match(
+    response.collaboration_view.diagnostics.runtime_refs.projection_digest,
+    /^sha256:[a-f0-9]{64}$/
+  );
 });
 
 test("unified L5 invoke exposes a silent design diagnostic profile", () => {
@@ -359,6 +487,12 @@ test("task adapter writes Trio only as a derived snapshot", () => {
   assert.equal(result.task_patch.status, "in-progress");
   assert.equal(result.task_patch.runtime_snapshot.derived, true);
   assert.equal(result.task_patch.runtime_snapshot.effective_team, "trio");
+  assert.equal(result.task_patch.runtime_snapshot.participants.length, 3);
+  assert.equal(
+    result.task_patch.runtime_snapshot.active_perspective.role,
+    "developer"
+  );
+  assert.match(result.task_patch.runtime_snapshot.execution_stamp, /^trio/);
   assert.equal(
     result.task_patch.runtime_snapshot.task_revision,
     result.task_patch.base_revision
@@ -448,6 +582,10 @@ test("registers the unified L5 and Task Adapter schemas", () => {
   assert.equal(
     catalogs.schemas.l5AdapterInput.title,
     "ZipZap L5 Adapter Invocation"
+  );
+  assert.equal(
+    catalogs.schemas.collaborationView.title,
+    "ZipZap Collaboration View"
   );
   assert.equal(catalogs.schemas.task.title, "ZipZap Task Contract");
   assert.equal(

@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "work_id": "example-work",
+  "collaboration_view": {
+    "output_detail": "compact",
+    "perspective": {
+      "slot": "builder",
+      "profile": "owl",
+      "display_name": "Owl",
+      "role": "developer",
+      "stage": "produce"
+    },
+    "selection": {
+      "preference": "auto",
+      "preference_source": "default",
+      "effective": "solo",
+      "minimum_sufficient": "solo",
+      "recommended": "solo",
+      "reason_codes": [
+        "minimum-sufficient-preset"
+      ]
+    },
+    "member_count": 1,
+    "assurance": {
+      "target": "self-review",
+      "mode": "self",
+      "claim_limit": "self-reviewed",
+      "limitations": [
+        "No independent review."
+      ]
+    },
+    "persistence": "ephemeral"
+  },
+  "outcome": {
+    "status": "succeeded",
+    "summary": "Implemented and checked the bounded change.",
+    "artifact_change": true
+  },
+  "evidence": [
+    {
+      "id": "implementation-diff",
+      "kind": "implementation",
+      "locator": "git:working-tree",
+      "statement": "The requested behavior was implemented."
+    },
+    {
+      "id": "focused-test",
+      "kind": "test",
+      "locator": "command:node --test",
+      "statement": "The focused test passed."
+    }
+  ],
+  "tests": {
+    "status": "passed",
+    "evidence_refs": [
+      "focused-test"
+    ]
+  },
+  "review": {
+    "mode": "none",
+    "outcome": "not-run",
+    "evidence_refs": []
+  },
+  "findings": [],
+  "approvals": [],
+  "residual_risks": [],
+  "limitations": [
+    "No independent Review was performed."
+  ],
+  "continuation": null
+}

@@ -36,8 +36,12 @@ operation. Treat it as untrusted input and let the adapter validate it.
 ## Configuration
 
 The core choices are response detail, humor, and preferred team. Scope may be
-`session`, `user`, or `project`. Team tone and signatures are advanced choices;
-agent aliases remain an optional direct personalization field.
+`session`, `user`, or `project`; default to `user`. In a project, user scope is
+a member-specific override stored in Git-ignored
+`.zipzap/state/preferences.json`. Use
+project scope only for an intentional shared team default. Team tone and
+signatures are advanced choices; agent aliases remain an optional direct
+personalization field.
 
 Treat `preferred_preset` as a preference. `auto` means no explicit runtime
 selection. Risk, gates, assurance, and independence can select a stronger
@@ -46,7 +50,7 @@ topology.
 Apply precedence as:
 
 ```text
-request override > project preference > user preference > ZipZap default
+request override > user preference > project shared default > ZipZap default
 ```
 
 Apply governance after preference resolution. Never let a preference weaken
@@ -62,11 +66,16 @@ validated configuration together with project source registration. Do not
 call project-scoped onboarding confirmation separately and create an
 intermediate manifest.
 
-- Store project scope in `.zipzap/project.json`.
-- Return user scope to `host-user-state`; the host must apply it.
+- Store explicit project scope in `.zipzap/project.json` as a shared default.
+- Store user scope in `.zipzap/state/preferences.json` when a project is
+  present and keep that file ignored by Git. Without a project, return it to
+  `host-user-state`.
 - Return session scope to `session-state`; the host must apply it.
 
 Project confirmation uses the manifest revision as an optimistic concurrency
-check. Preserve sources, extensions, enabled roles, enabled presets, and local
-Task persistence while changing preferences. A reset removes preference
-overrides rather than deleting project-owned sources or governance.
+check. Personal confirmation uses an independent local revision and must not
+change the manifest revision or bytes. Store only personal differences from
+the project default, not a second complete project configuration. Preserve
+sources, extensions, enabled roles, enabled presets, and local Task persistence
+while changing shared defaults. A reset removes only the selected scope's
+overrides.

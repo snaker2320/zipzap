@@ -61,6 +61,8 @@ test("exposes one page-ready form without requiring Plan mode", () => {
   assert.equal(started.status, "decision-required");
   assert.equal(started.form.fields.length, 6);
   assert.equal(started.question, undefined);
+  assert.equal(started.state.scope, "user");
+  assert.equal(started.form.fields[0].current_value, "user");
   assert.equal(catalogs.onboarding.policies.plan_mode_is_optional, true);
   assert.deepEqual(
     started.form.fields
@@ -287,6 +289,108 @@ test("returns user settings to the host without writing project state", () => {
   assert.equal(completed.limitations.length, 1);
 });
 
+test("stores member preferences outside the shared project manifest", (context) => {
+  const projectInput = project(context);
+  const sharedStarted = advanceOnboarding(
+    {
+      schema_version: 1,
+      operation: "start",
+      presentation: "form",
+      scope: "project",
+      project: projectInput
+    },
+    catalogs
+  );
+  confirm(
+    submitForm(sharedStarted, projectInput, {
+      preferred_preset: "auto",
+      humor: "off"
+    }),
+    projectInput
+  );
+  const manifestPath = path.join(
+    projectInput.locator,
+    ".zipzap",
+    "project.json"
+  );
+  const sharedBefore = fs.readFileSync(manifestPath, "utf8");
+  const gitignorePath = path.join(
+    projectInput.locator,
+    ".zipzap",
+    ".gitignore"
+  );
+  fs.writeFileSync(
+    gitignorePath,
+    "# Team-owned ignore rules\n/state/\n/custom-local/\n"
+  );
+  const gitignoreBefore = fs.readFileSync(gitignorePath, "utf8");
+
+  const memberStarted = advanceOnboarding(
+    {
+      schema_version: 1,
+      operation: "start",
+      presentation: "form",
+      scope: "user",
+      project: projectInput
+    },
+    catalogs
+  );
+  const memberCompleted = confirm(
+    submitForm(memberStarted, projectInput, {
+      preferred_preset: "copilot",
+      humor: "playful"
+    }),
+    projectInput
+  );
+
+  assert.equal(memberCompleted.write_performed, true);
+  assert.deepEqual(memberCompleted.storage, {
+    scope: "user",
+    target: ".zipzap/state/preferences.json",
+    application_required: false
+  });
+  assert.equal(fs.readFileSync(manifestPath, "utf8"), sharedBefore);
+  const localPath = path.join(
+    projectInput.locator,
+    ".zipzap",
+    "state",
+    "preferences.json"
+  );
+  const personal = JSON.parse(fs.readFileSync(localPath, "utf8"));
+  assert.equal(personal.project_id, "example");
+  assert.equal(personal.overrides.preferred_preset, "copilot");
+  assert.equal(personal.overrides.personalization.humor, "playful");
+  assert.match(gitignoreBefore, /^\/state\/$/m);
+  assert.equal(fs.readFileSync(gitignorePath, "utf8"), gitignoreBefore);
+
+  const reopened = advanceOnboarding(
+    {
+      schema_version: 1,
+      operation: "start",
+      scope: "user",
+      project: projectInput
+    },
+    catalogs
+  );
+  assert.equal(reopened.state.configuration.preferred_preset, "copilot");
+  assert.equal(reopened.state.configuration.personalization.humor, "playful");
+
+  const reset = advanceOnboarding(
+    {
+      schema_version: 1,
+      operation: "reset",
+      scope: "user",
+      project: projectInput
+    },
+    catalogs
+  );
+  const resetCompleted = confirm(reset, projectInput);
+  assert.equal(resetCompleted.write_performed, true);
+  assert.equal(fs.existsSync(localPath), false);
+  assert.equal(fs.readFileSync(manifestPath, "utf8"), sharedBefore);
+  assert.equal(fs.readFileSync(gitignorePath, "utf8"), gitignoreBefore);
+});
+
 test("blocks confirmation after a concurrent project change", (context) => {
   const projectInput = project(context);
   const started = advanceOnboarding(
@@ -332,5 +436,9 @@ test("registers onboarding policy and schemas", () => {
   assert.equal(
     catalogs.schemas.onboardingOutput.title,
     "ZipZap Guided Onboarding Output"
+  );
+  assert.equal(
+    catalogs.schemas.personalPreferences.title,
+    "ZipZap Personal Preferences"
   );
 });

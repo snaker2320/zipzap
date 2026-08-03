@@ -1434,10 +1434,31 @@ function completionAssessment(task, reviews) {
   if (task.git_snapshot?.uncommitted_changes) {
     nextActions.push("Reconcile uncommitted project changes.");
   }
+  const completionLabel =
+    status === "complete"
+      ? task.governance_snapshot?.claim_limit ??
+        (approvedReviews.length > 0
+          ? "independently-reviewed"
+          : "verified-complete")
+      : status === "ready-to-complete"
+        ? "verified-ready-to-complete"
+        : status;
+  const executionView = task.runtime_snapshot
+    ? {
+        stamp: task.runtime_snapshot.execution_stamp ?? null,
+        effective_team: task.runtime_snapshot.effective_team,
+        assurance_mode: task.runtime_snapshot.assurance_mode,
+        active_perspective:
+          clone(task.runtime_snapshot.active_perspective ?? null),
+        participants: clone(task.runtime_snapshot.participants ?? [])
+      }
+    : null;
   return {
     derived: true,
     task_revision: task.revision,
     status,
+    completion_label: completionLabel,
+    execution_view: executionView,
     assessed_at: now(),
     criteria: {
       verified,
@@ -1491,6 +1512,14 @@ function taskSummary(task, reviews) {
     objective: task.work.objective,
     status: task.status,
     completion: assessment.status,
+    completion_label: assessment.completion_label,
+    execution: assessment.execution_view
+      ? {
+          stamp: assessment.execution_view.stamp,
+          effective_team: assessment.execution_view.effective_team,
+          assurance_mode: assessment.execution_view.assurance_mode
+        }
+      : null,
     criteria: assessment.criteria,
     open_findings: assessment.open_findings,
     git: {

@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/handoff.schema.json",
+  "title": "ZipZap Handoff Record",
+  "type": "object",
+  "$ref": "#/$defs/record",
+  "$defs": {
+    "draft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "handoff_id",
+        "work_id",
+        "from",
+        "to",
+        "objective",
+        "completed_work",
+        "artifact_refs",
+        "evidence",
+        "findings",
+        "unresolved_decisions",
+        "limitations",
+        "next_action"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "handoff_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "work_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "from": {
+          "$ref": "./l5-output.schema.json#/$defs/perspective"
+        },
+        "to": {
+          "$ref": "./l5-output.schema.json#/$defs/perspective"
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1
+        },
+        "completed_work": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifact_refs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "locator"
+            ],
+            "properties": {
+              "locator": {
+                "type": "string",
+                "minLength": 1
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "unresolved_decisions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_action": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "record": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/draft"
+        },
+        {
+          "type": "object",
+          "required": [
+            "schema_version",
+            "created_at",
+            "content_sha256"
+          ],
+          "properties": {
+            "schema_version": {
+              "const": 1
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "content_sha256": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

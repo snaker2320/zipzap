@@ -193,6 +193,14 @@ test("keeps high-risk subject matter lightweight for a read-only design diagnost
     normalized.derived_governance.execution_budget.max_source_files,
     8
   );
+  assert.equal(
+    normalized.derived_governance.execution_budget.max_source_bytes,
+    60000
+  );
+  assert.equal(
+    normalized.derived_governance.execution_budget.max_tool_output_bytes,
+    30000
+  );
   assert.match(
     normalized.derived_governance.review_focus.join(" "),
     /settlement states/
@@ -206,6 +214,10 @@ test("keeps high-risk subject matter lightweight for a read-only design diagnost
   assert.equal(
     kernel.next_action.instructions.execution_profile_overlay.claim_limit,
     "advisory"
+  );
+  assert.equal(
+    kernel.next_action.instructions.context_budget.allow_full_file_read,
+    false
   );
   assert.match(
     kernel.next_action.instructions.execution_profile_overlay.prohibited.join(

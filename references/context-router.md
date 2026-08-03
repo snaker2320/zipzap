@@ -14,7 +14,12 @@ project-rule locators, work and handoff state, evidence requirements, Findings,
 authority boundaries, and assurance.
 
 The manifest records included modules, source versions, binding revision, and
-unresolved items. It does not copy authoritative project rule content.
+unresolved items. It does not copy authoritative project rule content. The
+compiler may cache the deterministic Projection at
+`.zipzap/cache/projections/<digest>.json`. On a valid hit it reuses only an
+exactly matching Projection and execution capsule. It still returns the
+capsule: a digest is never evidence that model context contains it. Cache is
+derived, member-local, Git-ignored state.
 
 Rebuild when Role, stage, checkpoint, scope, risk, requested action, affected
 components, Findings, handoff, or source version changes. Never let a stale
@@ -38,6 +43,20 @@ For source code or large text, locate before reading:
 Treat truncated output as an incomplete read. Never infer that a symbol,
 branch, Finding, or constraint is absent merely because a tool result was
 truncated. Record the reason when a whole large file is genuinely required.
+
+Apply deterministic budgets when supplied. The compiler hard-limits registered
+source locators, expanded Findings, and its emitted execution response. It
+reports omitted inputs and blocks an oversized capsule instead of silently
+truncating it. The Host remains responsible for bytes read by external tools,
+whole-file permission, tests, mutations, and persistence because a script
+cannot intercept Host tool calls. These boundaries must be returned as
+Host-enforced, not falsely reported as compiler-enforced. Use exact Token
+telemetry only when the Host reports it; never estimate Tokens from bytes.
+
+Use `compact` output for routine work, `standard` when people need the roster,
+and `diagnostic` only for routing audits. Pass immutable source locators and a
+small handoff delta between Agent contexts instead of replaying transcripts or
+having every participant rescan the repository.
 
 For a `design-diagnostic` projection, apply its execution budget as an initial
 coverage boundary. Stop after the configured source-file limit, disclose

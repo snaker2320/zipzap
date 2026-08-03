@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/personal-preferences.schema.json",
+  "title": "ZipZap Personal Preferences",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project_id",
+    "revision",
+    "overrides"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "overrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preferred_preset": {
+          "enum": [
+            "auto",
+            "solo",
+            "copilot",
+            "trio",
+            "squad"
+          ]
+        },
+        "personalization": {
+          "$ref": "./onboarding-input.schema.json#/$defs/personalization"
+        }
+      }
+    }
+  }
+}

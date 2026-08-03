@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/handoff-input.schema.json",
+  "title": "ZipZap Handoff Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "persistence",
+    "handoff"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "persistence": {
+      "enum": [
+        "ephemeral",
+        "project"
+      ]
+    },
+    "project": {
+      "$ref": "./l5-input.schema.json#/$defs/project"
+    },
+    "handoff": {
+      "$ref": "./handoff.schema.json#/$defs/draft"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "persistence": {
+            "const": "project"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "project"
+        ]
+      }
+    }
+  ]
+}

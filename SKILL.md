@@ -1,153 +1,113 @@
 ---
 name: zipzap
-description: Run low-friction, role-based human-AI collaboration with project-rule routing, risk-proportionate Solo, Copilot, Trio, or Squad execution, compact context, evidence-backed completion, and Git-shareable local Tasks. Use when Codex needs to initialize collaboration, diagnose an existing design, implement or verify work, conduct self or independent Review, manage Findings and handoffs, assess completion, report exact resource use, or package, install, upgrade, roll back, and publish ZipZap.
+description: Run low-friction, role-based human-AI collaboration with project-rule routing, risk-proportionate Solo, Copilot, Trio, or Squad execution, compact context, evidence-backed completion, and Git-shareable local Tasks. Use when Codex needs to initialize collaboration, diagnose a design, implement or verify work, conduct self or independent Review, manage Findings and handoffs, assess completion, report exact resource use, or package, install, upgrade, roll back, and publish ZipZap.
 ---
 
 # ZipZap
 
-Run work with explicit authority, minimal context, proportionate assurance,
-and truthful evidence. Treat `config/*.json` and `schemas/*.json` as machine
-authority. Load only the reference needed for the current decision.
+Run work with explicit authority, proportionate assurance, minimal context, and
+truthful evidence. `config/*.json` and `schemas/*.json` are machine authority.
+Load a reference only when its decision is active.
 
-## Keep Three Visible Actions
+## Public Model
 
-Expose only:
+Expose only **Initialize**, **Work**, and **Complete**. Keep routing, layers,
+bindings, projections, caching, and adapters internal unless diagnostics are
+requested. Read [the machine interface](references/skill-interface.md) only to
+implement or debug that boundary.
 
-1. **Initialize**: register project rules and confirm preferences.
-2. **Work**: start or continue the requested outcome.
-3. **Complete**: verify evidence and make an accurate claim.
+Default ordinary bounded work to ephemeral automatic selection and small,
+reversible implementation to Solo Developer Produce. Do not create a Task or
+ask for preferences when safe defaults suffice. Interrupt only for material
+ambiguity, authority, approval, unsafe or irreversible action, missing
+governing sources, or an unmet gate. Persist only for continuity, coordination,
+approval, tracking, durable Findings, auditability, or project policy. Read
+[execution policy](references/execution-policy.md) only for those decisions.
 
-Keep layers, Kernel, normalization, bindings, projections, adapters, and
-revisions internal unless the user requests diagnostics.
-Read [the unified machine interface](references/skill-interface.md) only when
-implementing or debugging that boundary.
+## Routing
 
-## Stay Unobtrusive
+Separate subject risk, current-action risk, and assurance target. Route
+implementation to Developer Produce, verification to Tester Verify, Review or
+diagnosis to Reviewer Review, and acceptance to Product Accept.
 
-- Start ordinary bounded work ephemerally with automatic team selection.
-- Use Solo Developer Produce for small reversible implementation work.
-- Do not create a Task, ask for preferences, or request a status decision when
-  defaults are sufficient.
-- Keep a ready action silent and report useful progress without asking.
-- Interrupt only for material ambiguity, authority, approval, unsafe or
-  irreversible action, missing governing sources, or an unmet gate.
-- Ask one concise question for one accountable decision.
-- Persist only for continuity, coordination, approval, tracking, durable
-  Findings, auditability, or project policy.
+For `diagnose + design-only + advisory|self-review`, use `design-diagnostic`:
+Solo Reviewer, read-only, ephemeral, bounded sources, no tests, advisory claims.
+Load [its policy](references/design-diagnostic.md) only for that path. Advisory
+intent never suppresses actual mutation, access, data, authority, or production
+risk.
 
-Read [the execution policy](references/execution-policy.md) when selecting
-persistence, assurance, or gates.
-
-## Route Work by Outcome
-
-Use structured request facts when available:
-
-```json
-{
-  "intent": "diagnose",
-  "scope_depth": "design-only",
-  "assurance_target": "advisory"
-}
-```
-
-Separate:
-
-- subject risk, which selects what to inspect;
-- current-action risk, which selects safety controls and persistence;
-- assurance target, which selects topology, gates, and allowed claims.
-
-Route implementation to Developer Produce, verification to Tester Verify,
-Review or diagnosis to Reviewer Review, and acceptance to Product Accept.
-Default `accept` to formal acceptance. Never use an advisory intent to suppress
-actual mutation, access, authority, data, or production risk.
-
-For `diagnose + design-only + advisory|self-review`, use the internal
-`design-diagnostic` profile: Solo Reviewer, read-only, ephemeral, no tests, no
-Task, bounded sources, and advisory output. Load
-[Design Diagnostic Review](references/design-diagnostic.md) for that path.
-
-Assess every risk signal with evidence. For a design diagnostic, label each
-classified signal `subject`, `action`, or `both`; apply formal effects only to
-current-action risk. Let deterministic normalization derive policy.
-
-## Preserve Core Invariants
-
-- Separate Product, Developer, Tester, and Reviewer roles from named Agent
-  Profiles.
-- Treat Solo, Copilot, Trio, and Squad as logical topologies, not concurrency
-  counts.
-- Let personalization change presentation only, never authority, risk, gates,
-  evidence, or independence.
-- Keep project rules at their source of truth; register locators and never
-  copy governing content into ZipZap state.
-- Never call sequential self-review independent Review.
-- Never claim approval, host capability, satisfied gates, completion, or
-  production readiness without cited evidence.
-- Require explicit authorization before using multiple Agent contexts.
-
-Read [the operating model](references/operating-model.md) only for authority
-disputes, design changes, or audits.
-Read [roles](references/role-catalog.md),
-[Agent Profiles](references/agent-catalog.md),
-[teams](references/team-catalog.md), or
-[control functions](references/control-functions.md) only when selecting,
-authoring, or auditing those definitions.
-
-## Load the Smallest Sufficient Context
-
-Compose one runtime view from:
+Resolve preferences as:
 
 ```text
-profile capsule + role or control overlay + current stage
-+ triggered policy + project-rule fragments
-+ work, evidence, Findings, handoff, and exit gate
+request > personal project preferences > shared project defaults > ZipZap defaults
 ```
 
-Locate files and symbols before reading. Read the smallest relevant heading or
-line range, expand only when evidence is insufficient, and treat truncation as
-an incomplete read. Query compact definitions through `catalog`; for example:
+Governance overrides an insufficient preference. Require explicit authorization
+before multiple Agent contexts.
 
-```bash
-node scripts/zipzap.mjs catalog \
-  --kind execution-profiles \
-  --id design-diagnostic \
-  --section capsule
-```
+## Invariants
 
-Read [the context router](references/context-router.md) for source loading,
-budgets, and projection details.
+- Roles are Product, Developer, Tester, and Reviewer; named Agent Profiles are
+  separate identities/configurations.
+- Solo, Copilot, Trio, and Squad are logical topologies, not concurrency counts.
+- Personalization never changes authority, risk, gates, evidence, or independence.
+- Register project-rule locators; never copy governing content into ZipZap.
+- Sequential self-review is not independent Review.
+- Never claim approval, capability, gates, completion, or production readiness
+  without evidence.
 
-## Initialize, Persist, and Complete Selectively
+Load [the operating model](references/operating-model.md) only for design or
+authority audits. Load [roles](references/role-catalog.md),
+[profiles](references/agent-catalog.md), [teams](references/team-catalog.md), or
+[control functions](references/control-functions.md) only when selecting or
+changing them.
 
-Discover sources read-only, preview changes, then write confirmed registration
-to `.zipzap/project.json`. Keep installation separate from project
-initialization. Read [project initialization](references/project-initialization.md),
+## Context
+
+For Work, prefer `invoke` with `context.compiler`. AI supplies an
+evidence-backed risk assessment; the script merges preferences and registered
+sources, derives governance, selects and binds the team, and returns one bounded
+Projection. Use `compile` only for its diagnostic report.
+
+Locate files and symbols before reading. Read the smallest useful heading or
+line range and treat truncation as incomplete evidence. Enforce script-visible
+budgets; disclose Host-enforced limits and never estimate Tokens. Cache only
+deterministic Projection composition and always inject the returned capsule—a
+digest is not model memory. Read
+[context routing](references/context-router.md) only for loading, budgets,
+cache, or Projection diagnostics.
+
+## State and Claims
+
+Initialization is discover read-only, preview, then one confirmed write to the
+Git-shared `.zipzap/project.json`. Personal preferences belong in ignored
+`.zipzap/state/preferences.json`; member onboarding must not rewrite shared
+defaults unless requested. Installation never initializes a project. Load
+[project initialization](references/project-initialization.md),
 [onboarding](references/onboarding.md), or
-[First Run](references/first-run.md) only for those flows.
+[First Run](references/first-run.md) only during those flows.
 
-Keep persistent project state under `.zipzap/`, outside the installed Skill.
-Use `scripts/task.mjs` only when a Task is justified. Treat Git activity as
-candidate evidence, not completion. Persist Review snapshots with current
-artifact versions and independence. Record token counts only from exact host
-telemetry; otherwise record unavailable without estimating.
+Use `complete` for ephemeral work and `scripts/task.mjs assess` for Tasks. Cite
+outcome, evidence, tests, Review, Findings, approvals, residual risks,
+limitations, and continuation. Use precise labels such as `implemented`,
+`tested`, `self-reviewed`, `independently-reviewed`, and `accepted-by-user`.
+Place the execution stamp immediately before the result.
 
-Read [Task integration](references/task-integration.md) before Task mutation,
-Git tracking, persistent Review, reporting, feedback, or usage recording.
+Pass only actionable deltas between contexts. Persist authorized handoffs as
+immutable `.zipzap/handoffs/<work-id>/<handoff-id>.json`; never overwrite or
+replay full transcripts. Use Tasks only when justified and keep all shared
+project state under `.zipzap/`, outside the installed Skill. Git activity is
+candidate evidence, not completion. Record Tokens only from exact Host
+telemetry. Read [Task integration](references/task-integration.md) before Task
+mutation, persistent Review, reporting, Feedback, or usage recording.
 
-Complete with outcomes, evidence, actual test and Review coverage, Finding
-dispositions, approvals, residual risk, limitations, and continuation state.
-Use precise labels such as `implemented`, `tested`, `self-reviewed`,
-`independently-reviewed`, or `accepted-by-user`.
+## Host and Lifecycle
 
-## Adapt and Distribute
+Report Multi-Agent contexts, guided forms, exact Token telemetry, Goal budgets,
+Node acceleration, and state persistence through the Host Capability Matrix
+with explicit fallbacks. Missing Node reduces acceleration, not semantics. Read
+[Host capabilities](references/host-capabilities.md) only when adapting a Host.
 
-Use the Host Capability Matrix to report Multi-Agent contexts, guided forms,
-exact token telemetry, Goal budgeting, Node acceleration, and project state
-with explicit fallbacks. Missing Node may reduce acceleration but must not
-weaken semantics. Read [Host capabilities](references/host-capabilities.md)
-only when adapting or explaining a host.
-
-Install no runtime packages. Let the host installer own authorized mutation
-and backup, preserve project-owned `.zipzap/` state across upgrades, and read
-[lifecycle control](references/lifecycle.md) only for build, verification,
+Install no runtime packages. Preserve project `.zipzap/` state across upgrades.
+Read [lifecycle control](references/lifecycle.md) only for build, verification,
 installation, upgrade, rollback, or publication.

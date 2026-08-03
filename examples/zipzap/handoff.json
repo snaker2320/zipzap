@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "persistence": "ephemeral",
+  "handoff": {
+    "handoff_id": "developer-to-reviewer-1",
+    "work_id": "example-work",
+    "from": {
+      "slot": "builder",
+      "profile": "owl",
+      "display_name": "Owl",
+      "role": "developer",
+      "stage": "produce"
+    },
+    "to": {
+      "slot": "reviewer",
+      "profile": "eagle",
+      "display_name": "Eagle",
+      "role": "reviewer",
+      "stage": "review"
+    },
+    "objective": "Review the bounded implementation independently.",
+    "completed_work": [
+      "Implemented the requested behavior.",
+      "Ran the focused test."
+    ],
+    "artifact_refs": [
+      {
+        "locator": "git:working-tree",
+        "version": null
+      }
+    ],
+    "evidence": [],
+    "findings": [],
+    "unresolved_decisions": [],
+    "limitations": [],
+    "next_action": "Inspect the change and return structured Findings."
+  }
+}

@@ -55,9 +55,10 @@ The project is in active product and workflow design. Its current structure is:
 Project-specific business rules remain in each project's own source of truth.
 ZipZap registers and loads those rules when needed instead of copying them.
 Persistent Tasks are maintained in the project as
-`.zipzap/tasks/<task-id>.json`. Immutable per-event files, Review evidence,
-Feedback, and derived reports remain under `.zipzap/`. Commit shared project
-state to Git; do not commit each developer's installed Skill.
+`.zipzap/tasks/<task-id>.json`. Immutable per-event and Handoff files, Review
+evidence, Feedback, and derived reports remain under `.zipzap/`. Projection
+caches and personal preferences are ignored member-local state. Commit shared
+project state to Git; do not commit each developer's installed Skill.
 
 Except for Codex-required `SKILL.md` frontmatter and `agents/openai.yaml`, the
 ZipZap runtime format is JSON. Markdown contains semantic guidance only.
@@ -71,6 +72,9 @@ copyable JSON input examples:
 node scripts/zipzap.mjs --help
 node scripts/zipzap.mjs invoke --help
 node scripts/zipzap.mjs invoke --example
+node scripts/zipzap.mjs compile --input invocation.json
+node scripts/zipzap.mjs complete --example
+node scripts/zipzap.mjs handoff --example
 
 node scripts/task.mjs --help
 node scripts/task.mjs validate --input task.json
@@ -81,6 +85,14 @@ Run an example directly with `--input`, such as
 `node scripts/zipzap.mjs evaluate --input examples/zipzap/evaluate.json`.
 CLI failures use structured JSON with a stable error code, message, corrective
 hint, and the most relevant help command.
+
+Normal Work uses `invoke` with `context.compiler`: AI supplies a complete,
+evidence-backed risk assessment, while the zero-dependency script merges
+preferences and registered project sources, derives governance, chooses the
+minimum sufficient team, and returns one bounded execution capsule. `compile`
+exposes cache and budget diagnostics for the same path. `complete` derives a
+conservative evidence-backed label for ephemeral work; `handoff` creates the
+same structured delta ephemerally or as an immutable project file.
 
 ## Project initialization
 

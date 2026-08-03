@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/completion-view.schema.json",
+  "title": "ZipZap Completion View",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "work_id",
+    "status",
+    "completion_label",
+    "execution_stamp",
+    "perspective",
+    "team",
+    "member_count",
+    "assurance_mode",
+    "persistence",
+    "outcome",
+    "evidence_summary",
+    "tests",
+    "review",
+    "finding_summary",
+    "approvals",
+    "residual_risks",
+    "limitations",
+    "continuation",
+    "claim_basis"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "work_id": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "complete",
+        "partial",
+        "blocked",
+        "failed",
+        "changes-requested"
+      ]
+    },
+    "completion_label": {
+      "enum": [
+        "accepted-by-user",
+        "independently-reviewed",
+        "tested",
+        "self-reviewed",
+        "implemented",
+        "analyzed",
+        "partial",
+        "blocked",
+        "failed",
+        "changes-requested"
+      ]
+    },
+    "execution_stamp": {
+      "type": "string"
+    },
+    "perspective": {
+      "$ref": "./l5-output.schema.json#/$defs/perspective"
+    },
+    "team": {
+      "enum": [
+        "solo",
+        "copilot",
+        "trio",
+        "squad"
+      ]
+    },
+    "member_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "assurance_mode": {
+      "$ref": "./l5-output.schema.json#/$defs/assurance/properties/mode"
+    },
+    "persistence": {
+      "enum": [
+        "ephemeral",
+        "persistent"
+      ]
+    },
+    "outcome": {
+      "type": "object"
+    },
+    "evidence_summary": {
+      "type": "object"
+    },
+    "tests": {
+      "type": "object"
+    },
+    "review": {
+      "type": "object"
+    },
+    "finding_summary": {
+      "type": "object"
+    },
+    "approvals": {
+      "type": "array"
+    },
+    "residual_risks": {
+      "type": "array"
+    },
+    "limitations": {
+      "type": "array"
+    },
+    "continuation": true,
+    "claim_basis": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

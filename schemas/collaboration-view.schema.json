@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/collaboration-view.schema.json",
+  "title": "ZipZap Collaboration View",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "output_detail",
+    "perspective",
+    "selection",
+    "member_count",
+    "assurance",
+    "persistence"
+  ],
+  "properties": {
+    "output_detail": {
+      "enum": [
+        "compact",
+        "standard",
+        "diagnostic"
+      ]
+    },
+    "perspective": {
+      "$ref": "./l5-output.schema.json#/$defs/perspective"
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preference",
+        "preference_source",
+        "effective",
+        "minimum_sufficient",
+        "recommended",
+        "reason_codes"
+      ],
+      "properties": {
+        "preference": {
+          "enum": [
+            "auto",
+            "solo",
+            "copilot",
+            "trio",
+            "squad"
+          ]
+        },
+        "preference_source": {
+          "enum": [
+            "request",
+            "personal",
+            "project",
+            "default"
+          ]
+        },
+        "effective": {
+          "enum": [
+            "solo",
+            "copilot",
+            "trio",
+            "squad"
+          ]
+        },
+        "minimum_sufficient": {
+          "enum": [
+            "solo",
+            "copilot",
+            "trio",
+            "squad"
+          ]
+        },
+        "recommended": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            null,
+            "solo",
+            "copilot",
+            "trio",
+            "squad"
+          ]
+        },
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "member_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "members": {
+      "type": "array",
+      "items": {
+        "$ref": "./l5-output.schema.json#/$defs/collaboration_member"
+      }
+    },
+    "assurance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "mode",
+        "claim_limit",
+        "limitations"
+      ],
+      "properties": {
+        "target": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode": {
+          "$ref": "./l5-output.schema.json#/$defs/assurance/properties/mode"
+        },
+        "claim_limit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "persistence": {
+      "enum": [
+        "ephemeral",
+        "persistent"
+      ]
+    },
+    "diagnostics": {
+      "type": "object"
+    }
+  }
+}

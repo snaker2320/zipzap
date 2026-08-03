@@ -73,7 +73,7 @@ test("catalogs are internally valid", () => {
     task_policies: 12,
     onboarding_questions: 6,
     adapters: 3,
-    releases: 4
+    releases: 5
   });
 });
 
@@ -200,6 +200,10 @@ test("selects Solo for work with no additional assurance", () => {
   const result = compose(baseInput(), catalogs);
   assert.equal(result.preset_resolution.effective, "solo");
   assert.equal(result.team_binding.members.length, 1);
+  assert.match(
+    result.projection_manifest.content_sha256,
+    /^sha256:[a-f0-9]{64}$/
+  );
 });
 
 test("does not bind an insufficient explicit Copilot preset", () => {

@@ -16,6 +16,7 @@ Report these user-relevant capabilities:
 | Goal budgeting | The host reports `goal-budgeting` | Keep an optional Task budget without creating a Goal |
 | Node acceleration | Node and `script-execution` are available | Use direct JSON |
 | Project state | The host reports `project-state`, or project read and write | Keep work ephemeral or request project access |
+| Context budget enforcement | The host can bound file reads, tool output, tests, mutation, and persistence | Let the compiler bound its own sources, Findings, and output; disclose remaining Host-enforced limits |
 
 Use status values precisely:
 

@@ -21,6 +21,9 @@ Prefer established project conventions over a ZipZap-specific parallel system.
 For a new project, use the First Run adapter so discovery and preference
 selection reach one combined preview before configuration. Do not treat a
 plain initialization confirmation as consent to unseen preference defaults.
+Create and commit `.zipzap/project.json` once per project. A member joining an
+initialized project must reuse that manifest and initialize only personal
+preferences; do not generate a competing manifest.
 
 ## Registration
 
@@ -56,6 +59,13 @@ Keep standard roles, profiles, teams, functions, policies, and public
 interfaces in the ZipZap Skill. Keep project source locators, enabled
 collaboration choices, extension locators, and persistence integration in the
 project manifest.
+
+Keep personal response detail, humor, aliases, signatures, and preferred team
+in `.zipzap/state/preferences.json`. Reuse the existing `/state/` ignore rule
+so member onboarding never changes a tracked ignore file. Treat preferences
+retained in older project manifests as shared defaults for
+backward compatibility, with personal overrides taking precedence before
+governance is applied.
 
 Resolve required topics through
 [`schemas/source-resolution-input.schema.json`](../schemas/source-resolution-input.schema.json)

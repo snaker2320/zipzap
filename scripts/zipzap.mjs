@@ -74,6 +74,24 @@ const ZIPZAP_COMMANDS = {
     schema: "schemas/l5-adapter-input.schema.json",
     example: "examples/zipzap/invoke.json"
   },
+  compile: {
+    summary: "Compile one assessed request into a bounded execution capsule.",
+    usage: "compile --input <file> [--compact]",
+    schema: "schemas/l5-adapter-input.schema.json",
+    example: "examples/zipzap/invoke.json"
+  },
+  complete: {
+    summary: "Derive a truthful completion view for ephemeral work.",
+    usage: "complete --input <file> [--compact]",
+    schema: "schemas/completion-input.schema.json",
+    example: "examples/zipzap/complete.json"
+  },
+  handoff: {
+    summary: "Create an ephemeral or immutable project handoff.",
+    usage: "handoff --input <file> [--compact]",
+    schema: "schemas/handoff-input.schema.json",
+    example: "examples/zipzap/handoff.json"
+  },
   "task-prepare": {
     summary: "Prepare a persistent Task for risk assessment.",
     usage: "task-prepare --input <file> [--compact]",
@@ -361,6 +379,9 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
     schemas: {
       l5Input: readJson(path.join(schemaDir, "l5-input.schema.json")),
       l5Output: readJson(path.join(schemaDir, "l5-output.schema.json")),
+      collaborationView: readJson(
+        path.join(schemaDir, "collaboration-view.schema.json")
+      ),
       userView: readJson(path.join(schemaDir, "user-view.schema.json")),
       hostCapabilityMatrix: readJson(
         path.join(schemaDir, "host-capability-matrix.schema.json")
@@ -368,6 +389,22 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
       l5AdapterInput: readJson(
         path.join(schemaDir, "l5-adapter-input.schema.json")
       ),
+      contextCompilerInput: readJson(
+        path.join(schemaDir, "context-compiler-input.schema.json")
+      ),
+      contextCompilerOutput: readJson(
+        path.join(schemaDir, "context-compiler-output.schema.json")
+      ),
+      completionInput: readJson(
+        path.join(schemaDir, "completion-input.schema.json")
+      ),
+      completionView: readJson(
+        path.join(schemaDir, "completion-view.schema.json")
+      ),
+      handoffInput: readJson(
+        path.join(schemaDir, "handoff-input.schema.json")
+      ),
+      handoff: readJson(path.join(schemaDir, "handoff.schema.json")),
       projectManifest: readJson(
         path.join(schemaDir, "project-manifest.schema.json")
       ),
@@ -376,6 +413,9 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
       ),
       onboardingOutput: readJson(
         path.join(schemaDir, "onboarding-output.schema.json")
+      ),
+      personalPreferences: readJson(
+        path.join(schemaDir, "personal-preferences.schema.json")
       ),
       firstRunInput: readJson(
         path.join(schemaDir, "first-run-input.schema.json")
@@ -668,6 +708,13 @@ export function validateCatalogs(catalogs) {
       !["light", "standard", "deep"].includes(budget?.evidence) ||
       !Number.isInteger(budget?.max_source_files) ||
       budget.max_source_files < 1 ||
+      !Number.isInteger(budget?.max_source_bytes) ||
+      budget.max_source_bytes < 1024 ||
+      !Number.isInteger(budget?.max_tool_output_bytes) ||
+      budget.max_tool_output_bytes < 1024 ||
+      !Number.isInteger(budget?.max_findings_expansion) ||
+      budget.max_findings_expansion < 1 ||
+      typeof budget.allow_full_file_read !== "boolean" ||
       typeof budget.allow_tests !== "boolean" ||
       typeof budget.allow_mutations !== "boolean" ||
       typeof budget.allow_persistence !== "boolean"
@@ -910,6 +957,13 @@ export function validateCatalogs(catalogs) {
     ) {
       errors.push(`experience must map status ${status}`);
     }
+  }
+  if (
+    !["compact", "standard", "diagnostic"].includes(
+      experience.defaults?.output_detail
+    )
+  ) {
+    errors.push("experience must define a valid default output detail");
   }
   for (const [policyId, enabled] of Object.entries(
     experience.policies ?? {}
@@ -1821,7 +1875,7 @@ export function routeProjection(
         ...clone(executionProfile.default_budget),
         ...clone(signals.execution_budget ?? {})
       }
-    : null;
+    : clone(signals.execution_budget ?? null);
   const matchedRules = (signals.project_rules ?? []).filter((rule) =>
     selectorMatches(rule, state, signals)
   );
@@ -1889,14 +1943,37 @@ export function routeProjection(
             execution_budget: clone(executionBudget)
           }
         : null,
+      context_budget: clone(executionBudget),
       source_access: [
         "Locate with native search or rg before reading.",
         "Read the smallest relevant heading or line range.",
         "Expand only when the current evidence is insufficient.",
         "Treat truncation as incomplete evidence, never as proof of absence.",
+        ...(executionBudget?.max_source_files
+          ? [
+              `Stop the initial scan after ${executionBudget.max_source_files} source files and disclose the coverage limit.`
+            ]
+          : []),
+        ...(executionBudget?.max_source_bytes
+          ? [
+              `Keep initially loaded source content within ${executionBudget.max_source_bytes} bytes.`
+            ]
+          : []),
+        ...(executionBudget?.max_tool_output_bytes
+          ? [
+              `Keep individual tool-result context within ${executionBudget.max_tool_output_bytes} bytes; narrow and retry instead of accepting truncation.`
+            ]
+          : []),
+        ...(executionBudget?.max_findings_expansion
+          ? [
+              `Expand at most ${executionBudget.max_findings_expansion} Findings in the initial pass; summarize the remainder and request deeper scope.`
+            ]
+          : []),
+        ...(executionBudget?.allow_full_file_read === false
+          ? ["Do not read a whole large file before targeted location."]
+          : []),
         ...(executionProfile
           ? [
-              `Stop the initial scan after ${executionBudget.max_source_files} source files and disclose the coverage limit.`,
               "Do not expand into implementation or tests unless the user authorizes the suggested upgrade."
             ]
           : [])
@@ -1943,12 +2020,17 @@ export function routeProjection(
     },
     unresolved: clone(state.unresolved ?? [])
   };
+  const contentSha256 = `sha256:${crypto
+    .createHash("sha256")
+    .update(canonicalJson(runtimeProjection))
+    .digest("hex")}`;
 
   return {
     runtime_projection: runtimeProjection,
     projection_manifest: {
       projection_id: projectionId,
       projection_revision: revisions.projection,
+      content_sha256: contentSha256,
       binding_id: binding.id,
       binding_revision: binding.revision,
       team: binding.preset,
@@ -2305,6 +2387,10 @@ function validateRiskNormalizationInput(input, catalogs) {
       [
         "evidence",
         "max_source_files",
+        "max_source_bytes",
+        "max_tool_output_bytes",
+        "max_findings_expansion",
+        "allow_full_file_read",
         "allow_tests",
         "allow_mutations",
         "allow_persistence"
@@ -2319,7 +2405,23 @@ function validateRiskNormalizationInput(input, catalogs) {
         (!Number.isInteger(budget.max_source_files) ||
           budget.max_source_files < 1 ||
           budget.max_source_files > 100)) ||
-      ["allow_tests", "allow_mutations", "allow_persistence"].some(
+      ["max_source_bytes", "max_tool_output_bytes"].some(
+        (field) =>
+          budget[field] != null &&
+          (!Number.isInteger(budget[field]) ||
+            budget[field] < 1024 ||
+            budget[field] > 10000000)
+      ) ||
+      (budget.max_findings_expansion != null &&
+        (!Number.isInteger(budget.max_findings_expansion) ||
+          budget.max_findings_expansion < 1 ||
+          budget.max_findings_expansion > 100)) ||
+      [
+        "allow_full_file_read",
+        "allow_tests",
+        "allow_mutations",
+        "allow_persistence"
+      ].some(
         (field) => budget[field] != null && typeof budget[field] !== "boolean"
       )
     ) {
@@ -2937,6 +3039,145 @@ function l5Decision(decision) {
   };
 }
 
+function collaborationReasonCodes(resolution) {
+  const codes = [];
+  if (resolution.status === "blocked") codes.push("no-sufficient-preset");
+  if (resolution.status === "decision-required") {
+    codes.push("preference-insufficient");
+  }
+  if (resolution.status === "authorization-required") {
+    codes.push("multi-agent-authorization-required");
+  }
+  if (resolution.status === "authorization-denied") {
+    codes.push("multi-agent-authorization-denied");
+  }
+  if (resolution.status === "capacity-gap") codes.push("host-capacity-gap");
+  if (resolution.status === "selected") {
+    codes.push(
+      resolution.requested
+        ? "preference-satisfies-assurance"
+        : "minimum-sufficient-preset"
+    );
+  }
+  return codes;
+}
+
+function collaborationView(
+  diagnostics,
+  normalization,
+  preferenceProvenance,
+  outputDetail,
+  catalogs
+) {
+  const resolution = diagnostics?.preset_resolution;
+  const binding = diagnostics?.team_binding;
+  const projection = diagnostics?.runtime_projection;
+  if (!resolution || !binding || !projection) return null;
+  const minimumSufficient = catalogs.teams.order.find((teamId) =>
+    satisfies(
+      catalogs.teams.teams[teamId].assurance,
+      Object.fromEntries(
+        ASSURANCE_KEYS.map((key) => [
+          key,
+          resolution.required_assurance?.[key] === true
+        ])
+      )
+    )
+  ) ?? null;
+  const assurance = assuranceView(binding, resolution);
+  const persistence =
+    normalization.derived_governance.persistence_required === true
+      ? "persistent"
+      : "ephemeral";
+  const view = {
+    output_detail: outputDetail,
+    perspective: {
+      slot: projection.participant.slot,
+      profile: projection.participant.profile,
+      display_name: projection.participant.display_name,
+      ...(projection.participant.role
+        ? { role: projection.participant.role }
+        : { function: projection.participant.function }),
+      ...(projection.participant.stage
+        ? { stage: projection.participant.stage }
+        : {}),
+      ...(projection.participant.checkpoint
+        ? { checkpoint: projection.participant.checkpoint }
+        : {})
+    },
+    selection: {
+      preference: preferenceProvenance.preferred_preset,
+      preference_source: preferenceProvenance.team_source,
+      effective: resolution.effective,
+      minimum_sufficient: minimumSufficient,
+      recommended: resolution.recommended,
+      reason_codes: collaborationReasonCodes(resolution)
+    },
+    member_count: binding.members.length,
+    assurance: {
+      target:
+        normalization.derived_governance.assurance_target ?? null,
+      mode: assurance.mode === "unavailable" ? "custom" : assurance.mode,
+      claim_limit:
+        normalization.derived_governance.claim_limit ?? null,
+      limitations: clone(assurance.limitations)
+    },
+    persistence
+  };
+  if (outputDetail !== "compact") {
+    view.members = binding.members.map((member) => ({
+      slot: member.slot,
+      profile: member.profile,
+      display_name: member.display_name,
+      roles: clone(member.roles),
+      functions: clone(member.functions),
+      active: member.slot === projection.participant.slot,
+      ...(member.artifact_access
+        ? { artifact_access: member.artifact_access }
+        : {})
+    }));
+  }
+  if (outputDetail === "diagnostic") {
+    view.diagnostics = {
+      selection_reasons: clone(resolution.reasons),
+      required_assurance: clone(resolution.required_assurance),
+      schedule: clone(binding.schedule),
+      runtime_refs: {
+        preset_resolution_revision: resolution.revision,
+        binding_revision: binding.revision,
+        projection_revision: projection.revision,
+        projection_digest:
+          diagnostics.projection_manifest?.content_sha256 ?? null
+      }
+    };
+  }
+  return view;
+}
+
+function executionStamp(view) {
+  if (!view) return null;
+  const perspective = view.perspective;
+  const authority = perspective.role ?? perspective.function;
+  const stage = perspective.stage ?? perspective.checkpoint;
+  return [
+    view.selection.effective,
+    `${perspective.display_name} / ${authority}${stage ? `.${stage}` : ""}`,
+    `${view.member_count} member${view.member_count === 1 ? "" : "s"}`,
+    view.assurance.mode,
+    view.persistence
+  ].join(" · ");
+}
+
+function withoutNullValues(value) {
+  if (Array.isArray(value)) return value.map(withoutNullValues);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, item]) => item != null)
+      .map(([key, item]) => [key, withoutNullValues(item)])
+  );
+}
+
 function userExperienceView(
   operation,
   status,
@@ -2991,7 +3232,7 @@ function l5Assurance(assurance) {
   };
 }
 
-function l5Execution(nextAction) {
+function l5Execution(nextAction, outputDetail = "standard") {
   if (!nextAction) return null;
   return {
     participant: {
@@ -2999,16 +3240,26 @@ function l5Execution(nextAction) {
       display_name: nextAction.participant.display_name,
       ...(nextAction.participant.role
         ? { role: nextAction.participant.role }
-        : { function: nextAction.participant.function })
+        : { function: nextAction.participant.function }),
+      ...(nextAction.participant.stage
+        ? { stage: nextAction.participant.stage }
+        : {}),
+      ...(nextAction.participant.checkpoint
+        ? { checkpoint: nextAction.participant.checkpoint }
+        : {})
     },
     objective: nextAction.objective,
     requested_action: nextAction.requested_action,
     ...(nextAction.execution_profile
       ? { execution_profile: nextAction.execution_profile }
       : {}),
-    instructions: clone(nextAction.instructions),
+    instructions:
+      outputDetail === "diagnostic"
+        ? clone(nextAction.instructions)
+        : withoutNullValues(clone(nextAction.instructions)),
     required_outputs: clone(nextAction.required_outputs),
-    exit_gate: clone(nextAction.exit_gate)
+    exit_gate: clone(nextAction.exit_gate),
+    source_locators: clone(nextAction.source_locators)
   };
 }
 
@@ -3228,7 +3479,7 @@ function initializationResponse(request, initialization, workflowStatus, catalog
   );
 }
 
-function onboardingStorage(scope) {
+function onboardingStorage(scope, project = null) {
   if (scope === "project") {
     return {
       scope,
@@ -3237,6 +3488,13 @@ function onboardingStorage(scope) {
     };
   }
   if (scope === "user") {
+    if (project?.locator) {
+      return {
+        scope,
+        target: ".zipzap/state/preferences.json",
+        application_required: false
+      };
+    }
     return {
       scope,
       target: "host-user-state",
@@ -3277,6 +3535,194 @@ function onboardingConfiguration(raw, catalogs) {
       },
       catalogs
     )
+  };
+}
+
+function personalPreferencesPath(project) {
+  if (!project?.locator) {
+    throw new Error("personal preferences require project.locator");
+  }
+  return path.join(
+    path.resolve(project.locator),
+    ".zipzap",
+    "state",
+    "preferences.json"
+  );
+}
+
+function validatePersonalPreferences(preferences, catalogs = loadCatalogs()) {
+  assertAllowedFields(
+    preferences,
+    ["schema_version", "project_id", "revision", "overrides"],
+    "personal preferences"
+  );
+  if (
+    preferences.schema_version !== 1 ||
+    !ID_PATTERN.test(preferences.project_id) ||
+    !Number.isInteger(preferences.revision) ||
+    preferences.revision < 1
+  ) {
+    throw new Error("personal preferences metadata is invalid");
+  }
+  assertObject(preferences.overrides, "personal preference overrides");
+  assertAllowedFields(
+    preferences.overrides,
+    ["preferred_preset", "personalization"],
+    "personal preference overrides"
+  );
+  onboardingConfiguration(preferences.overrides, catalogs);
+  return preferences;
+}
+
+function mergeOnboardingConfiguration(base, overrides, catalogs) {
+  return onboardingConfiguration(
+    {
+      preferred_preset:
+        overrides?.preferred_preset ?? base.preferred_preset,
+      personalization: {
+        ...clone(base.personalization),
+        ...(overrides?.personalization ?? {}),
+        agent_aliases: {
+          ...clone(base.personalization.agent_aliases ?? {}),
+          ...(overrides?.personalization?.agent_aliases ?? {})
+        }
+      }
+    },
+    catalogs
+  );
+}
+
+function personalPreferenceOverrides(configuration, projectDefaults) {
+  const overrides = {};
+  if (configuration.preferred_preset !== projectDefaults.preferred_preset) {
+    overrides.preferred_preset = configuration.preferred_preset;
+  }
+  const personalization = {};
+  for (const [field, value] of Object.entries(configuration.personalization)) {
+    if (
+      canonicalJson(value) !==
+      canonicalJson(projectDefaults.personalization[field])
+    ) {
+      personalization[field] = clone(value);
+    }
+  }
+  if (Object.keys(personalization).length > 0) {
+    overrides.personalization = personalization;
+  }
+  return overrides;
+}
+
+function personalOnboardingState(project, catalogs) {
+  if (!project?.locator) {
+    return {
+      path: null,
+      revision: 0,
+      configuration: onboardingConfiguration(null, catalogs)
+    };
+  }
+  const projectRoot = path.resolve(project.locator);
+  if (!fs.existsSync(projectRoot) || !fs.statSync(projectRoot).isDirectory()) {
+    throw new Error(`project is not an available directory: ${project.locator}`);
+  }
+  const preferencePath = personalPreferencesPath(project);
+  const projectState = projectOnboardingState(project, catalogs);
+  const projectDefaults = projectState.configuration;
+  if (!fs.existsSync(preferencePath)) {
+    return {
+      path: preferencePath,
+      revision: 0,
+      configuration: clone(projectDefaults)
+    };
+  }
+  const stored = validatePersonalPreferences(readJson(preferencePath), catalogs);
+  const expectedProjectId =
+    projectState.manifest?.project_id ??
+    slug(project.id ?? path.basename(projectState.projectRoot), "project");
+  if (stored.project_id !== expectedProjectId) {
+    throw new Error(
+      `personal preferences belong to ${stored.project_id}, not ${expectedProjectId}`
+    );
+  }
+  return {
+    path: preferencePath,
+    revision: stored.revision,
+    configuration: mergeOnboardingConfiguration(
+      projectDefaults,
+      stored.overrides,
+      catalogs
+    )
+  };
+}
+
+function executionPreferenceResolution(invocation, catalogs) {
+  assertObject(invocation, "assessed L5 invocation");
+  const resolvedInvocation = clone(invocation);
+  const explicit = clone(invocation.collaboration ?? {});
+  const project = invocation.project;
+  if (!project?.locator) {
+    return {
+      invocation: resolvedInvocation,
+      provenance: {
+        preferred_preset: explicit.team_preset ?? "auto",
+        team_source: explicit.team_preset ? "request" : "default",
+        personalization_source:
+          explicit.personalization && Object.keys(explicit.personalization).length
+            ? "request"
+            : "default"
+      }
+    };
+  }
+
+  const projectState = projectOnboardingState(project, catalogs);
+  const personalState = personalOnboardingState(project, catalogs);
+  const preferencePath = personalPreferencesPath(project);
+  const personal = fs.existsSync(preferencePath)
+    ? validatePersonalPreferences(readJson(preferencePath), catalogs)
+    : null;
+  const sharedPreset =
+    projectState.manifest?.collaboration?.preferred_preset ?? null;
+  const personalPreset = personal?.overrides?.preferred_preset ?? null;
+  const merged = mergeOnboardingConfiguration(
+    personalState.configuration,
+    {
+      ...(explicit.team_preset
+        ? { preferred_preset: explicit.team_preset }
+        : {}),
+      ...(explicit.personalization
+        ? { personalization: explicit.personalization }
+        : {})
+    },
+    catalogs
+  );
+  const collaboration = {
+    ...(explicit.persistence ? { persistence: explicit.persistence } : {}),
+    ...(merged.preferred_preset !== "auto"
+      ? { team_preset: merged.preferred_preset }
+      : {}),
+    personalization: clone(merged.personalization)
+  };
+  resolvedInvocation.collaboration = collaboration;
+
+  return {
+    invocation: resolvedInvocation,
+    provenance: {
+      preferred_preset: merged.preferred_preset,
+      team_source: explicit.team_preset
+        ? "request"
+        : personalPreset != null
+          ? "personal"
+          : sharedPreset != null
+            ? "project"
+            : "default",
+      personalization_source:
+        explicit.personalization && Object.keys(explicit.personalization).length
+          ? "request"
+          : personal?.overrides?.personalization
+            ? "personal"
+            : projectState.manifest?.collaboration?.personalization
+              ? "project"
+              : "default"
+    }
   };
 }
 
@@ -3418,13 +3864,14 @@ function onboardingPreview(state) {
 }
 
 function onboardingResponse(status, state, catalogs, additions = {}) {
+  const { project = null, ...publicAdditions } = additions;
   const response = {
     schema_version: 1,
     status,
     state: clone(state),
     write_performed: additions.write_performed === true,
-    storage: onboardingStorage(state.scope),
-    ...additions
+    storage: onboardingStorage(state.scope, project),
+    ...publicAdditions
   };
   if (response.write_performed) {
     response.storage.application_required = false;
@@ -3437,7 +3884,7 @@ function initializeOnboardingState(input, catalogs, mode = "configure") {
   if (!["form", "stepwise"].includes(presentation)) {
     throw new Error("onboarding presentation must be form or stepwise");
   }
-  const scope = input.scope ?? null;
+  const scope = input.scope ?? catalogs.onboarding.defaults.scope ?? null;
   if (
     scope != null &&
     !["session", "user", "project"].includes(scope)
@@ -3453,8 +3900,12 @@ function initializeOnboardingState(input, catalogs, mode = "configure") {
     const projectState = projectOnboardingState(input.project, catalogs);
     configuration = projectState.configuration;
     configurationRevision = projectState.revision;
+  } else if (scope === "user" && input.project?.locator) {
+    const personalState = personalOnboardingState(input.project, catalogs);
+    configuration = personalState.configuration;
+    configurationRevision = personalState.revision;
   }
-  const completedQuestions = scope ? ["scope"] : [];
+  const completedQuestions = input.scope ? ["scope"] : [];
   if (mode === "reset") {
     configuration = onboardingConfiguration(null, catalogs);
     completedQuestions.push(
@@ -3509,12 +3960,18 @@ function validateOnboardingState(input, catalogs) {
   return state;
 }
 
-function refreshProjectOnboardingBase(state, input, catalogs) {
-  if (state.scope !== "project") return state;
-  const projectState = projectOnboardingState(input.project, catalogs);
-  state.base_configuration_revision = projectState.revision;
-  state.base_configuration = clone(projectState.configuration);
-  state.configuration = clone(projectState.configuration);
+function refreshScopedOnboardingBase(state, input, catalogs) {
+  if (state.scope === "project") {
+    const projectState = projectOnboardingState(input.project, catalogs);
+    state.base_configuration_revision = projectState.revision;
+    state.base_configuration = clone(projectState.configuration);
+    state.configuration = clone(projectState.configuration);
+  } else if (state.scope === "user" && input.project?.locator) {
+    const personalState = personalOnboardingState(input.project, catalogs);
+    state.base_configuration_revision = personalState.revision;
+    state.base_configuration = clone(personalState.configuration);
+    state.configuration = clone(personalState.configuration);
+  }
   return state;
 }
 
@@ -3582,6 +4039,63 @@ function writeProjectOnboarding(state, input, catalogs) {
   };
 }
 
+function ensureProjectGitignore(zipzapDirectory) {
+  const gitignorePath = path.join(zipzapDirectory, ".gitignore");
+  if (!fs.existsSync(gitignorePath)) {
+    fs.writeFileSync(gitignorePath, PROJECT_GITIGNORE);
+  }
+}
+
+function writePersonalOnboarding(state, input, catalogs) {
+  if (!input.project?.locator) {
+    return {
+      revision: state.base_configuration_revision,
+      write_performed: false
+    };
+  }
+  const personalState = personalOnboardingState(input.project, catalogs);
+  if (personalState.revision !== state.base_configuration_revision) {
+    throw new Error(
+      `personal configuration revision mismatch: expected ${state.base_configuration_revision}, stored ${personalState.revision}`
+    );
+  }
+  if (state.mode === "reset") {
+    if (personalState.revision === 0) {
+      return { revision: 0, write_performed: false };
+    }
+    fs.unlinkSync(personalState.path);
+    return { revision: 0, write_performed: true };
+  }
+  const projectState = projectOnboardingState(input.project, catalogs);
+  const projectId =
+    projectState.manifest?.project_id ??
+    slug(input.project.id ?? path.basename(projectState.projectRoot), "project");
+  const preferences = validatePersonalPreferences(
+    {
+      schema_version: 1,
+      project_id: projectId,
+      revision: personalState.revision + 1,
+      overrides: personalPreferenceOverrides(
+        state.configuration,
+        projectState.configuration
+      )
+    },
+    catalogs
+  );
+  const preferenceDirectory = path.dirname(personalState.path);
+  fs.mkdirSync(preferenceDirectory, { recursive: true });
+  const temporaryPath = `${personalState.path}.${process.pid}.tmp`;
+  fs.writeFileSync(
+    temporaryPath,
+    `${JSON.stringify(preferences, null, 2)}\n`
+  );
+  fs.renameSync(temporaryPath, personalState.path);
+  return {
+    revision: preferences.revision,
+    write_performed: true
+  };
+}
+
 function confirmableOnboardingState(input, catalogs) {
   const state = validateOnboardingState(input, catalogs);
   const pending = pendingOnboardingQuestions(state, catalogs);
@@ -3631,12 +4145,14 @@ export function advanceOnboarding(input, catalogs = loadCatalogs()) {
           fields: catalogs.onboarding.questions.map((question) =>
             onboardingQuestionView(question, state)
           )
-        }
+        },
+        project: input.project
       });
     }
     const question = pendingOnboardingQuestions(state, catalogs)[0];
     return onboardingResponse("decision-required", state, catalogs, {
-      question: onboardingQuestionView(question, state)
+      question: onboardingQuestionView(question, state),
+      project: input.project
     });
   }
 
@@ -3649,7 +4165,8 @@ export function advanceOnboarding(input, catalogs = loadCatalogs()) {
       state.base_configuration = clone(projectState.configuration);
     }
     return onboardingResponse("preview-ready", state, catalogs, {
-      preview: onboardingPreview(state)
+      preview: onboardingPreview(state),
+      project: input.project
     });
   }
 
@@ -3667,18 +4184,20 @@ export function advanceOnboarding(input, catalogs = loadCatalogs()) {
     }
     setOnboardingAnswer(state, pending[0], input.answer.value, catalogs);
     state.completed_questions.push(pending[0].id);
-    if (pending[0].id === "scope" && state.scope === "project") {
-      refreshProjectOnboardingBase(state, input, catalogs);
+    if (pending[0].id === "scope") {
+      refreshScopedOnboardingBase(state, input, catalogs);
     }
     state.revision += 1;
     const next = pendingOnboardingQuestions(state, catalogs)[0];
     if (next) {
       return onboardingResponse("decision-required", state, catalogs, {
-        question: onboardingQuestionView(next, state)
+        question: onboardingQuestionView(next, state),
+        project: input.project
       });
     }
     return onboardingResponse("preview-ready", state, catalogs, {
-      preview: onboardingPreview(state)
+      preview: onboardingPreview(state),
+      project: input.project
     });
   }
 
@@ -3701,9 +4220,12 @@ export function advanceOnboarding(input, catalogs = loadCatalogs()) {
     if (!state.scope) {
       throw new Error("form submission must select a configuration scope");
     }
-    if (state.scope === "project") {
+    if (
+      state.scope === "project" ||
+      (state.scope === "user" && input.project?.locator)
+    ) {
       const priorConfiguration = clone(state.configuration);
-      refreshProjectOnboardingBase(state, input, catalogs);
+      refreshScopedOnboardingBase(state, input, catalogs);
       state.configuration = onboardingConfiguration(
         {
           ...priorConfiguration,
@@ -3720,7 +4242,8 @@ export function advanceOnboarding(input, catalogs = loadCatalogs()) {
     );
     state.revision += 1;
     return onboardingResponse("preview-ready", state, catalogs, {
-      preview: onboardingPreview(state)
+      preview: onboardingPreview(state),
+      project: input.project
     });
   }
 
@@ -3730,18 +4253,23 @@ export function advanceOnboarding(input, catalogs = loadCatalogs()) {
     const application = writeProjectOnboarding(state, input, catalogs);
     configurationRevision = application.revision;
     writePerformed = application.write_performed;
+  } else if (state.scope === "user" && input.project?.locator) {
+    const application = writePersonalOnboarding(state, input, catalogs);
+    configurationRevision = application.revision;
+    writePerformed = application.write_performed;
   }
+  const storage = onboardingStorage(state.scope, input.project);
   state.revision += 1;
   return onboardingResponse("completed", state, catalogs, {
+    project: input.project,
     write_performed: writePerformed,
     configuration: clone(state.configuration),
     configuration_revision: configurationRevision,
-    limitations:
-      state.scope === "project"
-        ? []
-        : [
-            `The host must apply this ${state.scope}-scoped configuration to ${onboardingStorage(state.scope).target}.`
-          ]
+    limitations: storage.application_required
+      ? [
+          `The host must apply this ${state.scope}-scoped configuration to ${storage.target}.`
+        ]
+      : []
   });
 }
 
@@ -3977,10 +4505,7 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
       ]) {
         fs.mkdirSync(directory, { recursive: true });
       }
-      const gitignorePath = path.join(zipzapDirectory, ".gitignore");
-      if (!fs.existsSync(gitignorePath)) {
-        fs.writeFileSync(gitignorePath, PROJECT_GITIGNORE);
-      }
+      ensureProjectGitignore(zipzapDirectory);
       const temporaryPath = `${manifestPath}.tmp`;
       fs.writeFileSync(temporaryPath, `${JSON.stringify(manifest, null, 2)}\n`);
       fs.renameSync(temporaryPath, manifestPath);
@@ -4128,6 +4653,7 @@ function firstRunCombinedPreview(discovery, onboardingState, catalogs) {
     preferences: onboardingPreview(onboardingState),
     project_storage: {
       manifest: ".zipzap/project.json",
+      personal_preferences: ".zipzap/state/preferences.json (Git-ignored)",
       tasks: catalogs.taskPolicy.local_store.locator,
       events: catalogs.taskPolicy.local_store.event_locator,
       reviews: catalogs.taskPolicy.local_store.review_locator,
@@ -4257,7 +4783,7 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
         discovery,
         "This project is already initialized.",
         [
-          "Use `zipzap onboard` to change preferences.",
+          "Use `zipzap onboard` with user scope to initialize this member without changing project.json.",
           "Use `zipzap initialize` with action `refresh` to reconcile registered sources."
         ],
         input.host ?? null,
@@ -4381,24 +4907,41 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
         catalogs
       );
     }
+    const preferenceApplication =
+      onboardingState.scope === "user"
+        ? writePersonalOnboarding(
+            onboardingState,
+            { project: state.project },
+            catalogs
+          )
+        : {
+            revision: onboardingState.base_configuration_revision,
+            write_performed: false
+          };
+    const preferenceStorage = onboardingStorage(
+      onboardingState.scope,
+      state.project
+    );
     state.revision += 1;
     return firstRunResponse("completed", state, discovery, {
       write_performed: configured.initialization.write_performed,
       initialization: clone(configured.initialization),
       configuration: clone(onboardingState.configuration),
-      preference_storage: onboardingStorage(onboardingState.scope),
-      limitations:
-        onboardingState.scope === "project"
-          ? []
-          : [
-              `The host must apply ${onboardingState.scope}-scoped preferences to ${onboardingStorage(onboardingState.scope).target}.`
-            ],
+      preference_storage: preferenceStorage,
+      limitations: preferenceStorage.application_required
+        ? [
+            `The host must apply ${onboardingState.scope}-scoped preferences to ${preferenceStorage.target}.`
+          ]
+        : [],
       post_check: {
         manifest_present: fs.existsSync(firstRunManifestPath(state.project)),
         sources_registered:
           configured.initialization.sources.length,
         preferences_visible_before_write: true,
-        single_manifest_write: true
+        single_manifest_write: true,
+        personal_preferences_stored:
+          onboardingState.scope === "user" &&
+          preferenceApplication.write_performed
       }
     }, catalogs);
   }
@@ -4495,8 +5038,24 @@ function invokeL5Detailed(envelope, catalogs) {
     };
 
     if (operation === "execute" || operation === "resume") {
+      if (
+        envelope.context.compiler &&
+        envelope.context.risk_normalization
+      ) {
+        throw new Error(
+          `${operation} accepts compiler or risk_normalization context, not both`
+        );
+      }
+      if (envelope.context.compiler) {
+        if (operation !== "execute") {
+          throw new Error("context compiler currently supports execute only");
+        }
+        return compileL5Detailed(envelope, catalogs);
+      }
       if (!envelope.context.risk_normalization) {
-        throw new Error(`${operation} requires risk_normalization context`);
+        throw new Error(
+          `${operation} requires compiler or risk_normalization context`
+        );
       }
       const assessmentInvocation =
         envelope.context.risk_normalization.assessment_input?.invocation;
@@ -4508,8 +5067,34 @@ function invokeL5Detailed(envelope, catalogs) {
           "execute request must match the assessed L5 invocation"
         );
       }
+      const preferenceResolution = executionPreferenceResolution(
+        assessmentInvocation,
+        catalogs
+      );
+      const normalizationInput = clone(
+        envelope.context.risk_normalization
+      );
+      normalizationInput.assessment_input.invocation =
+        preferenceResolution.invocation;
+      const requestedOutputDetail = envelope.context.output_detail;
+      if (
+        requestedOutputDetail != null &&
+        !["compact", "standard", "diagnostic"].includes(
+          requestedOutputDetail
+        )
+      ) {
+        throw new Error(
+          "L5 output_detail must be compact, standard, or diagnostic"
+        );
+      }
+      const outputDetail =
+        requestedOutputDetail ??
+        (preferenceResolution.invocation.collaboration?.personalization
+          ?.response_detail === "concise"
+          ? "compact"
+          : catalogs.experience.defaults.output_detail);
       const normalization = normalizeRiskAssessment(
-        envelope.context.risk_normalization,
+        normalizationInput,
         catalogs
       );
       if (normalization.status === "decision-required") {
@@ -4544,6 +5129,13 @@ function invokeL5Detailed(envelope, catalogs) {
       );
       const kernel = evaluated.response;
       const decisions = kernel.decisions_required.map(l5Decision);
+      const collaboration = collaborationView(
+        evaluated.diagnostics,
+        normalization,
+        preferenceResolution.provenance,
+        outputDetail,
+        catalogs
+      );
       return {
         response: {
           ...base,
@@ -4565,7 +5157,11 @@ function invokeL5Detailed(envelope, catalogs) {
             }
           ),
           ...(kernel.status === "ready"
-            ? { execution: l5Execution(kernel.next_action) }
+            ? {
+                execution: l5Execution(kernel.next_action, outputDetail),
+                collaboration_view: collaboration,
+                execution_stamp: executionStamp(collaboration)
+              }
             : {}),
           assurance: l5Assurance(kernel.assurance),
           decisions_required: decisions,
@@ -4669,6 +5265,685 @@ function invokeL5Detailed(envelope, catalogs) {
 
 export function invokeL5(envelope, catalogs = loadCatalogs()) {
   return invokeL5Detailed(envelope, catalogs).response;
+}
+
+function runtimeProjectSource(source) {
+  return {
+    id: source.id,
+    locator: source.locator,
+    version: source.version ?? null,
+    ...(source.selectors ? { selectors: clone(source.selectors) } : {})
+  };
+}
+
+function compilerProjectSources(invocation, compiler, catalogs) {
+  const explicit = clone(compiler.project_sources ?? []);
+  const project = invocation.project;
+  let manifestSources = [];
+  let manifestLocator = null;
+  if (project?.locator) {
+    const projectRoot = path.resolve(project.locator);
+    if (!fs.existsSync(projectRoot) || !fs.statSync(projectRoot).isDirectory()) {
+      throw new Error(`project is not an available directory: ${project.locator}`);
+    }
+    const candidate = path.join(projectRoot, ".zipzap", "project.json");
+    if (fs.existsSync(candidate)) {
+      const manifest = validateProjectManifest(readJson(candidate), catalogs);
+      manifestSources = [...manifest.sources]
+        .sort(
+          (left, right) =>
+            (right.priority ?? 0) - (left.priority ?? 0) ||
+            left.id.localeCompare(right.id)
+        )
+        .map(runtimeProjectSource);
+      manifestLocator = path.relative(projectRoot, candidate);
+    }
+  }
+  const merged = new Map(manifestSources.map((source) => [source.id, source]));
+  for (const source of explicit) merged.set(source.id, clone(source));
+  const all = [...merged.values()];
+  const execution = requestExecutionSemantics(invocation.request, catalogs);
+  const maximum = execution.execution_budget?.max_source_files ?? null;
+  const selected = maximum == null ? all : all.slice(0, maximum);
+  return {
+    selected,
+    report: {
+      manifest_locator: manifestLocator,
+      registered_count: manifestSources.length,
+      explicit_count: explicit.length,
+      selected_count: selected.length,
+      omitted: all.slice(selected.length).map((source) => ({
+        id: source.id,
+        reason: "max-source-files"
+      }))
+    }
+  };
+}
+
+function boundedCompilerState(state, budget) {
+  if (!state) {
+    return {
+      state: undefined,
+      finding_report: { supplied: 0, included: 0, omitted: 0 }
+    };
+  }
+  const bounded = clone(state);
+  const findings = bounded.open_findings ?? [];
+  const maximum = budget?.max_findings_expansion ?? findings.length;
+  bounded.open_findings = findings.slice(0, maximum);
+  return {
+    state: bounded,
+    finding_report: {
+      supplied: findings.length,
+      included: bounded.open_findings.length,
+      omitted: Math.max(0, findings.length - bounded.open_findings.length)
+    }
+  };
+}
+
+function projectionDigest(projection) {
+  return `sha256:${crypto
+    .createHash("sha256")
+    .update(canonicalJson(projection))
+    .digest("hex")}`;
+}
+
+function projectionCache(
+  invocation,
+  mode,
+  diagnostics,
+  executionCapsule
+) {
+  const project = invocation.project;
+  const manifest = diagnostics?.projection_manifest;
+  const projection = diagnostics?.runtime_projection;
+  if (
+    mode === "off" ||
+    !project?.locator ||
+    !manifest?.content_sha256 ||
+    !projection
+  ) {
+    return {
+      status: mode === "off" ? "disabled" : "unavailable",
+      hit: false,
+      locator: null,
+      execution_capsule: executionCapsule
+    };
+  }
+  const projectRoot = path.resolve(project.locator);
+  const cacheDirectory = projectFilePath(
+    projectRoot,
+    ".zipzap/cache/projections"
+  );
+  const digest = manifest.content_sha256;
+  const cacheFile = path.join(cacheDirectory, `${digest.slice(7)}.json`);
+  const locator = path.relative(projectRoot, cacheFile);
+  if (fs.existsSync(cacheFile)) {
+    const cached = readJson(cacheFile);
+    if (
+      cached.schema_version === 1 &&
+      cached.content_sha256 === digest &&
+      projectionDigest(cached.runtime_projection) === digest &&
+      canonicalJson(cached.runtime_projection) === canonicalJson(projection)
+    ) {
+      return {
+        status: "hit",
+        hit: true,
+        locator,
+        execution_capsule: clone(cached.execution_capsule)
+      };
+    }
+    return {
+      status: "invalid",
+      hit: false,
+      locator,
+      execution_capsule: executionCapsule
+    };
+  }
+  if (mode !== "read-write") {
+    return {
+      status: "miss",
+      hit: false,
+      locator,
+      execution_capsule: executionCapsule
+    };
+  }
+  fs.mkdirSync(cacheDirectory, { recursive: true });
+  ensureProjectGitignore(path.join(projectRoot, ".zipzap"));
+  const record = {
+    schema_version: 1,
+    content_sha256: digest,
+    projection_manifest: clone(manifest),
+    runtime_projection: clone(projection),
+    execution_capsule: clone(executionCapsule)
+  };
+  try {
+    fs.writeFileSync(cacheFile, `${JSON.stringify(record, null, 2)}\n`, {
+      flag: "wx"
+    });
+  } catch (error) {
+    if (error.code !== "EEXIST") throw error;
+  }
+  return {
+    status: "written",
+    hit: false,
+    locator,
+    execution_capsule: executionCapsule
+  };
+}
+
+function compilerBlockedResponse(response, maximum, actual) {
+  return {
+    schema_version: 1,
+    ...(response.request_id ? { request_id: response.request_id } : {}),
+    operation: response.operation,
+    ok: true,
+    status: "blocked",
+    summary:
+      `The compiled execution capsule is ${actual} bytes, above the ` +
+      `${maximum}-byte tool-output budget. Narrow the request or authorize a larger budget.`,
+    user_view: userExperienceView("execute", "blocked"),
+    assurance: clone(response.assurance),
+    decisions_required: [],
+    continuation: clone(response.continuation),
+    diagnostics_ref: null
+  };
+}
+
+function validateCompilerInput(compiler) {
+  assertAllowedFields(
+    compiler,
+    [
+      "schema_version",
+      "work_id",
+      "work_type",
+      "affected_components",
+      "evidence",
+      "assessment",
+      "host",
+      "project_sources",
+      "state",
+      "cache_mode"
+    ],
+    "context compiler input"
+  );
+  if (
+    compiler.schema_version !== 1 ||
+    typeof compiler.work_id !== "string" ||
+    compiler.work_id.trim() === ""
+  ) {
+    throw new Error("context compiler identity is invalid");
+  }
+  assertObject(compiler.assessment, "context compiler assessment");
+  assertObject(compiler.host, "context compiler host");
+  if (
+    compiler.cache_mode != null &&
+    !["off", "read-only", "read-write"].includes(compiler.cache_mode)
+  ) {
+    throw new Error("context compiler cache_mode is invalid");
+  }
+}
+
+function compileL5Detailed(envelope, catalogs) {
+  const compiler = envelope.context.compiler;
+  validateCompilerInput(compiler);
+  const invocation = envelope.request;
+  const execution = requestExecutionSemantics(invocation.request, catalogs);
+  const sources = compilerProjectSources(invocation, compiler, catalogs);
+  const boundedState = boundedCompilerState(
+    compiler.state,
+    execution.execution_budget
+  );
+  const normalizationInput = {
+    schema_version: 1,
+    work_id: compiler.work_id,
+    work_type: compiler.work_type ?? null,
+    affected_components: clone(compiler.affected_components ?? []),
+    assessment_input: {
+      schema_version: 1,
+      taxonomy_version: catalogs.riskTaxonomy.schema_version,
+      invocation: clone(invocation),
+      evidence: clone(compiler.evidence ?? [])
+    },
+    assessment: clone(compiler.assessment),
+    host: clone(compiler.host),
+    project_sources: sources.selected,
+    ...(boundedState.state ? { state: boundedState.state } : {})
+  };
+  const invoked = invokeL5Detailed(
+    {
+      schema_version: 1,
+      request: clone(invocation),
+      context: {
+        risk_normalization: normalizationInput,
+        ...(envelope.context.output_detail
+          ? { output_detail: envelope.context.output_detail }
+          : {})
+      }
+    },
+    catalogs
+  );
+  const cacheMode = compiler.cache_mode ?? "read-write";
+  const cache = projectionCache(
+    invocation,
+    cacheMode,
+    invoked.diagnostics,
+    invoked.response.execution ?? null
+  );
+  if (cache.hit && invoked.response.execution) {
+    invoked.response.execution = cache.execution_capsule;
+  }
+  const beforeBytes = Buffer.byteLength(JSON.stringify(invoked.response));
+  const maximum = execution.execution_budget?.max_tool_output_bytes ?? null;
+  if (maximum != null && beforeBytes > maximum) {
+    invoked.response = compilerBlockedResponse(
+      invoked.response,
+      maximum,
+      beforeBytes
+    );
+  }
+  const afterBytes = Buffer.byteLength(JSON.stringify(invoked.response));
+  return {
+    ...invoked,
+    compiler_report: {
+      work_id: compiler.work_id,
+      project_sources: sources.report,
+      budget: {
+        requested: clone(execution.execution_budget),
+        findings: boundedState.finding_report,
+        output_bytes_before_limit: beforeBytes,
+        output_bytes: afterBytes,
+        output_limit_enforced:
+          maximum != null && beforeBytes > maximum,
+        source_file_limit_enforced: sources.report.omitted.length > 0,
+        host_enforced: unique([
+          ...(execution.execution_budget?.max_source_bytes != null
+            ? ["max_source_bytes"]
+            : []),
+          ...(execution.execution_budget?.allow_full_file_read === false
+            ? ["allow_full_file_read"]
+            : []),
+          ...(execution.execution_budget?.allow_tests === false
+            ? ["allow_tests"]
+            : []),
+          ...(execution.execution_budget?.allow_mutations === false
+            ? ["allow_mutations"]
+            : []),
+          ...(execution.execution_budget?.allow_persistence === false
+            ? ["allow_persistence"]
+            : [])
+        ])
+      },
+      cache: {
+        mode: cacheMode,
+        status: cache.status,
+        hit: cache.hit,
+        locator: cache.locator,
+        projection_digest:
+          invoked.diagnostics?.projection_manifest?.content_sha256 ?? null,
+        reuse_scope:
+          "Deterministic projection only; the host must still inject the returned capsule."
+      }
+    }
+  };
+}
+
+export function compileContext(envelope, catalogs = loadCatalogs()) {
+  try {
+    const detailed = invokeL5Detailed(envelope, catalogs);
+    return {
+      schema_version: 1,
+      response: detailed.response,
+      compiler_report: detailed.compiler_report ?? {
+        work_id: envelope.context?.compiler?.work_id ?? "unknown",
+        project_sources: {},
+        budget: {},
+        cache: {}
+      }
+    };
+  } catch (error) {
+    return {
+      schema_version: 1,
+      response: invalidL5Response(envelope, error),
+      compiler_report: {
+        work_id: envelope.context?.compiler?.work_id ?? "unknown",
+        project_sources: {},
+        budget: {},
+        cache: {}
+      }
+    };
+  }
+}
+
+function evidenceIndex(evidence) {
+  const index = new Map();
+  for (const item of evidence) {
+    if (
+      !item ||
+      !ID_PATTERN.test(item.id ?? "") ||
+      index.has(item.id) ||
+      typeof item.locator !== "string" ||
+      item.locator.trim() === "" ||
+      typeof item.statement !== "string" ||
+      item.statement.trim() === "" ||
+      ![
+        "analysis",
+        "artifact",
+        "implementation",
+        "test",
+        "review",
+        "approval"
+      ].includes(item.kind)
+    ) {
+      throw new Error(`invalid or duplicate completion evidence: ${item?.id}`);
+    }
+    index.set(item.id, item);
+  }
+  return index;
+}
+
+function assertEvidenceRefs(refs, index, kind, label) {
+  if (!Array.isArray(refs)) throw new Error(`${label} evidence_refs must be an array`);
+  for (const ref of refs) {
+    const evidence = index.get(ref);
+    if (!evidence || (kind && evidence.kind !== kind)) {
+      throw new Error(`${label} cites invalid ${kind ?? ""} evidence: ${ref}`);
+    }
+  }
+}
+
+export function completeWork(input) {
+  assertAllowedFields(
+    input,
+    [
+      "schema_version",
+      "work_id",
+      "collaboration_view",
+      "outcome",
+      "evidence",
+      "tests",
+      "review",
+      "findings",
+      "approvals",
+      "residual_risks",
+      "limitations",
+      "continuation"
+    ],
+    "completion input"
+  );
+  if (
+    input.schema_version !== 1 ||
+    typeof input.work_id !== "string" ||
+    input.work_id.trim() === ""
+  ) {
+    throw new Error("completion identity is invalid");
+  }
+  for (const field of [
+    "collaboration_view",
+    "outcome",
+    "tests",
+    "review"
+  ]) {
+    assertObject(input[field], `completion ${field}`);
+  }
+  for (const field of [
+    "evidence",
+    "findings",
+    "approvals",
+    "residual_risks",
+    "limitations"
+  ]) {
+    if (!Array.isArray(input[field])) {
+      throw new Error(`completion ${field} must be an array`);
+    }
+  }
+  const evidence = evidenceIndex(input.evidence);
+  assertEvidenceRefs(input.tests.evidence_refs, evidence, "test", "tests");
+  assertEvidenceRefs(input.review.evidence_refs, evidence, "review", "review");
+  for (const approval of input.approvals) {
+    const item = evidence.get(approval.evidence_ref);
+    if (!item || item.kind !== "approval") {
+      throw new Error(
+        `approval cites invalid approval evidence: ${approval.evidence_ref}`
+      );
+    }
+  }
+  if (input.tests.status === "passed" && input.tests.evidence_refs.length === 0) {
+    throw new Error("passed tests require test evidence");
+  }
+  if (
+    input.review.outcome === "approved" &&
+    (input.review.mode === "none" || input.review.evidence_refs.length === 0)
+  ) {
+    throw new Error("approved Review requires a mode and Review evidence");
+  }
+  const openFindings = input.findings.filter((finding) =>
+    ["open", "accepted"].includes(finding.status)
+  );
+  const blockingFindings = openFindings.filter(
+    (finding) => finding.blocking === true || finding.severity === "blocker"
+  );
+  const hasDeniedApproval = input.approvals.some(
+    (approval) => approval.status === "denied"
+  );
+  const hasImplementationEvidence = input.evidence.some(
+    (item) => item.kind === "implementation"
+  );
+  let status = "complete";
+  if (input.outcome.status === "blocked" || hasDeniedApproval) status = "blocked";
+  else if (
+    blockingFindings.length > 0 ||
+    ["changes-requested", "blocked"].includes(input.review.outcome)
+  ) {
+    status = "changes-requested";
+  } else if (input.outcome.status === "failed" || input.tests.status === "failed") {
+    status = "failed";
+  } else if (
+    input.outcome.status === "partial" ||
+    input.tests.status === "partial" ||
+    (input.outcome.artifact_change && !hasImplementationEvidence)
+  ) {
+    status = "partial";
+  }
+  let completionLabel = status;
+  const claimBasis = [];
+  if (status === "complete") {
+    if (input.approvals.some((approval) => approval.status === "granted")) {
+      completionLabel = "accepted-by-user";
+      claimBasis.push("explicit granted approval with approval evidence");
+    } else if (
+      input.review.mode === "independent" &&
+      input.review.outcome === "approved"
+    ) {
+      completionLabel = "independently-reviewed";
+      claimBasis.push("approved independent Review with Review evidence");
+    } else if (input.tests.status === "passed") {
+      completionLabel = "tested";
+      claimBasis.push("passing test status with test evidence");
+    } else if (
+      input.review.mode === "self" &&
+      input.review.outcome === "approved"
+    ) {
+      completionLabel = "self-reviewed";
+      claimBasis.push("approved self-Review with Review evidence");
+    } else if (input.outcome.artifact_change && hasImplementationEvidence) {
+      completionLabel = "implemented";
+      claimBasis.push("artifact change with implementation evidence");
+    } else {
+      completionLabel = "analyzed";
+      claimBasis.push("successful non-mutating outcome");
+    }
+  } else {
+    claimBasis.push(`outcome remains ${status}`);
+  }
+  const view = input.collaboration_view;
+  return {
+    schema_version: 1,
+    work_id: input.work_id,
+    status,
+    completion_label: completionLabel,
+    execution_stamp: executionStamp(view),
+    perspective: clone(view.perspective),
+    team: view.selection.effective,
+    member_count: view.member_count,
+    assurance_mode: view.assurance.mode,
+    persistence: view.persistence,
+    outcome: clone(input.outcome),
+    evidence_summary: {
+      total: input.evidence.length,
+      by_kind: Object.fromEntries(
+        [
+          "analysis",
+          "artifact",
+          "implementation",
+          "test",
+          "review",
+          "approval"
+        ].map((kind) => [
+          kind,
+          input.evidence.filter((item) => item.kind === kind).length
+        ])
+      )
+    },
+    tests: clone(input.tests),
+    review: clone(input.review),
+    finding_summary: {
+      total: input.findings.length,
+      open: openFindings.length,
+      blocking: blockingFindings.length
+    },
+    approvals: clone(input.approvals),
+    residual_risks: clone(input.residual_risks),
+    limitations: unique([
+      ...input.limitations,
+      ...(input.outcome.artifact_change && !hasImplementationEvidence
+        ? ["Artifact change lacks implementation evidence."]
+        : [])
+    ]),
+    continuation: clone(input.continuation ?? null),
+    claim_basis: claimBasis
+  };
+}
+
+function validatePerspective(perspective, label) {
+  assertObject(perspective, label);
+  for (const field of ["slot", "profile", "display_name"]) {
+    if (typeof perspective[field] !== "string" || perspective[field].trim() === "") {
+      throw new Error(`${label}.${field} must be a non-empty string`);
+    }
+  }
+  const authorities = [perspective.role, perspective.function].filter(Boolean);
+  if (authorities.length !== 1) {
+    throw new Error(`${label} must define exactly one role or function`);
+  }
+}
+
+export function createHandoff(input) {
+  assertAllowedFields(
+    input,
+    ["schema_version", "persistence", "project", "handoff"],
+    "handoff input"
+  );
+  if (
+    input.schema_version !== 1 ||
+    !["ephemeral", "project"].includes(input.persistence)
+  ) {
+    throw new Error("handoff version or persistence is invalid");
+  }
+  const draft = clone(input.handoff);
+  assertAllowedFields(
+    draft,
+    [
+      "handoff_id",
+      "work_id",
+      "from",
+      "to",
+      "objective",
+      "completed_work",
+      "artifact_refs",
+      "evidence",
+      "findings",
+      "unresolved_decisions",
+      "limitations",
+      "next_action"
+    ],
+    "handoff draft"
+  );
+  if (
+    !ID_PATTERN.test(draft.handoff_id ?? "") ||
+    !ID_PATTERN.test(draft.work_id ?? "")
+  ) {
+    throw new Error("handoff_id and work_id must be stable kebab-case IDs");
+  }
+  validatePerspective(draft.from, "handoff from");
+  validatePerspective(draft.to, "handoff to");
+  for (const field of [
+    "completed_work",
+    "artifact_refs",
+    "evidence",
+    "findings",
+    "unresolved_decisions",
+    "limitations"
+  ]) {
+    if (!Array.isArray(draft[field])) {
+      throw new Error(`handoff ${field} must be an array`);
+    }
+  }
+  for (const field of ["objective", "next_action"]) {
+    if (typeof draft[field] !== "string" || draft[field].trim() === "") {
+      throw new Error(`handoff ${field} must be a non-empty string`);
+    }
+  }
+  const unsigned = {
+    schema_version: 1,
+    ...draft,
+    created_at: new Date().toISOString()
+  };
+  const record = {
+    ...unsigned,
+    content_sha256: `sha256:${crypto
+      .createHash("sha256")
+      .update(canonicalJson(unsigned))
+      .digest("hex")}`
+  };
+  if (input.persistence === "ephemeral") {
+    return {
+      schema_version: 1,
+      status: "created",
+      persistence: "ephemeral",
+      write_performed: false,
+      locator: null,
+      record
+    };
+  }
+  if (!input.project?.locator) {
+    throw new Error("project handoff requires project.locator");
+  }
+  const projectRoot = path.resolve(input.project.locator);
+  if (!fs.existsSync(projectRoot) || !fs.statSync(projectRoot).isDirectory()) {
+    throw new Error(`project is not an available directory: ${input.project.locator}`);
+  }
+  const directory = projectFilePath(
+    projectRoot,
+    `.zipzap/handoffs/${draft.work_id}`
+  );
+  const filePath = path.join(directory, `${draft.handoff_id}.json`);
+  if (fs.existsSync(filePath)) {
+    throw new Error(`immutable handoff already exists: ${draft.handoff_id}`);
+  }
+  fs.mkdirSync(directory, { recursive: true });
+  ensureProjectGitignore(path.join(projectRoot, ".zipzap"));
+  fs.writeFileSync(filePath, `${JSON.stringify(record, null, 2)}\n`, {
+    flag: "wx"
+  });
+  return {
+    schema_version: 1,
+    status: "created",
+    persistence: "project",
+    write_performed: true,
+    locator: path.relative(projectRoot, filePath),
+    record
+  };
 }
 
 function validateTask(task) {
@@ -4910,7 +6185,26 @@ export function adaptTask(input, catalogs = loadCatalogs()) {
           runtime_policy_version: catalogs.runtimePolicy.schema_version,
           task_revision: input.task.revision,
           binding_revision:
-            invoked.kernel.continuation.revisions.binding
+            invoked.kernel.continuation.revisions.binding,
+          execution_stamp: invoked.response.execution_stamp,
+          participants: invoked.diagnostics.team_binding.members.map(
+            (member) => ({
+              slot: member.slot,
+              profile: member.profile,
+              display_name: member.display_name,
+              roles: clone(member.roles),
+              functions: clone(member.functions),
+              active:
+                member.slot ===
+                invoked.diagnostics.runtime_projection.participant.slot,
+              ...(member.artifact_access
+                ? { artifact_access: member.artifact_access }
+                : {})
+            })
+          ),
+          active_perspective: clone(
+            invoked.response.collaboration_view?.perspective ?? null
+          )
         }
       : null;
   return {
@@ -6356,6 +7650,27 @@ async function main() {
   }
   if (command === "invoke") {
     const result = invokeL5(input, catalogs);
+    process.stdout.write(
+      `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
+    );
+    return;
+  }
+  if (command === "compile") {
+    const result = compileContext(input, catalogs);
+    process.stdout.write(
+      `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
+    );
+    return;
+  }
+  if (command === "complete") {
+    const result = completeWork(input);
+    process.stdout.write(
+      `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
+    );
+    return;
+  }
+  if (command === "handoff") {
+    const result = createHandoff(input);
     process.stdout.write(
       `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
     );

@@ -23,6 +23,9 @@
         "risk_normalization": {
           "$ref": "./risk-normalization-input.schema.json"
         },
+        "compiler": {
+          "$ref": "./context-compiler-input.schema.json"
+        },
         "workflow_status": {
           "enum": [
             "ready",
@@ -33,6 +36,13 @@
         },
         "summary": {
           "type": "string"
+        },
+        "output_detail": {
+          "enum": [
+            "compact",
+            "standard",
+            "diagnostic"
+          ]
         },
         "initialization": {
           "$ref": "./l5-output.schema.json#/$defs/initialization"
@@ -62,8 +72,17 @@
       "then": {
         "properties": {
           "context": {
-            "required": [
-              "risk_normalization"
+            "oneOf": [
+              {
+                "required": [
+                  "risk_normalization"
+                ]
+              },
+              {
+                "required": [
+                  "compiler"
+                ]
+              }
             ]
           }
         }

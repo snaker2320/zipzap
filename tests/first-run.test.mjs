@@ -117,7 +117,7 @@ test("guides discovery and visible preferences before one project write", (conte
   );
 
   const preview = submit(started, {
-    scope: "project",
+    scope: "user",
     response_detail: "detailed",
     humor: "playful",
     preferred_preset: "copilot",
@@ -142,8 +142,22 @@ test("guides discovery and visible preferences before one project write", (conte
   const stored = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   assert.equal(stored.revision, 1);
   assert.equal(stored.sources.length, 1);
-  assert.equal(stored.collaboration.preferred_preset, "copilot");
-  assert.equal(stored.collaboration.personalization.humor, "playful");
+  assert.equal(stored.collaboration.preferred_preset, undefined);
+  assert.equal(stored.collaboration.personalization, undefined);
+  const personal = JSON.parse(
+    fs.readFileSync(
+      path.join(
+        projectInput.locator,
+        ".zipzap",
+        "state",
+        "preferences.json"
+      ),
+      "utf8"
+    )
+  );
+  assert.equal(personal.overrides.preferred_preset, "copilot");
+  assert.equal(personal.overrides.personalization.humor, "playful");
+  assert.equal(completed.post_check.personal_preferences_stored, true);
 
   const repeated = runFirstRun(
     {
@@ -154,7 +168,7 @@ test("guides discovery and visible preferences before one project write", (conte
     catalogs
   );
   assert.equal(repeated.status, "blocked");
-  assert.match(repeated.required_actions.join(" "), /onboard/);
+  assert.match(repeated.required_actions.join(" "), /user scope/);
 });
 
 test("requires a refreshed preview when sources change before confirmation", (context) => {

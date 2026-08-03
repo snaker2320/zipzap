@@ -230,6 +230,24 @@
           "minimum": 1,
           "maximum": 100
         },
+        "max_source_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 10000000
+        },
+        "max_tool_output_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 10000000
+        },
+        "max_findings_expansion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "allow_full_file_read": {
+          "type": "boolean"
+        },
         "allow_tests": {
           "type": "boolean"
         },

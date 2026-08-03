@@ -41,6 +41,13 @@
     "user_view": {
       "$ref": "./user-view.schema.json"
     },
+    "collaboration_view": {
+      "$ref": "./collaboration-view.schema.json"
+    },
+    "execution_stamp": {
+      "type": "string",
+      "minLength": 1
+    },
     "execution": {
       "$ref": "#/$defs/execution"
     },
@@ -146,7 +153,9 @@
       },
       "then": {
         "required": [
-          "execution"
+          "execution",
+          "collaboration_view",
+          "execution_stamp"
         ]
       }
     },
@@ -474,6 +483,14 @@
                 "coordinator",
                 "advisor"
               ]
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "checkpoint": {
+              "type": "string",
+              "minLength": 1
             }
           },
           "oneOf": [
@@ -525,6 +542,133 @@
           "items": {
             "type": "string"
           }
+        },
+        "source_locators": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "locator",
+              "version"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "locator": {
+                "type": "string"
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "perspective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "slot",
+        "profile",
+        "display_name"
+      ],
+      "properties": {
+        "slot": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "product",
+            "developer",
+            "tester",
+            "reviewer"
+          ]
+        },
+        "function": {
+          "enum": [
+            "coordinator",
+            "advisor"
+          ]
+        },
+        "stage": {
+          "type": "string"
+        },
+        "checkpoint": {
+          "type": "string"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "role"
+          ]
+        },
+        {
+          "required": [
+            "function"
+          ]
+        }
+      ]
+    },
+    "collaboration_member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "slot",
+        "profile",
+        "display_name",
+        "roles",
+        "functions",
+        "active"
+      ],
+      "properties": {
+        "slot": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "product",
+              "developer",
+              "tester",
+              "reviewer"
+            ]
+          }
+        },
+        "functions": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "coordinator",
+              "advisor"
+            ]
+          }
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "artifact_access": {
+          "type": "string"
         }
       }
     },
