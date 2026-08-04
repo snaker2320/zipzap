@@ -609,7 +609,7 @@ test("captures shareable Feedback with a minimal derived Task snapshot", (contex
   });
   assert.equal(
     captured.feedback.zipzap_snapshot.skill_version,
-    "0.1.1-beta.3"
+    "0.1.1-beta.4"
   );
   assert.equal(captured.feedback.task_snapshot.task_id, "task-1");
   assert.equal(captured.feedback.task_snapshot.completion, "ready-to-complete");
@@ -739,7 +739,15 @@ test("applies an L5 Task Patch with optimistic revision checks", (context) => {
   assert.equal(applied.task.governance_snapshot.derived, true);
   const assessed = run("assess", ["--id", "task-1"], projectRoot);
   assert.equal(assessed.execution_view.effective_team, "solo");
-  assert.equal(assessed.execution_view.participants[0].display_name, "Owl");
+  assert.equal(assessed.execution_view.participants_are_planned, true);
+  assert.equal(
+    assessed.execution_view.planned_participants[0].display_name,
+    "Owl"
+  );
+  assert.equal(
+    assessed.execution_view.actual_execution.measurement,
+    "unavailable"
+  );
   assert.match(assessed.execution_view.stamp, /^solo/);
 });
 

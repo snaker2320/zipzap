@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/demand-update.schema.json",
+  "title": "ZipZap Demand Update",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "demand_id", "expected_revision", "patch"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "demand_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "expected_revision": { "type": "integer", "minimum": 1 },
+    "patch": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "status": {
+          "enum": ["captured", "triaged", "planned", "deferred", "rejected"]
+        },
+        "summary": { "type": "string", "minLength": 1 },
+        "expected_outcome": { "type": ["string", "null"], "minLength": 1 },
+        "priority": { "enum": ["critical", "high", "medium", "low"] },
+        "owner_id": { "type": ["string", "null"], "minLength": 1 },
+        "timing": { "$ref": "./demand.schema.json#/$defs/timing" },
+        "source_refs": {
+          "type": "array",
+          "items": { "$ref": "./demand.schema.json#/$defs/source_ref" }
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

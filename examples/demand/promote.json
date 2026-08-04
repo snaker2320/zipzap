@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "demand_id": "example-demand",
+  "expected_revision": 1,
+  "task": {
+    "schema_version": 1,
+    "task_id": "example-demand-task",
+    "revision": 1,
+    "status": "ready",
+    "origin": {
+      "kind": "demand",
+      "ref": "example-demand"
+    },
+    "work": {
+      "kind": "technical-debt-remediation",
+      "objective": "Replace the fragile cache invalidation path.",
+      "scope": ["src/cache"],
+      "exclusions": [],
+      "requested_action": "modify",
+      "work_type": "development",
+      "affected_components": ["src/cache"],
+      "constraints": [],
+      "acceptance_criteria": [
+        {
+          "id": "deterministic-invalidation",
+          "statement": "Cache invalidation is deterministic.",
+          "verification": "Run focused cache tests.",
+          "required_evidence": ["Passing focused test output"]
+        }
+      ]
+    },
+    "planning": {
+      "priority": "medium",
+      "target_finish": "2030-01-10T00:00:00.000Z",
+      "deadline": "2030-01-15T00:00:00.000Z",
+      "deadline_type": "target",
+      "estimate": {
+        "min": 2,
+        "likely": 4,
+        "max": 8,
+        "unit": "hours",
+        "confidence": "medium"
+      }
+    },
+    "accountability": {
+      "role": "developer",
+      "subject_id": "developer-1"
+    },
+    "dependencies": [],
+    "blockers": [],
+    "source_refs": [],
+    "readiness_policy": {
+      "mode": "standard"
+    },
+    "participants": [],
+    "evidence": []
+  }
+}

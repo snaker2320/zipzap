@@ -8,7 +8,8 @@ import {
   compileContext,
   completeWork,
   createHandoff,
-  loadCatalogs
+  loadCatalogs,
+  renderRunReceipt
 } from "../scripts/zipzap.mjs";
 
 const catalogs = loadCatalogs();
@@ -207,6 +208,104 @@ test("completion view never promotes tests to independent Review", () => {
   assert.equal(completion.completion_label, "tested");
   assert.equal(completion.assurance_mode, "self");
   assert.match(completion.execution_stamp, /^solo · Owl/);
+  assert.equal(completion.run_receipt.consumption.band, "low");
+  assert.equal(completion.actual_execution.actual_measurement, "unavailable");
+});
+
+test("compact receipt distinguishes planned topology from actual execution", () => {
+  const receipt = renderRunReceipt(
+    {
+      schema_version: 1,
+      phase: "complete",
+      work_id: "receipt-work",
+      locale: "zh-CN",
+      collaboration: {
+        team: "trio",
+        planned_contexts: 3,
+        active: "Eagle / reviewer.review",
+        assurance: "independent-from-developer"
+      },
+      actual_execution: {
+        measurement: "host-confirmed",
+        source: "test-host-runtime",
+        contexts: [
+          {
+            context_id: "coordinator-context",
+            slot: "coordinator",
+            profile: "owl",
+            status: "completed"
+          },
+          {
+            context_id: "builder-context",
+            slot: "builder",
+            profile: "wolf",
+            status: "completed"
+          },
+          {
+            context_id: "assurance-context",
+            slot: "assurance",
+            profile: "eagle",
+            status: "completed"
+          }
+        ],
+        rounds: 2,
+        handoff_count: 2
+      },
+      result: {
+        summary: "目标行为已验证。",
+        completion_label: "tested",
+        tests: "passed",
+        review: "independent/approved",
+        open_findings: 0
+      },
+      handoff: {
+        from: "Wolf / developer",
+        to: "Eagle / reviewer",
+        summary: "This completion-phase handoff stays diagnostic.",
+        next_action: "Review the implementation."
+      },
+      resource_observation: {
+        measurement: "estimated",
+        source_files: 7,
+        tool_output_bytes: 42000
+      },
+      next_action: "提交最终结果。"
+    },
+    catalogs
+  );
+  assert.equal(receipt.lines.length, 5);
+  assert.equal(receipt.rendered_text.split("\n").length, 6);
+  assert.doesNotMatch(receipt.rendered_text, /This completion-phase handoff/);
+  assert.match(receipt.rendered_text, /实际 3\/3 个 Context/);
+  assert.match(receipt.rendered_text, /消耗: 中 \(估算/);
+  assert.match(receipt.rendered_text, /下一步: 提交最终结果。/);
+  assert.equal(receipt.consumption.measurement, "estimated");
+  assert.equal(receipt.consumption.band, "medium");
+});
+
+test("compact receipt uses exact tokens when the host supplies them", () => {
+  const receipt = renderRunReceipt(
+    {
+      schema_version: 1,
+      phase: "start",
+      work_id: "receipt-work",
+      locale: "en",
+      collaboration: {
+        team: "solo",
+        planned_contexts: 1,
+        active: "Owl / developer.produce",
+        assurance: "self"
+      },
+      resource_observation: {
+        measurement: "exact",
+        total_tokens: 12000
+      }
+    },
+    catalogs
+  );
+  assert.match(receipt.rendered_text, /12000 tokens/);
+  assert.equal(receipt.consumption.measurement, "exact");
+  assert.equal(receipt.consumption.band, "low");
 });
 
 test("completion view stays partial when an artifact change lacks evidence", () => {
@@ -273,5 +372,6 @@ test("project handoff is immutable and stored one file per record", (context) =>
     ".zipzap/handoffs/handoff-work/developer-reviewer-1.json"
   );
   assert.match(created.record.content_sha256, /^sha256:[a-f0-9]{64}$/);
+  assert.match(created.summary.rendered_text, /Owl \/ developer → Eagle/);
   assert.throws(() => createHandoff(input), /immutable handoff already exists/);
 });

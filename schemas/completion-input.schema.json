@@ -125,6 +125,18 @@
         "object",
         "null"
       ]
+    },
+    "locale": {
+      "enum": [
+        "en",
+        "zh-CN"
+      ]
+    },
+    "actual_execution": {
+      "$ref": "./run-receipt-input.schema.json#/$defs/actual_execution"
+    },
+    "resource_observation": {
+      "$ref": "./run-receipt-input.schema.json#/$defs/resource_observation"
     }
   },
   "$defs": {

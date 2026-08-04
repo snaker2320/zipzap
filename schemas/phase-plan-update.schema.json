@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/phase-plan-update.schema.json",
+  "title": "ZipZap Phase Plan Update",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "expected_revision", "plan"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "expected_revision": { "type": "integer", "minimum": 1 },
+    "plan": { "$ref": "./phase-plan.schema.json" }
+  }
+}

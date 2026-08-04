@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/run-receipt-input.schema.json",
+  "title": "ZipZap Compact Run Receipt Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "phase",
+    "work_id",
+    "collaboration"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "phase": {
+      "enum": [
+        "start",
+        "handoff",
+        "complete"
+      ]
+    },
+    "work_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "locale": {
+      "enum": [
+        "en",
+        "zh-CN"
+      ],
+      "default": "zh-CN"
+    },
+    "collaboration": {
+      "$ref": "#/$defs/collaboration"
+    },
+    "actual_execution": {
+      "$ref": "#/$defs/actual_execution"
+    },
+    "handoff": {
+      "$ref": "#/$defs/handoff_summary"
+    },
+    "result": {
+      "$ref": "#/$defs/result"
+    },
+    "resource_observation": {
+      "$ref": "#/$defs/resource_observation"
+    },
+    "next_action": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "$defs": {
+    "collaboration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "team",
+        "planned_contexts",
+        "active",
+        "assurance"
+      ],
+      "properties": {
+        "team": {
+          "enum": [
+            "solo",
+            "copilot",
+            "trio",
+            "squad"
+          ]
+        },
+        "planned_contexts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "active": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assurance": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "actual_execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "measurement",
+        "source",
+        "contexts",
+        "rounds",
+        "handoff_count"
+      ],
+      "properties": {
+        "measurement": {
+          "enum": [
+            "host-confirmed",
+            "unavailable"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contexts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "context_id",
+              "slot",
+              "profile",
+              "status"
+            ],
+            "properties": {
+              "context_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "slot": {
+                "type": "string",
+                "minLength": 1
+              },
+              "profile": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "enum": [
+                  "running",
+                  "completed",
+                  "failed",
+                  "cancelled"
+                ]
+              }
+            }
+          }
+        },
+        "rounds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "handoff_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "handoff_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "summary",
+        "next_action"
+      ],
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "next_action": {
+          "type": "string"
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "completion_label",
+        "tests",
+        "review",
+        "open_findings"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "completion_label": {
+          "type": "string"
+        },
+        "tests": {
+          "type": "string"
+        },
+        "review": {
+          "type": "string"
+        },
+        "open_findings": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "resource_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "measurement": {
+          "enum": [
+            "exact",
+            "estimated",
+            "unavailable"
+          ]
+        },
+        "total_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tool_output_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cache_hits": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

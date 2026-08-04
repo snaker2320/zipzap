@@ -132,6 +132,8 @@ test("guides discovery and visible preferences before one project write", (conte
     "playful"
   );
   assert.equal(preview.preview.project_storage.manifest, ".zipzap/project.json");
+  assert.equal(preview.preview.project_storage.demands, ".zipzap/demands");
+  assert.equal(preview.preview.project_storage.plans, ".zipzap/plans");
 
   const completed = confirm(preview);
   assert.equal(completed.status, "completed");
@@ -210,6 +212,7 @@ test("falls back to stepwise onboarding when guided forms are not reported", (co
     {
       schema_version: 1,
       operation: "start",
+      setup_mode: "custom",
       project: project(context),
       host: {
         ...host(),
@@ -226,6 +229,36 @@ test("falls back to stepwise onboarding when guided forms are not reported", (co
     ).status,
     "unavailable"
   );
+});
+
+test("quick setup returns visible defaults in one confirmable preview", (context) => {
+  const projectInput = project(context);
+  const started = runFirstRun(
+    {
+      schema_version: 1,
+      operation: "start",
+      setup_mode: "quick",
+      project: projectInput,
+      host: host()
+    },
+    catalogs
+  );
+  assert.equal(started.status, "preview-ready");
+  assert.equal(started.state.setup_mode, "quick");
+  assert.equal(started.write_performed, false);
+  assert.equal(
+    started.preview.preferences.configuration.preferred_preset,
+    "auto"
+  );
+  assert.equal(
+    started.preview.preferences.configuration.personalization.humor,
+    "light"
+  );
+  const completed = confirm(started);
+  assert.equal(completed.status, "completed");
+  assert.equal(completed.initialization_summary.setup_mode, "quick");
+  assert.equal(completed.initialization_summary.preferred_team, "auto");
+  assert.equal(completed.initialization_summary.response_detail, "balanced");
 });
 
 test("exposes First Run through CLI help, example, and schemas", () => {

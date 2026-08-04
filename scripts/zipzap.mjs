@@ -92,6 +92,12 @@ const ZIPZAP_COMMANDS = {
     schema: "schemas/handoff-input.schema.json",
     example: "examples/zipzap/handoff.json"
   },
+  receipt: {
+    summary: "Render a compact user-facing collaboration receipt.",
+    usage: "receipt --input <file> [--compact]",
+    schema: "schemas/run-receipt-input.schema.json",
+    example: "examples/zipzap/receipt.json"
+  },
   "task-prepare": {
     summary: "Prepare a persistent Task for risk assessment.",
     usage: "task-prepare --input <file> [--compact]",
@@ -372,9 +378,13 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
     ),
     riskTaxonomy: readJson(path.join(configDir, "risk-taxonomy.json")),
     taskPolicy: readJson(path.join(configDir, "task-policy.json")),
+    demandPolicy: readJson(path.join(configDir, "demand-policy.json")),
     onboarding: readJson(path.join(configDir, "onboarding.json")),
     compatibility: readJson(path.join(configDir, "compatibility.json")),
     experience: readJson(path.join(configDir, "experience.json")),
+    outputTemplates: readJson(
+      path.join(configDir, "output-templates.json")
+    ),
     lifecycle: readJson(path.join(configDir, "lifecycle.json")),
     schemas: {
       l5Input: readJson(path.join(schemaDir, "l5-input.schema.json")),
@@ -405,6 +415,28 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
         path.join(schemaDir, "handoff-input.schema.json")
       ),
       handoff: readJson(path.join(schemaDir, "handoff.schema.json")),
+      runReceiptInput: readJson(
+        path.join(schemaDir, "run-receipt-input.schema.json")
+      ),
+      runReceipt: readJson(path.join(schemaDir, "run-receipt.schema.json")),
+      demand: readJson(path.join(schemaDir, "demand.schema.json")),
+      demandUpdate: readJson(path.join(schemaDir, "demand-update.schema.json")),
+      demandPromotion: readJson(
+        path.join(schemaDir, "demand-promotion.schema.json")
+      ),
+      captureSuggestionInput: readJson(
+        path.join(schemaDir, "capture-suggestion-input.schema.json")
+      ),
+      captureSuggestionOutput: readJson(
+        path.join(schemaDir, "capture-suggestion-output.schema.json")
+      ),
+      phasePlan: readJson(path.join(schemaDir, "phase-plan.schema.json")),
+      phasePlanUpdate: readJson(
+        path.join(schemaDir, "phase-plan-update.schema.json")
+      ),
+      phasePlanAssessment: readJson(
+        path.join(schemaDir, "phase-plan-assessment.schema.json")
+      ),
       projectManifest: readJson(
         path.join(schemaDir, "project-manifest.schema.json")
       ),
@@ -495,6 +527,7 @@ export function validateCatalogs(catalogs) {
   const executionProfiles = catalogs.executionProfiles ?? {};
   const riskSignals = catalogs.riskTaxonomy?.signals ?? {};
   const taskPolicy = catalogs.taskPolicy ?? {};
+  const demandPolicy = catalogs.demandPolicy ?? {};
   const onboarding = catalogs.onboarding ?? {};
   const compatibility = catalogs.compatibility ?? {};
   const experience = catalogs.experience ?? {};
@@ -834,6 +867,24 @@ export function validateCatalogs(catalogs) {
       errors.push(`task policy must be enabled: ${policyId}`);
     }
   }
+  if (
+    demandPolicy.demand_standard?.version !== 1 ||
+    canonicalJson(Object.keys(demandPolicy.demand_standard?.types ?? {}).sort()) !==
+      canonicalJson(["defect", "requirement", "technical-debt"]) ||
+    canonicalJson(Object.keys(demandPolicy.demand_standard?.transitions ?? {}).sort()) !==
+      canonicalJson(["captured", "deferred", "planned", "promoted", "rejected", "triaged"]) ||
+    !Array.isArray(demandPolicy.demand_standard?.promotion_source_statuses) ||
+    demandPolicy.local_store?.demand_locator !== ".zipzap/demands" ||
+    demandPolicy.local_store?.plan_locator !== ".zipzap/plans" ||
+    !Number.isInteger(demandPolicy.phase_plan?.default_warning_days)
+  ) {
+    errors.push("demand policy must define lightweight Demand and phase-plan standards");
+  }
+  for (const [policyId, enabled] of Object.entries(demandPolicy.policies ?? {})) {
+    if (!ID_PATTERN.test(policyId.replaceAll("_", "-")) || enabled !== true) {
+      errors.push(`demand policy must be enabled: ${policyId}`);
+    }
+  }
   const onboardingQuestionIds = new Set();
   for (const question of onboarding.questions ?? []) {
     if (
@@ -972,6 +1023,36 @@ export function validateCatalogs(catalogs) {
       errors.push(`experience policy must be enabled: ${policyId}`);
     }
   }
+  const outputTemplates = catalogs.outputTemplates ?? {};
+  const defaultTemplate =
+    outputTemplates.templates?.[outputTemplates.default_template];
+  if (
+    outputTemplates.schema_version !== 1 ||
+    !defaultTemplate ||
+    !Number.isInteger(defaultTemplate.max_lines) ||
+    defaultTemplate.max_lines < 1 ||
+    defaultTemplate.header_counts_toward_limit !== true ||
+    !Array.isArray(defaultTemplate.fields)
+  ) {
+    errors.push("output templates must define one valid default template");
+  }
+  for (const band of ["low", "medium", "high"]) {
+    if (!outputTemplates.consumption_bands?.[band]?.relative_to_solo) {
+      errors.push(`output templates must define consumption band ${band}`);
+    }
+  }
+  const rounds = policy.collaboration_rounds;
+  if (
+    !Number.isInteger(rounds?.default_correction_rounds) ||
+    !Number.isInteger(rounds?.maximum_without_user_authorization) ||
+    rounds.default_correction_rounds < 0 ||
+    rounds.maximum_without_user_authorization <
+      rounds.default_correction_rounds ||
+    !Array.isArray(rounds?.continue_when) ||
+    !Array.isArray(rounds?.stop_when)
+  ) {
+    errors.push("runtime policy must define bounded collaboration rounds");
+  }
 
   if (!SEMVER_PATTERN.test(lifecycle.skill?.current_version ?? "")) {
     errors.push("lifecycle current version must be semantic versioning");
@@ -1068,6 +1149,7 @@ export function validateCatalogs(catalogs) {
       ).length,
       risk_signals: Object.keys(riskSignals).length,
       task_policies: Object.keys(taskPolicy.policies ?? {}).length,
+      demand_policies: Object.keys(demandPolicy.policies ?? {}).length,
       onboarding_questions: onboardingQuestionIds.size,
       adapters: Object.keys(adapters).length,
       releases: knownVersions.size
@@ -1228,7 +1310,8 @@ export function queryCatalog(
     "execution-profiles": catalogs.executionProfiles.profiles,
     experience: catalogs.experience,
     "risk-taxonomy": catalogs.riskTaxonomy.signals,
-    "task-policy": catalogs.taskPolicy
+    "task-policy": catalogs.taskPolicy,
+    "demand-policy": catalogs.demandPolicy
   };
   if (!sources[kind]) {
     throw new Error(
@@ -1943,6 +2026,10 @@ export function routeProjection(
             execution_budget: clone(executionBudget)
           }
         : null,
+      collaboration_loop:
+        binding.members.length > 1
+          ? clone(catalogs.runtimePolicy.collaboration_rounds)
+          : null,
       context_budget: clone(executionBudget),
       source_access: [
         "Locate with native search or rg before reading.",
@@ -4495,13 +4582,23 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
         projectRoot,
         catalogs.taskPolicy.local_store.report_locator
       );
+      const demandDirectory = projectFilePath(
+        projectRoot,
+        catalogs.demandPolicy.local_store.demand_locator
+      );
+      const planDirectory = projectFilePath(
+        projectRoot,
+        catalogs.demandPolicy.local_store.plan_locator
+      );
       fs.mkdirSync(zipzapDirectory, { recursive: true });
       for (const directory of [
         taskDirectory,
         eventDirectory,
         reviewDirectory,
         feedbackDirectory,
-        reportDirectory
+        reportDirectory,
+        demandDirectory,
+        planDirectory
       ]) {
         fs.mkdirSync(directory, { recursive: true });
       }
@@ -4521,9 +4618,9 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
       });
       changes.push({
         action: "retain",
-        target: ".zipzap/{events,reviews,feedback,reports}",
+        target: ".zipzap/{demands,plans,events,reviews,feedback,reports}",
         reason:
-          "Git-shareable evidence and Feedback remain project-owned; reports are derived."
+          "Git-shareable candidate work, plans, evidence, and Feedback remain project-owned; reports are derived."
       });
     } catch (error) {
       const failed = {
@@ -4611,6 +4708,7 @@ function firstRunState(input, catalogs) {
     [
       "revision",
       "stage",
+      "setup_mode",
       "project",
       "enabled_roles",
       "host",
@@ -4623,6 +4721,7 @@ function firstRunState(input, catalogs) {
     !Number.isInteger(state.revision) ||
     state.revision < 1 ||
     !["collecting", "preview-ready"].includes(state.stage) ||
+    !["quick", "custom"].includes(state.setup_mode) ||
     !state.project?.locator ||
     !Array.isArray(state.enabled_roles) ||
     !state.discovery_fingerprint
@@ -4655,6 +4754,8 @@ function firstRunCombinedPreview(discovery, onboardingState, catalogs) {
       manifest: ".zipzap/project.json",
       personal_preferences: ".zipzap/state/preferences.json (Git-ignored)",
       tasks: catalogs.taskPolicy.local_store.locator,
+      demands: catalogs.demandPolicy.local_store.demand_locator,
+      plans: catalogs.demandPolicy.local_store.plan_locator,
       events: catalogs.taskPolicy.local_store.event_locator,
       reviews: catalogs.taskPolicy.local_store.review_locator,
       feedback: catalogs.taskPolicy.local_store.feedback_locator
@@ -4738,6 +4839,7 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
       "schema_version",
       "operation",
       "presentation",
+      "setup_mode",
       "project",
       "enabled_roles",
       "host",
@@ -4790,7 +4892,9 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
         catalogs
       );
     }
-    const onboarding = advanceOnboarding(
+    const setupMode =
+      input.setup_mode ?? (input.presentation ? "custom" : "quick");
+    const onboardingStarted = advanceOnboarding(
       {
         schema_version: 1,
         operation: "start",
@@ -4803,9 +4907,27 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
       },
       catalogs
     );
+    const onboarding =
+      setupMode === "quick"
+        ? advanceOnboarding(
+            {
+              schema_version: 1,
+              operation: "submit",
+              project: clone(input.project),
+              state: clone(onboardingStarted.state),
+              expected_revision: onboardingStarted.state.revision,
+              answers: {}
+            },
+            catalogs
+          )
+        : onboardingStarted;
     const state = {
       revision: 1,
-      stage: "collecting",
+      stage:
+        onboarding.status === "preview-ready"
+          ? "preview-ready"
+          : "collecting",
+      setup_mode: setupMode,
       project: clone(input.project),
       enabled_roles: clone(enabledRoles),
       ...(input.host ? { host: clone(input.host) } : {}),
@@ -4813,12 +4935,20 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
       onboarding_state: clone(onboarding.state)
     };
     return firstRunResponse(
-      "decision-required",
+      onboarding.status,
       state,
       discovery,
-      onboarding.form
-        ? { form: clone(onboarding.form) }
-        : { question: clone(onboarding.question) },
+      onboarding.preview
+        ? {
+            preview: firstRunCombinedPreview(
+              discovery,
+              onboarding.state,
+              catalogs
+            )
+          }
+        : onboarding.form
+          ? { form: clone(onboarding.form) }
+          : { question: clone(onboarding.question) },
       catalogs
     );
   }
@@ -4942,6 +5072,20 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
         personal_preferences_stored:
           onboardingState.scope === "user" &&
           preferenceApplication.write_performed
+      },
+      initialization_summary: {
+        setup_mode: state.setup_mode,
+        sources_registered: configured.initialization.sources.length,
+        missing_topics: configured.initialization.coverage.reduce(
+          (total, item) => total + item.missing_topics.length,
+          0
+        ),
+        preferred_team: onboardingState.configuration.preferred_preset,
+        response_detail:
+          onboardingState.configuration.personalization.response_detail,
+        humor: onboardingState.configuration.personalization.humor,
+        shared_configuration: ".zipzap/project.json",
+        personal_preferences: ".zipzap/state/preferences.json"
       }
     }, catalogs);
   }
@@ -5615,6 +5759,302 @@ export function compileContext(envelope, catalogs = loadCatalogs()) {
   }
 }
 
+function validateActualExecution(actual) {
+  if (!actual) {
+    return {
+      measurement: "unavailable",
+      source: "not-reported",
+      contexts: [],
+      rounds: 0,
+      handoff_count: 0
+    };
+  }
+  assertAllowedFields(
+    actual,
+    ["measurement", "source", "contexts", "rounds", "handoff_count"],
+    "actual execution"
+  );
+  if (
+    !["host-confirmed", "unavailable"].includes(actual.measurement) ||
+    typeof actual.source !== "string" ||
+    actual.source.trim() === "" ||
+    !Array.isArray(actual.contexts) ||
+    !Number.isInteger(actual.rounds) ||
+    actual.rounds < 0 ||
+    !Number.isInteger(actual.handoff_count) ||
+    actual.handoff_count < 0
+  ) {
+    throw new Error("actual execution metadata is invalid");
+  }
+  if (actual.measurement === "unavailable" && actual.contexts.length > 0) {
+    throw new Error("unavailable actual execution must not invent contexts");
+  }
+  const contextIds = new Set();
+  for (const context of actual.contexts) {
+    assertAllowedFields(
+      context,
+      ["context_id", "slot", "profile", "status"],
+      "actual execution context"
+    );
+    if (
+      typeof context.context_id !== "string" ||
+      context.context_id.trim() === "" ||
+      contextIds.has(context.context_id) ||
+      typeof context.slot !== "string" ||
+      context.slot.trim() === "" ||
+      typeof context.profile !== "string" ||
+      context.profile.trim() === "" ||
+      !["running", "completed", "failed", "cancelled"].includes(
+        context.status
+      )
+    ) {
+      throw new Error(`actual execution context is invalid: ${context.context_id}`);
+    }
+    contextIds.add(context.context_id);
+  }
+  return clone(actual);
+}
+
+function consumptionEstimate(input, actual, catalogs) {
+  const observation = clone(input.resource_observation ?? {});
+  assertAllowedFields(
+    observation,
+    [
+      "measurement",
+      "total_tokens",
+      "source_files",
+      "source_bytes",
+      "tool_output_bytes",
+      "cache_hits"
+    ],
+    "resource observation"
+  );
+  if (
+    observation.measurement === "exact" &&
+    (!Number.isInteger(observation.total_tokens) ||
+      observation.total_tokens < 0)
+  ) {
+    throw new Error("exact receipt usage requires total_tokens");
+  }
+  const contexts =
+    actual.measurement === "host-confirmed"
+      ? actual.contexts.length
+      : input.collaboration.planned_contexts;
+  const rounds = actual.rounds || 1;
+  const sourceFiles = observation.source_files ?? 0;
+  const toolBytes = observation.tool_output_bytes ?? 0;
+  let band;
+  if (observation.measurement === "exact") {
+    band =
+      observation.total_tokens < 20000
+        ? "low"
+        : observation.total_tokens < 80000
+          ? "medium"
+          : "high";
+  } else if (
+    contexts >= 4 ||
+    rounds >= 3 ||
+    sourceFiles > 20 ||
+    toolBytes > 200000
+  ) {
+    band = "high";
+  } else if (
+    contexts >= 2 ||
+    rounds >= 2 ||
+    sourceFiles > 8 ||
+    toolBytes > 60000
+  ) {
+    band = "medium";
+  } else {
+    band = "low";
+  }
+  return {
+    measurement:
+      observation.measurement === "exact" ? "exact" : "estimated",
+    ...(observation.measurement === "exact"
+      ? { total_tokens: observation.total_tokens }
+      : {}),
+    band,
+    relative_to_solo:
+      catalogs.outputTemplates.consumption_bands[band].relative_to_solo,
+    basis: [
+      `${contexts} context${contexts === 1 ? "" : "s"}`,
+      `${rounds} round${rounds === 1 ? "" : "s"}`,
+      ...(observation.source_files != null
+        ? [`${observation.source_files} source files`]
+        : []),
+      ...(observation.tool_output_bytes != null
+        ? [`${observation.tool_output_bytes} tool-output bytes`]
+        : []),
+      ...(observation.cache_hits != null
+        ? [`${observation.cache_hits} cache hits`]
+        : [])
+    ]
+  };
+}
+
+function receiptLabels(locale) {
+  return locale === "en"
+    ? {
+        result: "Result",
+        verification: "Verification",
+        collaboration: "Collaboration",
+        handoff: "Handoff",
+        consumption: "Consumption",
+        next: "Next",
+        actual: "actual",
+        unavailable: "unavailable",
+        estimated: "estimated",
+        contexts: "contexts",
+        rounds: "rounds",
+        handoffs: "handoffs"
+      }
+    : {
+        result: "结果",
+        verification: "验证",
+        collaboration: "协作",
+        handoff: "交接",
+        consumption: "消耗",
+        next: "下一步",
+        actual: "实际",
+        unavailable: "不可用",
+        estimated: "估算",
+        contexts: "个 Context",
+        rounds: "轮",
+        handoffs: "次交接"
+      };
+}
+
+function localizedConsumption(consumption, locale) {
+  if (locale === "en") {
+    return {
+      band: consumption.band,
+      relative: consumption.relative_to_solo
+    };
+  }
+  return {
+    band: { low: "低", medium: "中", high: "高" }[consumption.band],
+    relative: {
+      low: "约等于一次有界 Solo",
+      medium: "约为一次有界 Solo 的 2–3 倍",
+      high: "约为一次有界 Solo 的 3 倍以上"
+    }[consumption.band]
+  };
+}
+
+export function renderRunReceipt(input, catalogs = loadCatalogs()) {
+  assertAllowedFields(
+    input,
+    [
+      "schema_version",
+      "phase",
+      "work_id",
+      "locale",
+      "collaboration",
+      "actual_execution",
+      "handoff",
+      "result",
+      "resource_observation",
+      "next_action"
+    ],
+    "run receipt input"
+  );
+  if (
+    input.schema_version !== 1 ||
+    !["start", "handoff", "complete"].includes(input.phase) ||
+    typeof input.work_id !== "string" ||
+    input.work_id.trim() === ""
+  ) {
+    throw new Error("run receipt identity or phase is invalid");
+  }
+  assertObject(input.collaboration, "run receipt collaboration");
+  assertAllowedFields(
+    input.collaboration,
+    ["team", "planned_contexts", "active", "assurance"],
+    "run receipt collaboration"
+  );
+  if (
+    !["solo", "copilot", "trio", "squad"].includes(
+      input.collaboration.team
+    ) ||
+    !Number.isInteger(input.collaboration.planned_contexts) ||
+    input.collaboration.planned_contexts < 1 ||
+    typeof input.collaboration.active !== "string" ||
+    typeof input.collaboration.assurance !== "string"
+  ) {
+    throw new Error("run receipt collaboration is invalid");
+  }
+  const locale = input.locale ?? "zh-CN";
+  if (!["en", "zh-CN"].includes(locale)) {
+    throw new Error("run receipt locale must be en or zh-CN");
+  }
+  const actual = validateActualExecution(input.actual_execution);
+  const consumption = consumptionEstimate(input, actual, catalogs);
+  const labels = receiptLabels(locale);
+  const displayTeam = catalogs.teams.teams[input.collaboration.team].display_name;
+  const header = `ZipZap · ${displayTeam} · ${input.collaboration.active}`;
+  const lines = [];
+  if (input.phase === "handoff" && input.handoff) {
+    lines.push(
+      `${labels.handoff}: ${input.handoff.from} → ${input.handoff.to} · ${input.handoff.summary} · ${labels.next} ${input.handoff.next_action}`
+    );
+  } else if (input.result) {
+    lines.push(
+      `${labels.result}: ${input.result.completion_label} · ${input.result.summary}`
+    );
+    lines.push(
+      `${labels.verification}: tests ${input.result.tests} · review ${input.result.review} · findings ${input.result.open_findings}`
+    );
+  } else if (input.handoff) {
+    lines.push(
+      `${labels.handoff}: ${input.handoff.from} → ${input.handoff.to} · ${input.handoff.summary} · ${labels.next} ${input.handoff.next_action}`
+    );
+  }
+  if (
+    input.collaboration.planned_contexts > 1 ||
+    actual.handoff_count > 0
+  ) {
+    const actualCount =
+      actual.measurement === "host-confirmed"
+        ? actual.contexts.length
+        : labels.unavailable;
+    lines.push(
+      `${labels.collaboration}: ${labels.actual} ${actualCount}/${input.collaboration.planned_contexts} ${labels.contexts} · ${actual.rounds} ${labels.rounds} · ${actual.handoff_count} ${labels.handoffs}`
+    );
+  }
+  const localized = localizedConsumption(consumption, locale);
+  lines.push(
+    consumption.measurement === "exact"
+      ? `${labels.consumption}: ${consumption.total_tokens} tokens · ${localized.band}`
+      : `${labels.consumption}: ${localized.band} (${labels.estimated}; ${localized.relative})`
+  );
+  if (input.next_action) {
+    lines.push(`${labels.next}: ${input.next_action}`);
+  }
+  const maximum =
+    catalogs.outputTemplates.templates[
+      catalogs.outputTemplates.default_template
+    ].max_lines;
+  const boundedLines = lines.slice(0, Math.max(0, maximum - 1));
+  return {
+    schema_version: 1,
+    template_id: catalogs.outputTemplates.default_template,
+    header,
+    lines: boundedLines,
+    rendered_text: [header, ...boundedLines].join("\n"),
+    execution: {
+      planned_contexts: input.collaboration.planned_contexts,
+      actual_measurement: actual.measurement,
+      actual_source: actual.source,
+      actual_contexts:
+        actual.measurement === "host-confirmed" ? actual.contexts.length : null,
+      rounds: actual.rounds,
+      handoffs: actual.handoff_count
+    },
+    consumption
+  };
+}
+
 function evidenceIndex(evidence) {
   const index = new Map();
   for (const item of evidence) {
@@ -5667,7 +6107,10 @@ export function completeWork(input) {
       "approvals",
       "residual_risks",
       "limitations",
-      "continuation"
+      "continuation",
+      "locale",
+      "actual_execution",
+      "resource_observation"
     ],
     "completion input"
   );
@@ -5777,6 +6220,38 @@ export function completeWork(input) {
     claimBasis.push(`outcome remains ${status}`);
   }
   const view = input.collaboration_view;
+  const perspective = view.perspective;
+  const authority = perspective.role ?? perspective.function;
+  const stage = perspective.stage ?? perspective.checkpoint;
+  const actualExecution = validateActualExecution(input.actual_execution);
+  const runReceipt = renderRunReceipt({
+    schema_version: 1,
+    phase: "complete",
+    work_id: input.work_id,
+    locale: input.locale ?? "zh-CN",
+    collaboration: {
+      team: view.selection.effective,
+      planned_contexts: view.member_count,
+      active: `${perspective.display_name} / ${authority}${
+        stage ? `.${stage}` : ""
+      }`,
+      assurance: view.assurance.mode
+    },
+    actual_execution: actualExecution,
+    result: {
+      summary: input.outcome.summary,
+      completion_label: completionLabel,
+      tests: input.tests.status,
+      review: `${input.review.mode}/${input.review.outcome}`,
+      open_findings: openFindings.length
+    },
+    ...(input.resource_observation
+      ? { resource_observation: clone(input.resource_observation) }
+      : {}),
+    ...(input.continuation?.next_action
+      ? { next_action: input.continuation.next_action }
+      : {})
+  });
   return {
     schema_version: 1,
     work_id: input.work_id,
@@ -5821,7 +6296,9 @@ export function completeWork(input) {
         : [])
     ]),
     continuation: clone(input.continuation ?? null),
-    claim_basis: claimBasis
+    claim_basis: claimBasis,
+    actual_execution: clone(runReceipt.execution),
+    run_receipt: runReceipt
   };
 }
 
@@ -5841,7 +6318,7 @@ function validatePerspective(perspective, label) {
 export function createHandoff(input) {
   assertAllowedFields(
     input,
-    ["schema_version", "persistence", "project", "handoff"],
+    ["schema_version", "persistence", "project", "locale", "handoff"],
     "handoff input"
   );
   if (
@@ -5906,6 +6383,25 @@ export function createHandoff(input) {
       .update(canonicalJson(unsigned))
       .digest("hex")}`
   };
+  const locale = input.locale ?? "zh-CN";
+  const label = (perspective) => {
+    const authority = perspective.role ?? perspective.function;
+    return `${perspective.display_name} / ${authority}`;
+  };
+  const summaryText =
+    draft.completed_work[0] ?? draft.objective;
+  const summary = {
+    from: label(draft.from),
+    to: label(draft.to),
+    summary: summaryText,
+    next_action: draft.next_action,
+    findings: draft.findings.length,
+    unresolved_decisions: draft.unresolved_decisions.length,
+    rendered_text:
+      locale === "en"
+        ? `${label(draft.from)} → ${label(draft.to)} · ${summaryText} · Next: ${draft.next_action}`
+        : `${label(draft.from)} → ${label(draft.to)} · ${summaryText} · 下一步：${draft.next_action}`
+  };
   if (input.persistence === "ephemeral") {
     return {
       schema_version: 1,
@@ -5913,7 +6409,8 @@ export function createHandoff(input) {
       persistence: "ephemeral",
       write_performed: false,
       locator: null,
-      record
+      record,
+      summary
     };
   }
   if (!input.project?.locator) {
@@ -5942,7 +6439,8 @@ export function createHandoff(input) {
     persistence: "project",
     write_performed: true,
     locator: path.relative(projectRoot, filePath),
-    record
+    record,
+    summary
   };
 }
 
@@ -6187,6 +6685,7 @@ export function adaptTask(input, catalogs = loadCatalogs()) {
           binding_revision:
             invoked.kernel.continuation.revisions.binding,
           execution_stamp: invoked.response.execution_stamp,
+          participants_are_planned: true,
           participants: invoked.diagnostics.team_binding.members.map(
             (member) => ({
               slot: member.slot,
@@ -6204,7 +6703,14 @@ export function adaptTask(input, catalogs = loadCatalogs()) {
           ),
           active_perspective: clone(
             invoked.response.collaboration_view?.perspective ?? null
-          )
+          ),
+          actual_execution: {
+            measurement: "unavailable",
+            source: "task-adapter-planning-only",
+            contexts: [],
+            rounds: 0,
+            handoff_count: 0
+          }
         }
       : null;
   return {
@@ -6323,7 +6829,12 @@ export function buildHostCapabilityMatrix(host = null) {
     [
       "exact-token-telemetry",
       "Exact token telemetry",
-      "Record measurement as unavailable; do not estimate token counts."
+      "Show a labeled low, medium, or high relative estimate."
+    ],
+    [
+      "execution-provenance",
+      "Actual execution provenance",
+      "Report planned topology and mark actual Contexts unavailable."
     ],
     [
       "goal-budgeting",
@@ -6378,6 +6889,7 @@ export function buildHostCapabilityMatrix(host = null) {
 
   const guidedForm = capabilities.has("guided-form");
   const tokenTelemetry = capabilities.has("token-usage-reporting");
+  const executionProvenance = capabilities.has("execution-provenance");
   const goalBudgeting = capabilities.has("goal-budgeting");
   const nodeAcceleration =
     capabilities.has("script-execution") && runtimes.has("node");
@@ -6418,7 +6930,18 @@ export function buildHostCapabilityMatrix(host = null) {
           : "Exact host token telemetry is unavailable.",
         fallback: tokenTelemetry
           ? null
-          : "Record measurement as unavailable; do not estimate token counts."
+          : "Show a labeled low, medium, or high relative estimate."
+      },
+      {
+        id: "execution-provenance",
+        label: "Actual execution provenance",
+        status: executionProvenance ? "available" : "unavailable",
+        summary: executionProvenance
+          ? "The host can report which Agent Contexts actually ran."
+          : "The host did not report actual Context execution provenance.",
+        fallback: executionProvenance
+          ? null
+          : "Keep planned topology separate and mark actual Contexts unavailable."
       },
       {
         id: "goal-budgeting",
@@ -7671,6 +8194,13 @@ async function main() {
   }
   if (command === "handoff") {
     const result = createHandoff(input);
+    process.stdout.write(
+      `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
+    );
+    return;
+  }
+  if (command === "receipt") {
+    const result = renderRunReceipt(input, catalogs);
     process.stdout.write(
       `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
     );

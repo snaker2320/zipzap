@@ -140,6 +140,7 @@ test("reports optional Host capabilities and fallbacks explicitly", () => {
     "multi-agent": "authorization-required",
     "guided-form": "available",
     "exact-token-telemetry": "available",
+    "execution-provenance": "unavailable",
     "goal-budgeting": "available",
     "node-acceleration": "unavailable",
     "project-state": "available"
@@ -149,7 +150,7 @@ test("reports optional Host capabilities and fallbacks explicitly", () => {
 test("keeps unknown Host capabilities safe and actionable", () => {
   const matrix = buildHostCapabilityMatrix();
   assert.equal(matrix.assessed, false);
-  assert.equal(matrix.entries.length, 6);
+  assert.equal(matrix.entries.length, 7);
   assert.ok(matrix.entries.every((entry) => entry.status === "unknown"));
   assert.ok(
     matrix.entries.every(

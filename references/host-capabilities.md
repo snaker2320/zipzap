@@ -12,7 +12,8 @@ Report these user-relevant capabilities:
 | --- | --- | --- |
 | Multi-Agent contexts | More than one distinct context is available and authorization is granted | Use Solo where sufficient or assign qualified humans to independent gates |
 | Guided form | The host reports `guided-form` | Use stepwise conversation |
-| Exact token telemetry | The host reports `token-usage-reporting` | Record telemetry as unavailable; never estimate |
+| Exact token telemetry | The host reports `token-usage-reporting` | Mark exact telemetry unavailable and show a labeled qualitative consumption band |
+| Actual execution provenance | The host reports `execution-provenance` | Keep planned topology separate and mark actual Contexts unavailable |
 | Goal budgeting | The host reports `goal-budgeting` | Keep an optional Task budget without creating a Goal |
 | Node acceleration | Node and `script-execution` are available | Use direct JSON |
 | Project state | The host reports `project-state`, or project read and write | Keep work ephemeral or request project access |

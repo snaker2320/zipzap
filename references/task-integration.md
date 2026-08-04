@@ -18,6 +18,7 @@ contracts are:
 
 - Boundary
 - Task Standard and Ready
+- Capture Suggestion
 - Local Entry Point
 - Git Evidence
 - Review and Completion
@@ -66,8 +67,64 @@ verification and evidence requirements, priority, schedule, three-point
 estimate, accountability, dependencies, blockers, source locators, and the
 readiness policy. Keep project rules at their authoritative locations;
 `source_refs` contains locators, not copied rule content. Use
-`origin.kind: direct` without promotion and reserve `backlog-item` for later
-demand-pool promotion.
+`origin.kind: direct` without promotion. Use `origin.kind: demand` for new
+Demand promotion; retain `backlog-item` only for reading older records.
+
+## Demand and Phase Plans
+
+Keep candidate requirements, defects, and technical debt lighter than Tasks:
+
+```bash
+node scripts/demand.mjs create --input demand.json
+node scripts/demand.mjs list --status planned
+node scripts/demand.mjs promote --input promotion.json
+node scripts/demand.mjs plan-create --input plan.json
+node scripts/demand.mjs plan-assess --id phase-id
+```
+
+Store one Git-shareable record per Demand under `.zipzap/demands/` and one
+phase plan under `.zipzap/plans/`. A Demand carries summary, type, priority,
+owner, dates, and source locators; it does not require Task scope, estimate,
+acceptance criteria, evidence, or collaboration topology.
+
+Promotion requires a triaged or planned Demand and a Task that satisfies Task
+Standard v1. The Task records the Demand as its origin and source locator; the
+Demand records the created Task locator. Do not copy project requirements into
+either record.
+
+A phase plan is only a dated reference list. Derive warnings for missing
+records, blocked Tasks, passed target finish, approaching or passed deadline,
+and targets outside the plan window. Keep capacity scheduling and portfolio
+optimization out of this lightweight path.
+
+## Capture Suggestion
+
+When discussion reveals a material requirement, defect, or technical debt,
+have AI prepare a summary, classification, impact, and evidence locators, then
+preview the choices without writing project state:
+
+```bash
+node scripts/demand.mjs capture --input capture.json
+```
+
+Use `presentation: form` when the Host can render fields; use `stepwise` to
+return one compact question otherwise. Prompt immediately for blocker/high or
+currently blocking findings, at stage end for medium, and only in the final
+summary for low/advisory findings. The default recommendation is a lightweight
+Demand, or an open Finding on the current Task when the finding belongs to it.
+
+After explicit confirmation, choose exactly one action:
+
+- `create-demand`: create a Git-shareable candidate record and optionally add
+  its reference to the active phase plan;
+- `attach-current-task`: add an open Finding and evidence to the current Task;
+- `create-task`: create only from a complete Task Standard v1 candidate;
+- `dismiss`: retain no project record.
+
+Echo the returned state and revision when confirming. The state captures known
+Task and phase-plan revisions so a later confirmation fails safely if shared
+state changed. A short form must not invent Task scope, acceptance criteria, or
+an estimate. Do not auto-capture every observation or create background work.
 
 Evaluate the deterministic Definition of Ready before creating:
 
@@ -195,11 +252,15 @@ Goal budgeting. Reports aggregate exact records and expose unavailable
 records separately. Do not interpret lower token use as higher capability
 without comparable work, risk, role, and outcome evidence.
 
-Persist the effective team, actual logical participants, active perspective,
-assurance mode, and execution stamp in the derived runtime snapshot. The Task
-completion assessment returns the same execution view and a conservative
-completion label. Render the stamp before the final task outcome so a reader
-can distinguish Solo self-work from peer challenge or independent Review.
+Persist the effective team, planned logical binding, active perspective,
+assurance mode, and execution stamp in the derived runtime snapshot. Mark the
+binding with `participants_are_planned: true`; it is not proof that separate
+Agent Contexts ran. Store Host-confirmed execution provenance separately in
+`actual_execution`. Completion assessment exposes `planned_participants` and
+`actual_execution`; legacy snapshots resolve actual execution to
+`unavailable`. Render only their compact summary before the final task outcome
+so a reader can distinguish Solo self-work from peer challenge or independent
+Review.
 
 ## Feedback
 

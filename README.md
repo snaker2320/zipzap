@@ -18,12 +18,14 @@ The project is in active product and workflow design. Its current structure is:
 │   ├── runtime-policy.json        # L4 gates, risks, events, lifecycle
 │   ├── risk-taxonomy.json         # L5 evidence-backed risk normalization
 │   ├── task-policy.json           # Local Task persistence and patch policy
+│   ├── demand-policy.json         # Lightweight Demand and phase-plan policy
 │   ├── onboarding.json            # Page and conversational preference form
 │   ├── compatibility.json         # L6 adapters and host requirements
 │   └── lifecycle.json             # L7 packaging and release policy
 ├── schemas/                       # L4–L7, source, Task, and project contracts
 ├── scripts/zipzap.mjs             # Collaboration and lifecycle runner
 ├── scripts/task.mjs               # Local Task, Git, Review, and report runner
+├── scripts/demand.mjs             # Demand capture, promotion, and phase plans
 ├── tests/                         # Composition and conformance tests
 └── references/
     ├── operating-model.md         # Roles, agents, contexts, and invariants
@@ -54,8 +56,9 @@ The project is in active product and workflow design. Its current structure is:
 
 Project-specific business rules remain in each project's own source of truth.
 ZipZap registers and loads those rules when needed instead of copying them.
-Persistent Tasks are maintained in the project as
-`.zipzap/tasks/<task-id>.json`. Immutable per-event and Handoff files, Review
+Candidate work and phase plans live under `.zipzap/demands/` and
+`.zipzap/plans/`; promoted Tasks live under `.zipzap/tasks/`. Immutable
+per-event and Handoff files, Review
 evidence, Feedback, and derived reports remain under `.zipzap/`. Projection
 caches and personal preferences are ignored member-local state. Commit shared
 project state to Git; do not commit each developer's installed Skill.
@@ -65,7 +68,7 @@ ZipZap runtime format is JSON. Markdown contains semantic guidance only.
 
 ## CLI discovery
 
-Both zero-dependency entry points provide global help, command help, and
+All three zero-dependency entry points provide global help, command help, and
 copyable JSON input examples:
 
 ```bash
@@ -75,6 +78,12 @@ node scripts/zipzap.mjs invoke --example
 node scripts/zipzap.mjs compile --input invocation.json
 node scripts/zipzap.mjs complete --example
 node scripts/zipzap.mjs handoff --example
+node scripts/zipzap.mjs receipt --example
+
+node scripts/demand.mjs --help
+node scripts/demand.mjs create --example
+node scripts/demand.mjs capture --example
+node scripts/demand.mjs plan-assess --help
 
 node scripts/task.mjs --help
 node scripts/task.mjs validate --input task.json
@@ -93,6 +102,8 @@ minimum sufficient team, and returns one bounded execution capsule. `compile`
 exposes cache and budget diagnostics for the same path. `complete` derives a
 conservative evidence-backed label for ephemeral work; `handoff` creates the
 same structured delta ephemerally or as an immutable project file.
+`receipt` renders those facts through a compact six-line user template and
+shows exact Tokens when supplied or a labeled low/medium/high estimate.
 
 ## Project initialization
 
@@ -118,11 +129,18 @@ Use `presentation: form` for a host-rendered settings page or
 `presentation: stepwise` for conversational confirmation. Both paths preview
 changes before applying them and can be rerun or reset later.
 
-## Local Task tracking
+## Local Demand and Task tracking
 
 Use the independent zero-dependency entry point:
 
 ```bash
+node scripts/demand.mjs create --input demand.json
+node scripts/demand.mjs capture --input capture.json
+node scripts/demand.mjs list --status planned
+node scripts/demand.mjs promote --input promotion.json
+node scripts/demand.mjs plan-create --input plan.json
+node scripts/demand.mjs plan-assess --id plan-id
+
 node scripts/task.mjs validate --input task.json
 node scripts/task.mjs create --input task.json
 node scripts/task.mjs track-git --input git-tracking.json

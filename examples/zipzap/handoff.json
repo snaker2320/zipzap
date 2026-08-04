@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "persistence": "ephemeral",
+  "locale": "zh-CN",
   "handoff": {
     "handoff_id": "developer-to-reviewer-1",
     "work_id": "example-work",

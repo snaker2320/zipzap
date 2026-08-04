@@ -51,6 +51,7 @@
         "kind": {
           "enum": [
             "direct",
+            "demand",
             "backlog-item",
             "review-finding",
             "imported"
@@ -71,6 +72,7 @@
             "properties": {
               "kind": {
                 "enum": [
+                  "demand",
                   "backlog-item",
                   "review-finding",
                   "imported"
@@ -1034,7 +1036,9 @@
                 "effective_team",
                 "assurance_mode",
                 "active_perspective",
-                "participants"
+                "participants_are_planned",
+                "planned_participants",
+                "actual_execution"
               ],
               "properties": {
                 "stamp": {
@@ -1064,11 +1068,17 @@
                     }
                   ]
                 },
-                "participants": {
+                "participants_are_planned": {
+                  "const": true
+                },
+                "planned_participants": {
                   "type": "array",
                   "items": {
                     "$ref": "./l5-output.schema.json#/$defs/collaboration_member"
                   }
+                },
+                "actual_execution": {
+                  "$ref": "./run-receipt-input.schema.json#/$defs/actual_execution"
                 }
               }
             },
@@ -1301,6 +1311,9 @@
           "type": "string",
           "minLength": 1
         },
+        "participants_are_planned": {
+          "const": true
+        },
         "participants": {
           "type": "array",
           "items": {
@@ -1316,6 +1329,9 @@
               "type": "null"
             }
           ]
+        },
+        "actual_execution": {
+          "$ref": "./run-receipt-input.schema.json#/$defs/actual_execution"
         }
       }
     },

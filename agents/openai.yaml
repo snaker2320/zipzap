@@ -1,4 +1,4 @@
 interface:
   display_name: "ZipZap"
-  short_description: "Run low-friction, verifiable AI development"
-  default_prompt: "Use $zipzap to initialize once, work with minimal interruption, and complete with verified evidence."
+  short_description: "Plan and run verifiable AI development"
+  default_prompt: "Use $zipzap to capture or execute development work with minimal interruption and verified evidence."

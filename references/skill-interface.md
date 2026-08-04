@@ -191,6 +191,13 @@ independent Review, and user acceptance from their cited evidence. It must
 remain partial when an artifact change lacks implementation evidence and must
 never promote passing tests or sequential self-checks to independent Review.
 
+Render the primary user result through `receipt`. It consumes only team and
+active perspective, Host-confirmed actual execution when available, a compact
+result, optional Handoff, resource observation, and next action. Keep its output
+within the registered six-line template. A qualitative resource band is allowed
+when exact Host Tokens are absent, but must remain labeled estimated and must
+not be written as exact Task telemetry.
+
 Pass context transitions through `schemas/handoff-input.schema.json`. Project
 handoffs are immutable records at
 `.zipzap/handoffs/<work-id>/<handoff-id>.json`; ephemeral handoffs return the

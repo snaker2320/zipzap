@@ -113,6 +113,12 @@
       "items": {
         "type": "string"
       }
+    },
+    "actual_execution": {
+      "type": "object"
+    },
+    "run_receipt": {
+      "$ref": "./run-receipt.schema.json"
     }
   }
 }

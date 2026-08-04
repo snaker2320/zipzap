@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "demand_standard": {
+    "version": 1,
+    "types": {
+      "requirement": "requirement-delivery",
+      "defect": "defect-fix",
+      "technical-debt": "technical-debt-remediation"
+    },
+    "statuses": [
+      "captured",
+      "triaged",
+      "planned",
+      "deferred",
+      "rejected",
+      "promoted"
+    ],
+    "transitions": {
+      "captured": ["captured", "triaged", "deferred", "rejected"],
+      "triaged": ["triaged", "planned", "deferred", "rejected"],
+      "planned": ["planned", "triaged", "deferred", "rejected"],
+      "deferred": ["deferred", "triaged", "rejected"],
+      "rejected": ["rejected", "triaged"],
+      "promoted": ["promoted"]
+    },
+    "promotion_source_statuses": ["triaged", "planned"],
+    "priorities": ["critical", "high", "medium", "low"]
+  },
+  "phase_plan": {
+    "statuses": ["draft", "active", "completed", "cancelled"],
+    "default_warning_days": 3,
+    "item_kinds": ["demand", "task"]
+  },
+  "capture_suggestion": {
+    "actions": [
+      "create-demand",
+      "attach-current-task",
+      "create-task",
+      "dismiss"
+    ],
+    "immediate_severities": ["blocker", "high"],
+    "stage_end_severities": ["medium"],
+    "summary_severities": ["low", "advisory"],
+    "default_action": "create-demand",
+    "current_task_action": "attach-current-task"
+  },
+  "local_store": {
+    "demand_locator": ".zipzap/demands",
+    "plan_locator": ".zipzap/plans",
+    "format": "one-json-file-per-record"
+  },
+  "policies": {
+    "lightweight_capture": true,
+    "task_standard_applies_only_after_promotion": true,
+    "promotion_preserves_bidirectional_trace": true,
+    "plans_reference_records_without_copying_them": true,
+    "capacity_scheduling_out_of_scope": true,
+    "shared_state_is_git_shareable": true
+  }
+}

@@ -65,16 +65,33 @@ test("catalogs are internally valid", () => {
   assert.deepEqual(result.counts, {
     invariants: 8,
     agents: 5,
-      roles: 4,
-      teams: 4,
-      control_functions: 2,
-      execution_profiles: 1,
-      risk_signals: 11,
+    roles: 4,
+    teams: 4,
+    control_functions: 2,
+    execution_profiles: 1,
+    risk_signals: 11,
     task_policies: 12,
+    demand_policies: 6,
     onboarding_questions: 6,
     adapters: 3,
-    releases: 5
+    releases: 6
   });
+});
+
+test("runtime policy bounds correction rounds and compact output", () => {
+  assert.equal(
+    catalogs.runtimePolicy.collaboration_rounds.default_correction_rounds,
+    1
+  );
+  assert.equal(
+    catalogs.runtimePolicy.collaboration_rounds.maximum_without_user_authorization,
+    2
+  );
+  assert.equal(catalogs.outputTemplates.default_template, "compact-primary");
+  assert.equal(
+    catalogs.outputTemplates.templates["compact-primary"].max_lines,
+    6
+  );
 });
 
 test("queries a role capsule without loading the full catalog", () => {

@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/capture-suggestion-output.schema.json",
+  "title": "ZipZap Capture Suggestion Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "write_performed",
+    "required_actions",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "status": { "enum": ["decision-required", "completed", "blocked"] },
+    "write_performed": { "type": "boolean" },
+    "state": {
+      "$ref": "./capture-suggestion-input.schema.json#/$defs/state"
+    },
+    "preview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "type",
+        "severity",
+        "evidence_count",
+        "recommended_action",
+        "prompt_timing",
+        "persistence"
+      ],
+      "properties": {
+        "summary": { "type": "string" },
+        "type": { "type": "string" },
+        "severity": { "type": "string" },
+        "evidence_count": { "type": "integer", "minimum": 1 },
+        "recommended_action": { "type": "string" },
+        "prompt_timing": { "type": "string" },
+        "persistence": { "const": "none-until-confirmed" }
+      }
+    },
+    "form": { "$ref": "#/$defs/form" },
+    "question": { "$ref": "#/$defs/question" },
+    "result": { "type": "object" },
+    "required_actions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "limitations": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "label", "description", "recommended"],
+      "properties": {
+        "value": { "type": "string" },
+        "label": { "type": "string" },
+        "description": { "type": "string" },
+        "recommended": { "type": "boolean" }
+      }
+    },
+    "form": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "summary", "fields"],
+      "properties": {
+        "id": { "const": "capture-suggestion" },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "type", "label", "required"],
+            "properties": {
+              "id": { "type": "string" },
+              "type": { "enum": ["single-select", "text", "date-time", "boolean"] },
+              "label": { "type": "string" },
+              "required": { "type": "boolean" },
+              "default": {},
+              "options": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/option" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "prompt", "options"],
+      "properties": {
+        "id": { "const": "capture-action" },
+        "prompt": { "type": "string" },
+        "options": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/option" }
+        }
+      }
+    }
+  }
+}

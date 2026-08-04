@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "work_id": "example-work",
+  "locale": "zh-CN",
   "collaboration_view": {
     "output_detail": "compact",
     "perspective": {
@@ -67,5 +68,25 @@
   "limitations": [
     "No independent Review was performed."
   ],
+  "actual_execution": {
+    "measurement": "host-confirmed",
+    "source": "example-host-runtime",
+    "contexts": [
+      {
+        "context_id": "context-primary",
+        "slot": "builder",
+        "profile": "owl",
+        "status": "completed"
+      }
+    ],
+    "rounds": 1,
+    "handoff_count": 0
+  },
+  "resource_observation": {
+    "measurement": "estimated",
+    "source_files": 4,
+    "tool_output_bytes": 18000,
+    "cache_hits": 1
+  },
   "continuation": null
 }

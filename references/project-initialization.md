@@ -135,11 +135,13 @@ Initialize incrementally:
 5. Leave undecided schema or storage choices open until a real workflow
    requires them.
 
-Keep persistent Tasks as one JSON file per Task under `.zipzap/tasks/`. Keep an
+Keep candidate Demands under `.zipzap/demands/`, lightweight phase plans under
+`.zipzap/plans/`, and persistent Tasks under `.zipzap/tasks/`, with one JSON
+file per record. Keep an
 optional `.zipzap/index.json` derived and rebuildable; do not require it for
 small projects or native host search.
 
-Keep Git-shareable Reviews, Feedback, and immutable per-event JSON under
+Keep Demands, plans, Reviews, Feedback, and immutable per-event JSON under
 `.zipzap/`. Generate `.zipzap/.gitignore` for reports, caches, indexes, locks,
 temporary files, and machine-local state. Never place project collaboration
 records in the installed Skill directory.

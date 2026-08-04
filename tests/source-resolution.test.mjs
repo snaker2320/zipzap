@@ -403,4 +403,22 @@ test("registers source-resolution schemas and local Task policy", () => {
     catalogs.schemas.feedback.title,
     "ZipZap Feedback Record"
   );
+  assert.equal(catalogs.demandPolicy.demand_standard.version, 1);
+  assert.equal(
+    catalogs.demandPolicy.local_store.demand_locator,
+    ".zipzap/demands"
+  );
+  assert.equal(catalogs.schemas.demand.title, "ZipZap Demand Standard v1");
+  assert.equal(
+    catalogs.schemas.captureSuggestionInput.title,
+    "ZipZap Capture Suggestion Input"
+  );
+  assert.equal(
+    catalogs.schemas.captureSuggestionOutput.title,
+    "ZipZap Capture Suggestion Output"
+  );
+  assert.equal(
+    catalogs.schemas.phasePlanAssessment.title,
+    "ZipZap Phase Plan Assessment"
+  );
 });

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "default_template": "compact-primary",
+  "templates": {
+    "compact-primary": {
+      "max_lines": 6,
+      "header_counts_toward_limit": true,
+      "fields": [
+        "header",
+        "result",
+        "verification",
+        "handoff",
+        "collaboration",
+        "consumption",
+        "next_action"
+      ],
+      "conditional_fields": {
+        "verification": "when-result-present",
+        "collaboration": "when-multi-context-or-handoff",
+        "next_action": "when-present"
+      },
+      "omit": [
+        "full-roster",
+        "schedule-waves",
+        "routing-reasons",
+        "projection-revisions",
+        "internal-discussion",
+        "full-handoff-payload"
+      ]
+    }
+  },
+  "consumption_bands": {
+    "low": {
+      "label": "Low",
+      "relative_to_solo": "about Solo baseline"
+    },
+    "medium": {
+      "label": "Medium",
+      "relative_to_solo": "roughly 2-3x a bounded Solo run"
+    },
+    "high": {
+      "label": "High",
+      "relative_to_solo": "roughly 3x or more than a bounded Solo run"
+    }
+  },
+  "policies": {
+    "primary_information_only": true,
+    "exact_tokens_preferred": true,
+    "qualitative_estimate_allowed_when_exact_unavailable": true,
+    "estimate_must_be_labeled": true,
+    "estimate_is_not_persisted_as_exact_telemetry": true,
+    "actual_execution_separate_from_planned_topology": true
+  }
+}

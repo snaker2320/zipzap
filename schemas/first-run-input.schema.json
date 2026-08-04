@@ -26,6 +26,13 @@
         "stepwise"
       ]
     },
+    "setup_mode": {
+      "enum": [
+        "quick",
+        "custom"
+      ],
+      "default": "quick"
+    },
     "project": {
       "$ref": "#/$defs/project"
     },
@@ -158,6 +165,7 @@
       "required": [
         "revision",
         "stage",
+        "setup_mode",
         "project",
         "enabled_roles",
         "discovery_fingerprint",
@@ -172,6 +180,12 @@
           "enum": [
             "collecting",
             "preview-ready"
+          ]
+        },
+        "setup_mode": {
+          "enum": [
+            "quick",
+            "custom"
           ]
         },
         "project": {

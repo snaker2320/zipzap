@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "demand_id": "example-demand",
+  "revision": 1,
+  "type": "technical-debt",
+  "status": "planned",
+  "summary": "Replace the fragile cache invalidation path.",
+  "expected_outcome": "Cache behavior is deterministic and covered by focused tests.",
+  "priority": "medium",
+  "owner_id": "developer-1",
+  "timing": {
+    "target_start": "2030-01-06T00:00:00.000Z",
+    "target_finish": "2030-01-10T00:00:00.000Z",
+    "deadline": "2030-01-15T00:00:00.000Z"
+  },
+  "source_refs": [
+    {
+      "id": "design-note",
+      "kind": "decision",
+      "locator": "docs/architecture/cache.md#invalidation"
+    }
+  ],
+  "notes": [
+    "Keep the demand lightweight until it is promoted to a Task."
+  ]
+}

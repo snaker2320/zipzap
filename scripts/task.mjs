@@ -393,12 +393,12 @@ function taskReadiness(task) {
 
   requireValue(
     "origin.kind",
-    ["direct", "backlog-item", "review-finding", "imported"].includes(
+    ["direct", "demand", "backlog-item", "review-finding", "imported"].includes(
       task?.origin?.kind
     )
   );
   if (
-    ["backlog-item", "review-finding", "imported"].includes(
+    ["demand", "backlog-item", "review-finding", "imported"].includes(
       task?.origin?.kind
     )
   ) {
@@ -693,7 +693,7 @@ function validateTask(task) {
     throw new Error("Task is missing Task Standard v1 fields");
   }
   if (
-    !["direct", "backlog-item", "review-finding", "imported"].includes(
+    !["direct", "demand", "backlog-item", "review-finding", "imported"].includes(
       task.origin.kind
     ) ||
     (task.origin.kind !== "direct" && !nonEmptyString(task.origin.ref))
@@ -1450,7 +1450,18 @@ function completionAssessment(task, reviews) {
         assurance_mode: task.runtime_snapshot.assurance_mode,
         active_perspective:
           clone(task.runtime_snapshot.active_perspective ?? null),
-        participants: clone(task.runtime_snapshot.participants ?? [])
+        participants_are_planned:
+          task.runtime_snapshot.participants_are_planned ?? true,
+        planned_participants: clone(task.runtime_snapshot.participants ?? []),
+        actual_execution: clone(
+          task.runtime_snapshot.actual_execution ?? {
+            measurement: "unavailable",
+            source: "legacy-task-runtime-snapshot",
+            contexts: [],
+            rounds: 0,
+            handoff_count: 0
+          }
+        )
       }
     : null;
   return {

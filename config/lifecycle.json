@@ -2,7 +2,7 @@
   "schema_version": 1,
   "skill": {
     "name": "zipzap",
-    "current_version": "0.1.1-beta.3",
+    "current_version": "0.1.1-beta.4",
     "channel": "beta"
   },
   "package": {
@@ -20,13 +20,16 @@
       "SKILL.md",
       "agents/openai.yaml",
       "scripts/task.mjs",
+      "scripts/demand.mjs",
       "config/compatibility.json",
       "config/execution-profiles.json",
       "config/experience.json",
       "config/lifecycle.json",
       "config/onboarding.json",
+      "config/output-templates.json",
       "config/risk-taxonomy.json",
       "config/task-policy.json",
+      "config/demand-policy.json",
       "schemas/l5-input.schema.json",
       "schemas/l5-output.schema.json",
       "schemas/collaboration-view.schema.json",
@@ -39,6 +42,8 @@
       "schemas/completion-view.schema.json",
       "schemas/handoff-input.schema.json",
       "schemas/handoff.schema.json",
+      "schemas/run-receipt-input.schema.json",
+      "schemas/run-receipt.schema.json",
       "schemas/onboarding-input.schema.json",
       "schemas/onboarding-output.schema.json",
       "schemas/personal-preferences.schema.json",
@@ -52,6 +57,14 @@
       "schemas/risk-normalization-output.schema.json",
       "schemas/task.schema.json",
       "schemas/task-event.schema.json",
+      "schemas/demand.schema.json",
+      "schemas/demand-update.schema.json",
+      "schemas/demand-promotion.schema.json",
+      "schemas/capture-suggestion-input.schema.json",
+      "schemas/capture-suggestion-output.schema.json",
+      "schemas/phase-plan.schema.json",
+      "schemas/phase-plan-update.schema.json",
+      "schemas/phase-plan-assessment.schema.json",
       "schemas/feedback.schema.json",
       "schemas/review-result.schema.json",
       "schemas/diagnostic-review.schema.json",
@@ -96,6 +109,13 @@
     },
     {
       "version": "0.1.1-beta.3",
+      "interfaces": {
+        "l5": 1,
+        "kernel": 1
+      }
+    },
+    {
+      "version": "0.1.1-beta.4",
       "interfaces": {
         "l5": 1,
         "kernel": 1

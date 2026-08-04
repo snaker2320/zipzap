@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/demand.schema.json",
+  "title": "ZipZap Demand Standard v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "demand_id",
+    "revision",
+    "type",
+    "status",
+    "summary",
+    "priority",
+    "timing",
+    "source_refs"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "demand_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "revision": { "type": "integer", "minimum": 1 },
+    "type": {
+      "enum": ["requirement", "defect", "technical-debt"]
+    },
+    "status": {
+      "enum": [
+        "captured",
+        "triaged",
+        "planned",
+        "deferred",
+        "rejected",
+        "promoted"
+      ]
+    },
+    "summary": { "type": "string", "minLength": 1 },
+    "expected_outcome": { "type": ["string", "null"], "minLength": 1 },
+    "priority": {
+      "enum": ["critical", "high", "medium", "low"]
+    },
+    "owner_id": { "type": ["string", "null"], "minLength": 1 },
+    "timing": { "$ref": "#/$defs/timing" },
+    "source_refs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source_ref" }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "promotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "task_locator", "promoted_at"],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "task_locator": { "type": "string", "minLength": 1 },
+        "promoted_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "promoted" } },
+        "required": ["status"]
+      },
+      "then": { "required": ["promotion"] }
+    }
+  ],
+  "$defs": {
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "not_before": { "type": ["string", "null"], "format": "date-time" },
+        "target_start": { "type": ["string", "null"], "format": "date-time" },
+        "target_finish": { "type": ["string", "null"], "format": "date-time" },
+        "deadline": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "source_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "locator"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "kind": {
+          "enum": ["requirement", "issue", "review", "decision", "other"]
+        },
+        "locator": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

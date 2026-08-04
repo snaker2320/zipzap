@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "operation": "start",
+  "locale": "zh-CN",
+  "presentation": "form",
+  "suggestion": {
+    "suggestion_id": "cache-invalidation-race",
+    "type": "technical-debt",
+    "summary": "Cache invalidation can race with concurrent writes.",
+    "expected_outcome": "Cache reads remain consistent after concurrent updates.",
+    "severity": "high",
+    "current_work_impact": "unrelated",
+    "active_plan_id": "example-phase",
+    "evidence": [
+      {
+        "id": "cache-code",
+        "kind": "implementation",
+        "locator": "src/cache/store.js#invalidate",
+        "statement": "Invalidation and write replacement are not serialized."
+      }
+    ]
+  }
+}

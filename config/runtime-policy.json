@@ -89,5 +89,21 @@
   "projection_lifecycle": {
     "normal_transition": "superseded",
     "stale_or_unsafe": "invalidated"
+  },
+  "collaboration_rounds": {
+    "default_correction_rounds": 1,
+    "maximum_without_user_authorization": 2,
+    "continue_when": [
+      "blocking-or-major-finding-needs-correction",
+      "targeted-recheck-is-required"
+    ],
+    "stop_when": [
+      "required-gates-satisfied",
+      "no-new-material-finding",
+      "budget-or-round-limit-reached",
+      "user-or-authority-decision-required"
+    ],
+    "discussion_mode": "structured-findings-and-handoffs",
+    "full-transcript_default": false
   }
 }

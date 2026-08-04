@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/demand-promotion.schema.json",
+  "title": "ZipZap Demand Promotion",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "demand_id", "expected_revision", "task"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "demand_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "expected_revision": { "type": "integer", "minimum": 1 },
+    "task": { "$ref": "./task.schema.json" }
+  }
+}

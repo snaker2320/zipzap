@@ -22,6 +22,12 @@
     "project": {
       "$ref": "./l5-input.schema.json#/$defs/project"
     },
+    "locale": {
+      "enum": [
+        "en",
+        "zh-CN"
+      ]
+    },
     "handoff": {
       "$ref": "./handoff.schema.json#/$defs/draft"
     }

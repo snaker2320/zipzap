@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "phase": "complete",
+  "work_id": "example-work",
+  "locale": "zh-CN",
+  "collaboration": {
+    "team": "trio",
+    "planned_contexts": 3,
+    "active": "Eagle / reviewer.review",
+    "assurance": "independent-from-developer"
+  },
+  "actual_execution": {
+    "measurement": "host-confirmed",
+    "source": "example-host-runtime",
+    "contexts": [
+      {
+        "context_id": "context-coordinator",
+        "slot": "coordinator",
+        "profile": "owl",
+        "status": "completed"
+      },
+      {
+        "context_id": "context-builder",
+        "slot": "builder",
+        "profile": "wolf",
+        "status": "completed"
+      },
+      {
+        "context_id": "context-assurance",
+        "slot": "assurance",
+        "profile": "eagle",
+        "status": "completed"
+      }
+    ],
+    "rounds": 2,
+    "handoff_count": 2
+  },
+  "result": {
+    "summary": "已实现并验证目标行为。",
+    "completion_label": "tested",
+    "tests": "passed",
+    "review": "independent/approved",
+    "open_findings": 0
+  },
+  "resource_observation": {
+    "measurement": "estimated",
+    "source_files": 7,
+    "tool_output_bytes": 42000,
+    "cache_hits": 1
+  },
+  "next_action": null
+}

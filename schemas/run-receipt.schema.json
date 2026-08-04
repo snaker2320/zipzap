@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/run-receipt.schema.json",
+  "title": "ZipZap Compact Run Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "template_id",
+    "header",
+    "lines",
+    "rendered_text",
+    "execution",
+    "consumption"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "template_id": {
+      "const": "compact-primary"
+    },
+    "header": {
+      "type": "string"
+    },
+    "lines": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "string"
+      }
+    },
+    "rendered_text": {
+      "type": "string"
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planned_contexts",
+        "actual_measurement",
+        "actual_source",
+        "actual_contexts",
+        "rounds",
+        "handoffs"
+      ],
+      "properties": {
+        "planned_contexts": {
+          "type": "integer"
+        },
+        "actual_measurement": {
+          "enum": [
+            "host-confirmed",
+            "unavailable"
+          ]
+        },
+        "actual_source": {
+          "type": "string"
+        },
+        "actual_contexts": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rounds": {
+          "type": "integer"
+        },
+        "handoffs": {
+          "type": "integer"
+        }
+      }
+    },
+    "consumption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "measurement",
+        "band",
+        "relative_to_solo",
+        "basis"
+      ],
+      "properties": {
+        "measurement": {
+          "enum": [
+            "exact",
+            "estimated"
+          ]
+        },
+        "total_tokens": {
+          "type": "integer"
+        },
+        "band": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "relative_to_solo": {
+          "type": "string"
+        },
+        "basis": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

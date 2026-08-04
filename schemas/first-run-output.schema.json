@@ -82,6 +82,8 @@
           "required": [
             "manifest",
             "personal_preferences",
+            "demands",
+            "plans",
             "tasks",
             "events",
             "reviews",
@@ -95,6 +97,12 @@
               "type": "string"
             },
             "tasks": {
+              "type": "string"
+            },
+            "demands": {
+              "type": "string"
+            },
+            "plans": {
               "type": "string"
             },
             "events": {
@@ -151,6 +159,49 @@
         },
         "personal_preferences_stored": {
           "type": "boolean"
+        }
+      }
+    },
+    "initialization_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "setup_mode",
+        "sources_registered",
+        "missing_topics",
+        "preferred_team",
+        "response_detail",
+        "humor",
+        "shared_configuration",
+        "personal_preferences"
+      ],
+      "properties": {
+        "setup_mode": {
+          "enum": [
+            "quick",
+            "custom"
+          ]
+        },
+        "sources_registered": {
+          "type": "integer"
+        },
+        "missing_topics": {
+          "type": "integer"
+        },
+        "preferred_team": {
+          "type": "string"
+        },
+        "response_detail": {
+          "type": "string"
+        },
+        "humor": {
+          "type": "string"
+        },
+        "shared_configuration": {
+          "type": "string"
+        },
+        "personal_preferences": {
+          "type": "string"
         }
       }
     },

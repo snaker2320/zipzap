@@ -8,6 +8,7 @@ import test from "node:test";
 const root = path.resolve(".");
 const zipzapScript = path.join(root, "scripts", "zipzap.mjs");
 const taskScript = path.join(root, "scripts", "task.mjs");
+const demandScript = path.join(root, "scripts", "demand.mjs");
 
 function run(script, args, input) {
   return spawnSync(process.execPath, [script, ...args], {
@@ -44,6 +45,23 @@ test("Task CLI exposes global and command help without a project", () => {
   assert.equal(command.status, 0);
   assert.match(command.stdout, /schemas\/task\.schema\.json/);
   assert.match(command.stdout, /create --example/);
+});
+
+test("Demand CLI exposes lightweight capture and phase-plan help", () => {
+  const global = run(demandScript, ["--help"]);
+  assert.equal(global.status, 0);
+  assert.match(global.stdout, /lightweight Demand and phase-plan CLI/);
+  assert.match(global.stdout, /promote\s+Promote a triaged or planned Demand/);
+
+  const command = run(demandScript, ["create", "--help"]);
+  assert.equal(command.status, 0);
+  assert.match(command.stdout, /schemas\/demand\.schema\.json/);
+  assert.match(command.stdout, /create --example/);
+
+  const capture = run(demandScript, ["capture", "--help"]);
+  assert.equal(capture.status, 0);
+  assert.match(capture.stdout, /schemas\/capture-suggestion-input\.schema\.json/);
+  assert.match(capture.stdout, /capture --example/);
 });
 
 test("CLI examples are valid JSON and representative inputs execute", (context) => {
@@ -97,6 +115,19 @@ test("CLI examples are valid JSON and representative inputs execute", (context) 
   assert.equal(handedOff.status, 0, handedOff.stderr);
   assert.equal(JSON.parse(handedOff.stdout).persistence, "ephemeral");
 
+  const receiptExample = run(
+    zipzapScript,
+    ["receipt", "--example", "--compact"]
+  );
+  assert.equal(receiptExample.status, 0);
+  const receipt = run(
+    zipzapScript,
+    ["receipt", "--compact"],
+    receiptExample.stdout
+  );
+  assert.equal(receipt.status, 0, receipt.stderr);
+  assert.equal(JSON.parse(receipt.stdout).template_id, "compact-primary");
+
   const diagnosticExample = run(
     zipzapScript,
     ["normalize-risk", "--example", "--compact"]
@@ -145,6 +176,45 @@ test("CLI examples are valid JSON and representative inputs execute", (context) 
     JSON.parse(captured.stdout).feedback.feedback_id,
     "task-flow-too-verbose"
   );
+
+  const demandExample = run(
+    demandScript,
+    ["create", "--example", "--compact"]
+  );
+  assert.equal(demandExample.status, 0);
+  const demandInput = JSON.parse(demandExample.stdout);
+  assert.equal(demandInput.type, "technical-debt");
+  const demandProject = fs.mkdtempSync(
+    path.join(os.tmpdir(), "zipzap-demand-example-")
+  );
+  context.after(() =>
+    fs.rmSync(demandProject, { recursive: true, force: true })
+  );
+  const demandCreated = run(
+    demandScript,
+    ["create", "--project", demandProject, "--compact"],
+    JSON.stringify(demandInput)
+  );
+  assert.equal(demandCreated.status, 0, demandCreated.stderr);
+  assert.equal(
+    JSON.parse(demandCreated.stdout).demand.demand_id,
+    "example-demand"
+  );
+
+  const captureExample = run(
+    demandScript,
+    ["capture", "--example", "--compact"]
+  );
+  assert.equal(captureExample.status, 0);
+  const captureInput = JSON.parse(captureExample.stdout);
+  assert.equal(captureInput.operation, "start");
+  const captureStarted = run(
+    demandScript,
+    ["capture", "--project", demandProject, "--compact"],
+    JSON.stringify(captureInput)
+  );
+  assert.equal(captureStarted.status, 0, captureStarted.stderr);
+  assert.equal(JSON.parse(captureStarted.stdout).status, "decision-required");
 });
 
 test("CLI input failures provide structured corrective guidance", () => {
@@ -165,6 +235,13 @@ test("CLI input failures provide structured corrective guidance", () => {
   assert.equal(
     missingTaskId.error.help,
     "node scripts/task.mjs show --help"
+  );
+
+  const missingPlanId = errorOutput(run(demandScript, ["plan-assess"]));
+  assert.equal(missingPlanId.error.code, "missing-option");
+  assert.equal(
+    missingPlanId.error.help,
+    "node scripts/demand.mjs plan-assess --help"
   );
 });
 

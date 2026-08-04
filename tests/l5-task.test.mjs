@@ -487,7 +487,15 @@ test("task adapter writes Trio only as a derived snapshot", () => {
   assert.equal(result.task_patch.status, "in-progress");
   assert.equal(result.task_patch.runtime_snapshot.derived, true);
   assert.equal(result.task_patch.runtime_snapshot.effective_team, "trio");
+  assert.equal(
+    result.task_patch.runtime_snapshot.participants_are_planned,
+    true
+  );
   assert.equal(result.task_patch.runtime_snapshot.participants.length, 3);
+  assert.equal(
+    result.task_patch.runtime_snapshot.actual_execution.measurement,
+    "unavailable"
+  );
   assert.equal(
     result.task_patch.runtime_snapshot.active_perspective.role,
     "developer"

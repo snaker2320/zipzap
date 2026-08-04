@@ -17,6 +17,14 @@ user scope and do not rewrite the shared manifest. Use `initialize` with
 
 ## Sequence
 
+Offer two presentation paths:
+
+- `quick`: recommended defaults, one combined preview, then confirmation;
+- `custom`: the complete form or stepwise preference flow.
+
+Default a plain First Run request to Quick. Treat an explicit form or stepwise
+presentation as Custom for backward compatibility.
+
 Run:
 
 1. `start` to discover project sources without writing and return the
@@ -29,6 +37,10 @@ Run:
 5. Configure project sources in one shared manifest write and store user-scoped
    preferences separately in Git-ignored `.zipzap/state/preferences.json`.
 6. Return the stored initialization and post-check result.
+
+The completed response includes a compact initialization summary: setup mode,
+source count, missing-topic count, preferred team, response detail, humor, and
+the shared and personal configuration locations.
 
 Always show the core preference fields before confirmation:
 
