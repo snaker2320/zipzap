@@ -11,6 +11,7 @@
     "assurance",
     "decisions_required",
     "decision_bundles",
+    "decision_interaction",
     "continuation",
     "diagnostics_ref"
   ],
@@ -49,6 +50,9 @@
       "items": {
         "$ref": "./decision-bundle.schema.json"
       }
+    },
+    "decision_interaction": {
+      "$ref": "./decision-interaction.schema.json"
     },
     "continuation": {
       "$ref": "#/$defs/continuation"
@@ -105,6 +109,13 @@
           },
           "decision_bundles": {
             "minItems": 1
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": true
+              }
+            }
           }
         }
       }
@@ -127,6 +138,13 @@
         "properties": {
           "decision_bundles": {
             "maxItems": 0
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": false
+              }
+            }
           }
         }
       }

@@ -64,6 +64,16 @@ test("exposes one page-ready form without requiring Plan mode", () => {
   assert.equal(started.decision_bundles.length, 1);
   assert.equal(started.decision_bundles[0].submit_mode, "atomic");
   assert.equal(started.decision_bundles[0].questions.length, 6);
+  assert.equal(started.decision_interaction.must_pause, true);
+  assert.equal(started.decision_interaction.presentation, "native-form");
+  assert.deepEqual(started.decision_interaction.visible_question_ids, [
+    "scope",
+    "response-detail",
+    "humor",
+    "preferred-preset",
+    "team-tone",
+    "signatures"
+  ]);
   assert.equal(catalogs.onboarding.policies.plan_mode_is_optional, true);
   assert.deepEqual(
     started.form.fields
@@ -187,6 +197,11 @@ test("supports stepwise conversation over the same contract", (context) => {
   while (result.status === "decision-required") {
     assert.equal(result.decision_bundles[0].submit_mode, "incremental");
     assert.equal(result.decision_bundles[0].questions.length, 1);
+    assert.equal(result.decision_interaction.must_pause, true);
+    assert.equal(result.decision_interaction.presentation, "stepwise");
+    assert.deepEqual(result.decision_interaction.visible_question_ids, [
+      result.question.id
+    ]);
     result = advanceOnboarding(
       {
         schema_version: 1,
@@ -288,6 +303,8 @@ test("returns user settings to the host without writing project state", () => {
 
   assert.equal(completed.status, "completed");
   assert.equal(completed.write_performed, false);
+  assert.equal(completed.decision_interaction.must_pause, false);
+  assert.equal(completed.decision_interaction.presentation, "none");
   assert.deepEqual(completed.storage, {
     scope: "user",
     target: "host-user-state",

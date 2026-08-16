@@ -364,6 +364,9 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
       decisionBundle: readJson(
         path.join(schemaDir, "decision-bundle.schema.json")
       ),
+      decisionInteraction: readJson(
+        path.join(schemaDir, "decision-interaction.schema.json")
+      ),
       userView: readJson(path.join(schemaDir, "user-view.schema.json")),
       hostCapabilityMatrix: readJson(
         path.join(schemaDir, "host-capability-matrix.schema.json")
@@ -920,6 +923,24 @@ export function validateCatalogs(catalogs) {
     if (!ID_PATTERN.test(policyId.replaceAll("_", "-")) || enabled !== true) {
       errors.push(`experience policy must be enabled: ${policyId}`);
     }
+  }
+  const decisionInteraction = experience.decision_interaction;
+  if (
+    decisionInteraction?.initialization_confirmation !== "always" ||
+    decisionInteraction?.multi_agent_launch_confirmation !==
+      "when-authorization-unknown" ||
+    decisionInteraction?.native_form_capability !== "guided-form" ||
+    decisionInteraction?.fallback_presentation !== "stepwise" ||
+    decisionInteraction?.pause_on_nonempty_bundle !== true ||
+    experience.policies?.decision_bundles_stop_execution !== true ||
+    experience.policies?.non_plan_decisions_use_conversation_fallback !==
+      true ||
+    experience.policies?.uninitialized_projects_enter_first_run !== true ||
+    experience.policies?.multi_agent_launch_requires_authorization !== true
+  ) {
+    errors.push(
+      "experience decision interaction must pause active decisions with non-Plan fallback"
+    );
   }
 
   if (!SEMVER_PATTERN.test(lifecycle.skill?.current_version ?? "")) {
@@ -2571,18 +2592,20 @@ export function normalizeRiskAssessment(
     });
   }
   if (decisions.length) {
+    const decisionBundles = buildDecisionBundles(decisions, {
+      id: "risk-clarification",
+      title: "Resolve work risk",
+      context:
+        "Clarify the unresolved risk signals or choose a permitted work profile before execution."
+    });
     return {
       schema_version: 1,
       status: "decision-required",
       kernel_request: null,
       derived_governance: derived,
       decisions_required: decisions,
-      decision_bundles: buildDecisionBundles(decisions, {
-        id: "risk-clarification",
-        title: "Resolve work risk",
-        context:
-          "Clarify the unresolved risk signals or choose a permitted work profile before execution."
-      })
+      decision_bundles: decisionBundles,
+      decision_interaction: projectDecisionInteraction(decisionBundles)
     };
   }
 
@@ -2642,7 +2665,8 @@ export function normalizeRiskAssessment(
     kernel_request: kernelRequest,
     derived_governance: derived,
     decisions_required: [],
-    decision_bundles: []
+    decision_bundles: [],
+    decision_interaction: projectDecisionInteraction([])
   };
 }
 
@@ -2898,6 +2922,15 @@ function evaluateKernelDetailed(request, catalogs) {
         : result.runtime_projection
           ? "ready"
           : "blocked";
+  const decisionBundles =
+    status === "decision-required"
+      ? buildDecisionBundles(decisions, {
+          id: "collaboration-decision",
+          title: "Choose collaboration settings",
+          context:
+            "Resolve the collaboration choice before the accountable action starts."
+        })
+      : [];
 
   const response = {
     schema_version: 1,
@@ -2906,15 +2939,8 @@ function evaluateKernelDetailed(request, catalogs) {
       status === "ready" ? nextActionView(result.runtime_projection) : null,
     assurance: assuranceView(result.team_binding, result.preset_resolution),
     decisions_required: decisions,
-    decision_bundles:
-      status === "decision-required"
-        ? buildDecisionBundles(decisions, {
-            id: "collaboration-decision",
-            title: "Choose collaboration settings",
-            context:
-              "Resolve the collaboration choice before the accountable action starts."
-          })
-        : [],
+    decision_bundles: decisionBundles,
+    decision_interaction: projectDecisionInteraction(decisionBundles),
     continuation: {
       work_id: request.work.id,
       revisions: {
@@ -3161,6 +3187,40 @@ export function buildDecisionBundles(decisions, options = {}) {
     questions: authorityDecisions.map(decisionQuestion),
     preview_required: options.preview_required !== false
   }));
+}
+
+export function projectDecisionInteraction(decisionBundles, options = {}) {
+  if (!Array.isArray(decisionBundles)) {
+    throw new Error("decision interaction requires a decision bundle array");
+  }
+  const preferred = options.preferred_presentation ?? "plain-text";
+  if (!["form", "stepwise", "plain-text"].includes(preferred)) {
+    throw new Error(`unsupported decision presentation: ${preferred}`);
+  }
+  if (decisionBundles.length === 0) {
+    return {
+      must_pause: false,
+      presentation: "none",
+      bundle_ids: [],
+      visible_question_ids: []
+    };
+  }
+  const presentation =
+    preferred === "form"
+      ? options.native_form_available === true
+        ? "native-form"
+        : "stepwise"
+      : preferred;
+  const questionIds = decisionBundles.flatMap((bundle) =>
+    bundle.questions.map((question) => question.id)
+  );
+  return {
+    must_pause: true,
+    presentation,
+    bundle_ids: decisionBundles.map((bundle) => bundle.id),
+    visible_question_ids:
+      presentation === "native-form" ? questionIds : questionIds.slice(0, 1)
+  };
 }
 
 function userExperienceView(
@@ -3726,6 +3786,10 @@ function onboardingResponse(status, state, catalogs, additions = {}) {
     write_performed: additions.write_performed === true,
     storage: onboardingStorage(state.scope),
     decision_bundles: decisionBundles,
+    decision_interaction: projectDecisionInteraction(decisionBundles, {
+      preferred_presentation: state.presentation,
+      native_form_available: state.presentation === "form"
+    }),
     ...additions
   };
   if (response.write_performed) {
@@ -4529,6 +4593,13 @@ function firstRunResponse(
     ),
     capability_matrix: buildHostCapabilityMatrix(state?.host ?? null),
     decision_bundles: decisionBundles,
+    decision_interaction: projectDecisionInteraction(decisionBundles, {
+      preferred_presentation:
+        state?.onboarding_state?.presentation ?? "plain-text",
+      native_form_available:
+        additions.form != null ||
+        state?.host?.capabilities?.includes("guided-form") === true
+    }),
     ...additions
   };
 }
@@ -4554,6 +4625,7 @@ function firstRunBlocked(
     ),
     capability_matrix: buildHostCapabilityMatrix(host),
     decision_bundles: [],
+    decision_interaction: projectDecisionInteraction([]),
     required_actions: actions,
     limitations: [message]
   };
@@ -4858,7 +4930,8 @@ function invokeL5Detailed(envelope, catalogs) {
       ...(request.request_id ? { request_id: request.request_id } : {}),
       operation,
       ok: true,
-      decision_bundles: []
+      decision_bundles: [],
+      decision_interaction: projectDecisionInteraction([])
     };
 
     if (operation === "execute" || operation === "resume") {
@@ -4898,6 +4971,7 @@ function invokeL5Detailed(envelope, catalogs) {
             ),
             decisions_required: decisions,
             decision_bundles: clone(normalization.decision_bundles),
+            decision_interaction: clone(normalization.decision_interaction),
             continuation: null,
             diagnostics_ref: null
           },
@@ -4938,6 +5012,7 @@ function invokeL5Detailed(envelope, catalogs) {
           assurance: l5Assurance(kernel.assurance),
           decisions_required: decisions,
           decision_bundles: clone(kernel.decision_bundles),
+          decision_interaction: clone(kernel.decision_interaction),
           continuation: {
             work_id: kernel.continuation.work_id
           },
@@ -4971,6 +5046,15 @@ function invokeL5Detailed(envelope, catalogs) {
               })
             )
           : [];
+      const decisionBundles =
+        envelope.context.workflow_status === "decision-required"
+          ? buildDecisionBundles(decisions, {
+              id: "initialization-decision",
+              title: "Resolve project initialization",
+              context:
+                "Resolve the reported initialization limitations before project state is written."
+            })
+          : [];
       return {
         response: {
           ...base,
@@ -4987,12 +5071,9 @@ function invokeL5Detailed(envelope, catalogs) {
           ...(envelope.context.workflow_status === "decision-required"
             ? {
                 decisions_required: decisions,
-                decision_bundles: buildDecisionBundles(decisions, {
-                  id: "initialization-decision",
-                  title: "Resolve project initialization",
-                  context:
-                    "Resolve the reported initialization limitations before project state is written."
-                })
+                decision_bundles: decisionBundles,
+                decision_interaction:
+                  projectDecisionInteraction(decisionBundles)
               }
             : {}),
           diagnostics_ref: null

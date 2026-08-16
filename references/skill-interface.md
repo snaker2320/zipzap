@@ -82,6 +82,11 @@ more bundles conforming to `schemas/decision-bundle.schema.json` and retain
 `decisions_required` only as a compact compatibility summary. Split questions
 that require different authorities into separate bundles.
 
+Return the matching `decision_interaction` projection on every successful
+response. Callers must stop when `must_pause` is true, render the declared
+native-form, stepwise, or plain-text presentation, and resume only after an
+authorized answer. This gate applies independently of Plan mode.
+
 Use `source-resolve` after initialization to match Role, stage, action,
 component, and risk selectors. Treat missing-source behavior as explicit
 policy. Treat Host-preloaded instructions as already available and do not

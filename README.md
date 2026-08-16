@@ -22,7 +22,8 @@ The project is in active product and workflow design. Its current structure is:
 │   ├── compatibility.json         # L6 adapters and host requirements
 │   └── lifecycle.json             # L7 packaging and release policy
 ├── schemas/                       # L4–L7, source, Task, and project contracts
-│   └── decision-bundle.schema.json # Shared critical-decision form contract
+│   ├── decision-bundle.schema.json # Shared critical-decision form contract
+│   └── decision-interaction.schema.json # Host-neutral pause/render contract
 ├── scripts/zipzap.mjs             # Collaboration and lifecycle runner
 ├── scripts/task.mjs               # Local Task, Git, Review, and report runner
 ├── tests/                         # Composition and conformance tests

@@ -33,6 +33,13 @@
     "routine_status": "silent",
     "small_reversible_team": "solo"
   },
+  "decision_interaction": {
+    "initialization_confirmation": "always",
+    "multi_agent_launch_confirmation": "when-authorization-unknown",
+    "native_form_capability": "guided-form",
+    "fallback_presentation": "stepwise",
+    "pause_on_nonempty_bundle": true
+  },
   "interrupt_only_for": [
     "material-ambiguity",
     "required-authorization",
@@ -48,6 +55,10 @@
     "no_status_prompt_for_ready_work": true,
     "one_prompt_for_one_accountable_decision": true,
     "structured_choices_available_without_plan_mode": true,
+    "decision_bundles_stop_execution": true,
+    "non_plan_decisions_use_conversation_fallback": true,
+    "uninitialized_projects_enter_first_run": true,
+    "multi_agent_launch_requires_authorization": true,
     "multiple_questions_share_one_authority": true,
     "different_authorities_use_separate_bundles": true,
     "decision_preview_precedes_material_effect": true

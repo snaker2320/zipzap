@@ -24,6 +24,11 @@ conversation uses an incremental bundle containing the next question while
 preserving state revision. The preview returns a confirmation bundle before
 any preference write.
 
+Inspect `decision_interaction` before advancing the state machine. Every
+configuration or confirmation bundle sets `must_pause` to true. A completed or
+blocked response with no bundle uses `presentation: none` and does not request
+an answer.
+
 When First Run chooses presentation automatically, use `guided-form` when
 available and `stepwise` otherwise. Do not ask users to decide between these
 presentation mechanisms.

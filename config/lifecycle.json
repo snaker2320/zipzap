@@ -2,7 +2,7 @@
   "schema_version": 1,
   "skill": {
     "name": "zipzap",
-    "current_version": "0.1.1-beta.3",
+    "current_version": "0.1.1-beta.4",
     "channel": "beta"
   },
   "package": {
@@ -30,6 +30,7 @@
       "schemas/l5-input.schema.json",
       "schemas/l5-output.schema.json",
       "schemas/decision-bundle.schema.json",
+      "schemas/decision-interaction.schema.json",
       "schemas/user-view.schema.json",
       "schemas/host-capability-matrix.schema.json",
       "schemas/l5-adapter-input.schema.json",
@@ -89,6 +90,13 @@
     },
     {
       "version": "0.1.1-beta.3",
+      "interfaces": {
+        "l5": 1,
+        "kernel": 1
+      }
+    },
+    {
+      "version": "0.1.1-beta.4",
       "interfaces": {
         "l5": 1,
         "kernel": 1

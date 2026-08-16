@@ -6,6 +6,7 @@ import {
   compose,
   evaluateKernel,
   loadCatalogs,
+  projectDecisionInteraction,
   queryCatalog,
   validateCatalogs
 } from "../scripts/zipzap.mjs";
@@ -74,8 +75,18 @@ test("catalogs are internally valid", () => {
     task_policies: 12,
     onboarding_questions: 6,
     adapters: 3,
-    releases: 5
+    releases: 6
   });
+});
+
+test("rejects experience policy that can skip an active decision", () => {
+  const unsafe = structuredClone(catalogs);
+  delete unsafe.experience.decision_interaction;
+  delete unsafe.experience.policies.decision_bundles_stop_execution;
+
+  const result = validateCatalogs(unsafe);
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join(" "), /decision interaction/i);
 });
 
 test("queries a role capsule without loading the full catalog", () => {
@@ -155,10 +166,17 @@ test("L4 Kernel defaults routine work to Developer Produce without prompting", (
   assert.equal(result.next_action.participant.stage, "produce");
   assert.deepEqual(result.decisions_required, []);
   assert.deepEqual(result.decision_bundles, []);
+  assert.deepEqual(result.decision_interaction, {
+    must_pause: false,
+    presentation: "none",
+    bundle_ids: [],
+    visible_question_ids: []
+  });
   assert.deepEqual(Object.keys(result).sort(), [
     "assurance",
     "continuation",
     "decision_bundles",
+    "decision_interaction",
     "decisions_required",
     "diagnostics_ref",
     "next_action",
@@ -369,6 +387,65 @@ test("requires explicit authorization before binding multiple Agent contexts", (
     result.decision_bundles[0].questions[0].options.map((option) => option.id),
     ["granted", "denied"]
   );
+  assert.deepEqual(result.decision_interaction, {
+    must_pause: true,
+    presentation: "plain-text",
+    bundle_ids: ["collaboration-decision"],
+    visible_question_ids: ["multi-agent-authorization-required"]
+  });
+});
+
+test("projects active decisions to a blocking host interaction", () => {
+  const bundles = buildDecisionBundles([
+    {
+      code: "confirm-launch",
+      kind: "confirm",
+      message: "Launch the selected team?",
+      options: [
+        { id: "confirm", label: "Confirm" },
+        { id: "cancel", label: "Cancel" }
+      ]
+    },
+    {
+      code: "choose-focus",
+      message: "Choose the exploration focus.",
+      options: [
+        { id: "business", label: "Business" },
+        { id: "technology", label: "Technology" }
+      ]
+    }
+  ], { id: "launch-team" });
+
+  assert.deepEqual(
+    projectDecisionInteraction(bundles, {
+      preferred_presentation: "form",
+      native_form_available: true
+    }),
+    {
+      must_pause: true,
+      presentation: "native-form",
+      bundle_ids: ["launch-team"],
+      visible_question_ids: ["confirm-launch", "choose-focus"]
+    }
+  );
+  assert.deepEqual(
+    projectDecisionInteraction(bundles, {
+      preferred_presentation: "form",
+      native_form_available: false
+    }),
+    {
+      must_pause: true,
+      presentation: "stepwise",
+      bundle_ids: ["launch-team"],
+      visible_question_ids: ["confirm-launch"]
+    }
+  );
+  assert.deepEqual(projectDecisionInteraction([]), {
+    must_pause: false,
+    presentation: "none",
+    bundle_ids: [],
+    visible_question_ids: []
+  });
 });
 
 test("builds atomic multi-select forms and separates decision authorities", () => {

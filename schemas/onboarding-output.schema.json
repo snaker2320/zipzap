@@ -10,7 +10,8 @@
     "state",
     "write_performed",
     "storage",
-    "decision_bundles"
+    "decision_bundles",
+    "decision_interaction"
   ],
   "properties": {
     "schema_version": {
@@ -133,6 +134,9 @@
         "$ref": "./decision-bundle.schema.json"
       }
     },
+    "decision_interaction": {
+      "$ref": "./decision-interaction.schema.json"
+    },
     "configuration": {
       "$ref": "./onboarding-input.schema.json#/$defs/configuration"
     },
@@ -166,6 +170,13 @@
         "properties": {
           "decision_bundles": {
             "minItems": 1
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": true
+              }
+            }
           }
         }
       },
@@ -173,6 +184,13 @@
         "properties": {
           "decision_bundles": {
             "maxItems": 0
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": false
+              }
+            }
           }
         }
       }

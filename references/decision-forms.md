@@ -15,6 +15,11 @@ Keep `decisions_required` as a compact compatibility summary. Treat
 `decision_bundles` as the authoritative rendering contract. Return an empty
 array when no decision is active.
 
+Treat `decision_interaction` as the execution gate. A non-empty bundle set
+must project to `must_pause: true`; an empty bundle set must project to
+`must_pause: false` and `presentation: none`. Consumers must inspect this gate
+before writes, external effects, or Agent launches.
+
 ## Composition
 
 Put related questions in one bundle only when they:
@@ -45,3 +50,9 @@ After collecting answers, show a preview before any write, external effect, or
 Multi-Agent launch when `preview_required` is true. Preserve the bundle ID,
 question IDs, authority, and state revision across form, conversation, and text
 renderers.
+
+Select `native-form` only when the host exposes a callable form interaction.
+Otherwise select `stepwise` or `plain-text`, expose the first accountable
+question, and wait. Continue through the remaining questions only after each
+answer is valid. Plan mode may supply the native form, but absence of Plan mode
+must never suppress or auto-answer a decision.

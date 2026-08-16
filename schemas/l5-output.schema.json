@@ -65,6 +65,9 @@
         "$ref": "./decision-bundle.schema.json"
       }
     },
+    "decision_interaction": {
+      "$ref": "./decision-interaction.schema.json"
+    },
     "continuation": {
       "type": [
         "object",
@@ -107,7 +110,8 @@
         "operation",
         "status",
         "user_view",
-        "decision_bundles"
+        "decision_bundles",
+        "decision_interaction"
       ],
       "not": {
         "required": [
@@ -179,6 +183,24 @@
           },
           "decision_bundles": {
             "minItems": 1
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": false
+              }
+            }
           }
         }
       }

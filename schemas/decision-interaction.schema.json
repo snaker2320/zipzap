@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/decision-interaction.schema.json",
+  "title": "ZipZap Decision Interaction",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "must_pause",
+    "presentation",
+    "bundle_ids",
+    "visible_question_ids"
+  ],
+  "properties": {
+    "must_pause": {
+      "type": "boolean"
+    },
+    "presentation": {
+      "enum": [
+        "none",
+        "native-form",
+        "stepwise",
+        "plain-text"
+      ]
+    },
+    "bundle_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "visible_question_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "must_pause": {
+            "const": true
+          }
+        },
+        "required": [
+          "must_pause"
+        ]
+      },
+      "then": {
+        "properties": {
+          "presentation": {
+            "not": {
+              "const": "none"
+            }
+          },
+          "bundle_ids": {
+            "minItems": 1
+          },
+          "visible_question_ids": {
+            "minItems": 1
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "presentation": {
+            "const": "none"
+          },
+          "bundle_ids": {
+            "maxItems": 0
+          },
+          "visible_question_ids": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ]
+}

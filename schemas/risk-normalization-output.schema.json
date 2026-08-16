@@ -10,7 +10,8 @@
     "kernel_request",
     "derived_governance",
     "decisions_required",
-    "decision_bundles"
+    "decision_bundles",
+    "decision_interaction"
   ],
   "properties": {
     "schema_version": {
@@ -184,6 +185,9 @@
       "items": {
         "$ref": "./decision-bundle.schema.json"
       }
+    },
+    "decision_interaction": {
+      "$ref": "./decision-interaction.schema.json"
     }
   },
   "allOf": [
@@ -205,6 +209,13 @@
           },
           "decision_bundles": {
             "maxItems": 0
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": false
+              }
+            }
           }
         }
       }
@@ -227,6 +238,13 @@
           },
           "decision_bundles": {
             "minItems": 1
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": true
+              }
+            }
           }
         }
       }

@@ -14,6 +14,10 @@ Use First Run only when `.zipzap/project.json` does not exist. Route an
 initialized project to `onboard` for preference changes or `initialize` with
 `refresh` for source reconciliation.
 
+When a user invokes the public **Initialize** action for an uninitialized
+project, enter First Run automatically. Do not bypass its preference decision
+or preview confirmation by calling direct configuration first.
+
 ## Sequence
 
 Run:

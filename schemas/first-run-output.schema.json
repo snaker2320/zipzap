@@ -12,7 +12,8 @@
     "discovery",
     "user_view",
     "capability_matrix",
-    "decision_bundles"
+    "decision_bundles",
+    "decision_interaction"
   ],
   "properties": {
     "schema_version": {
@@ -60,6 +61,9 @@
       "items": {
         "$ref": "./decision-bundle.schema.json"
       }
+    },
+    "decision_interaction": {
+      "$ref": "./decision-interaction.schema.json"
     },
     "question": {
       "$ref": "./onboarding-output.schema.json#/$defs/question"
@@ -191,6 +195,13 @@
         "properties": {
           "decision_bundles": {
             "minItems": 1
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": true
+              }
+            }
           }
         }
       },
@@ -198,6 +209,13 @@
         "properties": {
           "decision_bundles": {
             "maxItems": 0
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": false
+              }
+            }
           }
         }
       }
