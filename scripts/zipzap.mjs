@@ -7,8 +7,18 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { resolveDocumentRoute } from "./lib/document-routing.mjs";
+import {
+  applyRuleHealthDisposition,
+  diagnoseRuleHealth,
+  listIgnoredRuleFindings
+} from "./lib/rule-health.mjs";
 
 export { resolveDocumentRoute } from "./lib/document-routing.mjs";
+export {
+  applyRuleHealthDisposition,
+  diagnoseRuleHealth,
+  listIgnoredRuleFindings
+} from "./lib/rule-health.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -77,6 +87,12 @@ const ZIPZAP_COMMANDS = {
     usage: "document-route --input <file> [--compact]",
     schema: "schemas/document-route-input.schema.json",
     example: "examples/zipzap/document-route.json"
+  },
+  "rule-health": {
+    summary: "Explicitly diagnose or disposition project rule health.",
+    usage: "rule-health --input <file> [--compact]",
+    schema: "schemas/rule-health-input.schema.json",
+    example: "examples/zipzap/rule-health.json"
   },
   invoke: {
     summary: "Invoke the stable L5 collaboration interface.",
@@ -410,6 +426,15 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
       ),
       documentRouteOutput: readJson(
         path.join(schemaDir, "document-route-output.schema.json")
+      ),
+      ruleHealthInput: readJson(
+        path.join(schemaDir, "rule-health-input.schema.json")
+      ),
+      ruleHealthOutput: readJson(
+        path.join(schemaDir, "rule-health-output.schema.json")
+      ),
+      ruleHealthIgnore: readJson(
+        path.join(schemaDir, "rule-health-ignore.schema.json")
       ),
       runtimeInput: readJson(path.join(schemaDir, "runtime-input.schema.json")),
       runtimeOutput: readJson(path.join(schemaDir, "runtime-output.schema.json")),
@@ -6938,6 +6963,27 @@ async function main() {
   }
   if (command === "document-route") {
     const result = resolveDocumentRoute(input);
+    process.stdout.write(
+      `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
+    );
+    return;
+  }
+  if (command === "rule-health") {
+    let result;
+    if (input.operation === "diagnose") {
+      result = diagnoseRuleHealth(input);
+    } else if (input.operation === "list-ignored") {
+      result = {
+        schema_version: 1,
+        status: "completed",
+        ignored: listIgnoredRuleFindings(input)
+      };
+    } else {
+      result = applyRuleHealthDisposition({
+        ...input,
+        zipzap_version: catalogs.lifecycle.skill.current_version
+      });
+    }
     process.stdout.write(
       `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
     );

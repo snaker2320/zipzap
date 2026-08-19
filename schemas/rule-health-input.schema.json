@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/rule-health-input.schema.json",
+  "title": "ZipZap Rule Health Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation",
+    "project"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "operation": {
+      "enum": [
+        "diagnose",
+        "ignore",
+        "restore",
+        "list-ignored"
+      ]
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locator"
+      ],
+      "properties": {
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "depth": {
+      "enum": [
+        "quick",
+        "standard",
+        "deep"
+      ],
+      "default": "quick"
+    },
+    "manifest": {
+      "$ref": "./project-manifest.schema.json"
+    },
+    "selector_catalog": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required_topics": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "max_instruction_lines": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "include_ignored": {
+      "type": "boolean",
+      "default": false
+    },
+    "finding": {
+      "$ref": "./rule-health-output.schema.json#/$defs/finding"
+    },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "actor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "diagnose"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "manifest"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "ignore"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "finding",
+          "actor"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "restore"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fingerprint",
+          "actor"
+        ]
+      }
+    }
+  ]
+}

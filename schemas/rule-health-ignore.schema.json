@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/rule-health-ignore.schema.json",
+  "title": "ZipZap Rule Health Ignore",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "fingerprint",
+    "category",
+    "source_ids",
+    "source_versions",
+    "actor",
+    "ignored_at",
+    "zipzap_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "category": {
+      "type": "string"
+    },
+    "source_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "source_versions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "actor": {
+      "type": "string"
+    },
+    "ignored_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "zipzap_version": {
+      "type": "string"
+    }
+  }
+}
