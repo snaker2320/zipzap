@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/document-route-output.schema.json",
+  "title": "ZipZap Document Route Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "route",
+    "candidates",
+    "decisions_required",
+    "registry_change"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "decision-required"
+      ]
+    },
+    "route": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/resolvedRoute"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/candidate"
+      }
+    },
+    "decisions_required": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "registry_change": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directories",
+            "update_default"
+          ],
+          "properties": {
+            "directories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "update_default": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "required": [
+        "id",
+        "document_kinds",
+        "target",
+        "origin"
+      ]
+    },
+    "resolvedRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/candidate"
+        },
+        {
+          "type": "object",
+          "required": [
+            "resolved_path",
+            "one_time_exception"
+          ]
+        }
+      ]
+    }
+  }
+}

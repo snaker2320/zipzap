@@ -124,6 +124,56 @@ test("marks a changed registered source as stale", () => {
   assert.equal(result.matches[0].load_required, false);
 });
 
+test("accepts optional document metadata and routing without changing source resolution", () => {
+  const routedManifest = manifest({
+    sources: [
+      {
+        id: "business-close-position",
+        locator: "docs/business/close-position.md",
+        kind: "reference",
+        format: "markdown",
+        loading: "on-demand",
+        topics: ["domain-and-business"],
+        document_kind: "business-capability",
+        status: "active",
+        relations: {
+          derived_from: ["external-prd-123"],
+          references: [],
+          supersedes: []
+        },
+        version: "sha256:business"
+      }
+    ],
+    document_routing: {
+      strategy: "preserve-existing",
+      on_ambiguity: "decision-required",
+      on_mismatch: "approval-required",
+      routes: [
+        {
+          id: "development-design",
+          document_kinds: ["development-design"],
+          target: "docs/design/active",
+          filename_pattern: "<demand-id>-<slug>.md",
+          priority: 100
+        }
+      ]
+    }
+  });
+
+  const result = resolveSources({
+    schema_version: 1,
+    manifest: routedManifest,
+    query: {
+      topics: ["domain-and-business"]
+    }
+  });
+
+  assert.equal(result.status, "ready");
+  assert.deepEqual(result.matches.map((item) => item.source_id), [
+    "business-close-position"
+  ]);
+});
+
 test("discovers sources read-only and reports role coverage", (context) => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-discover-"));
   context.after(() => fs.rmSync(projectRoot, { recursive: true, force: true }));

@@ -38,6 +38,9 @@
     },
     "persistence": {
       "$ref": "#/$defs/persistence"
+    },
+    "document_routing": {
+      "$ref": "#/$defs/documentRouting"
     }
   },
   "$defs": {
@@ -115,6 +118,131 @@
           "type": [
             "string",
             "null"
+          ]
+        },
+        "document_kind": {
+          "$ref": "#/$defs/documentKind"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "active",
+            "superseded",
+            "archived"
+          ]
+        },
+        "relations": {
+          "$ref": "#/$defs/sourceRelations"
+        }
+      }
+    },
+    "documentKind": {
+      "enum": [
+        "business-capability",
+        "development-design",
+        "integration-design",
+        "architecture-overview",
+        "architecture-decision",
+        "engineering-standard",
+        "operations-guide",
+        "governance-policy",
+        "external-requirement",
+        "project-reference"
+      ]
+    },
+    "sourceRelations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "derived_from": {
+          "$ref": "#/$defs/sourceIdList"
+        },
+        "references": {
+          "$ref": "#/$defs/sourceIdList"
+        },
+        "supersedes": {
+          "$ref": "#/$defs/sourceIdList"
+        }
+      }
+    },
+    "sourceIdList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      }
+    },
+    "documentRouting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "routes"
+      ],
+      "properties": {
+        "strategy": {
+          "const": "preserve-existing"
+        },
+        "on_ambiguity": {
+          "const": "decision-required"
+        },
+        "on_mismatch": {
+          "const": "approval-required"
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/documentRoute"
+          }
+        }
+      }
+    },
+    "documentRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "document_kinds",
+        "target"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "document_kinds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/documentKind"
+          }
+        },
+        "topics": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "filename_pattern": {
+          "type": "string",
+          "minLength": 1
+        },
+        "priority": {
+          "type": "integer",
+          "default": 0
+        },
+        "origin": {
+          "enum": [
+            "explicit",
+            "inferred",
+            "default"
           ]
         }
       }

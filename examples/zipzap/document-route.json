@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "project": {
+    "locator": "."
+  },
+  "manifest": {
+    "schema_version": 1,
+    "project_id": "example",
+    "sources": []
+  },
+  "document": {
+    "document_kind": "development-design",
+    "filename": "DEM-123-close-position.md",
+    "topics": [
+      "domain-and-business",
+      "architecture"
+    ]
+  },
+  "inferred_routes": []
+}

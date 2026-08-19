@@ -6,6 +6,10 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { resolveDocumentRoute } from "./lib/document-routing.mjs";
+
+export { resolveDocumentRoute } from "./lib/document-routing.mjs";
+
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -67,6 +71,12 @@ const ZIPZAP_COMMANDS = {
     usage: "source-resolve --input <file> [--compact]",
     schema: "schemas/source-resolution-input.schema.json",
     example: "examples/zipzap/source-resolve.json"
+  },
+  "document-route": {
+    summary: "Resolve one governed document destination without writing it.",
+    usage: "document-route --input <file> [--compact]",
+    schema: "schemas/document-route-input.schema.json",
+    example: "examples/zipzap/document-route.json"
   },
   invoke: {
     summary: "Invoke the stable L5 collaboration interface.",
@@ -394,6 +404,12 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
       ),
       sourceResolutionOutput: readJson(
         path.join(schemaDir, "source-resolution-output.schema.json")
+      ),
+      documentRouteInput: readJson(
+        path.join(schemaDir, "document-route-input.schema.json")
+      ),
+      documentRouteOutput: readJson(
+        path.join(schemaDir, "document-route-output.schema.json")
       ),
       runtimeInput: readJson(path.join(schemaDir, "runtime-input.schema.json")),
       runtimeOutput: readJson(path.join(schemaDir, "runtime-output.schema.json")),
@@ -1507,7 +1523,8 @@ function validateProjectManifest(manifest, catalogs = loadCatalogs()) {
       "sources",
       "extensions",
       "collaboration",
-      "persistence"
+      "persistence",
+      "document_routing"
     ],
     "project manifest"
   );
@@ -1539,7 +1556,10 @@ function validateProjectManifest(manifest, catalogs = loadCatalogs()) {
         "topics",
         "selectors",
         "priority",
-        "version"
+        "version",
+        "document_kind",
+        "status",
+        "relations"
       ],
       "project source"
     );
@@ -1570,6 +1590,109 @@ function validateProjectManifest(manifest, catalogs = loadCatalogs()) {
         if (!Array.isArray(values) || values.some((value) => !value)) {
           throw new Error(`${source.id}.${key} must be an array of strings`);
         }
+      }
+    }
+    if (
+      source.document_kind != null &&
+      ![
+        "business-capability",
+        "development-design",
+        "integration-design",
+        "architecture-overview",
+        "architecture-decision",
+        "engineering-standard",
+        "operations-guide",
+        "governance-policy",
+        "external-requirement",
+        "project-reference"
+      ].includes(source.document_kind)
+    ) {
+      throw new Error(`${source.id} document_kind is invalid`);
+    }
+    if (
+      source.status != null &&
+      !["draft", "active", "superseded", "archived"].includes(source.status)
+    ) {
+      throw new Error(`${source.id} status is invalid`);
+    }
+    if (source.relations) {
+      assertAllowedFields(
+        source.relations,
+        ["derived_from", "references", "supersedes"],
+        `${source.id} relations`
+      );
+      for (const [relation, sourceIds] of Object.entries(source.relations)) {
+        if (
+          !Array.isArray(sourceIds) ||
+          sourceIds.some((sourceId) => !ID_PATTERN.test(sourceId)) ||
+          new Set(sourceIds).size !== sourceIds.length
+        ) {
+          throw new Error(`${source.id}.${relation} must contain unique source IDs`);
+        }
+      }
+    }
+  }
+  if (manifest.document_routing) {
+    const routing = manifest.document_routing;
+    assertAllowedFields(
+      routing,
+      ["strategy", "on_ambiguity", "on_mismatch", "routes"],
+      "document routing"
+    );
+    if (
+      routing.strategy != null &&
+      routing.strategy !== "preserve-existing"
+    ) {
+      throw new Error("document routing strategy must preserve existing conventions");
+    }
+    if (
+      routing.on_ambiguity != null &&
+      routing.on_ambiguity !== "decision-required"
+    ) {
+      throw new Error("document routing ambiguity policy is invalid");
+    }
+    if (
+      routing.on_mismatch != null &&
+      routing.on_mismatch !== "approval-required"
+    ) {
+      throw new Error("document routing mismatch policy is invalid");
+    }
+    if (!Array.isArray(routing.routes)) {
+      throw new Error("document routing routes must be an array");
+    }
+    const routeIds = new Set();
+    for (const route of routing.routes) {
+      assertAllowedFields(
+        route,
+        [
+          "id",
+          "document_kinds",
+          "topics",
+          "target",
+          "filename_pattern",
+          "priority",
+          "origin"
+        ],
+        "document route"
+      );
+      if (!ID_PATTERN.test(route.id) || routeIds.has(route.id)) {
+        throw new Error(`invalid or duplicate document route id: ${route.id}`);
+      }
+      routeIds.add(route.id);
+      if (
+        !Array.isArray(route.document_kinds) ||
+        route.document_kinds.length === 0
+      ) {
+        throw new Error(`${route.id} must define document_kinds`);
+      }
+      const normalizedTarget = route.target?.replaceAll("\\", "/");
+      if (
+        !normalizedTarget ||
+        normalizedTarget.startsWith("/") ||
+        /^[A-Za-z]:\//.test(normalizedTarget) ||
+        normalizedTarget.split("/").includes("..")
+      ) {
+        throw new Error(`${route.id} target escapes project root`);
       }
     }
   }
@@ -6808,6 +6931,13 @@ async function main() {
   }
   if (command === "source-resolve") {
     const result = resolveSources(input);
+    process.stdout.write(
+      `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
+    );
+    return;
+  }
+  if (command === "document-route") {
+    const result = resolveDocumentRoute(input);
     process.stdout.write(
       `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
     );

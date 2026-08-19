@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/document-route-input.schema.json",
+  "title": "ZipZap Document Route Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project",
+    "manifest",
+    "document"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locator"
+      ],
+      "properties": {
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "manifest": {
+      "$ref": "./project-manifest.schema.json"
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_kind",
+        "filename"
+      ],
+      "properties": {
+        "document_kind": {
+          "$ref": "./project-manifest.schema.json#/$defs/documentKind"
+        },
+        "filename": {
+          "type": "string",
+          "minLength": 1
+        },
+        "topics": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "related_source_ids": {
+          "$ref": "./project-manifest.schema.json#/$defs/sourceIdList"
+        },
+        "component": {
+          "type": "string"
+        },
+        "stage": {
+          "type": "string"
+        }
+      }
+    },
+    "user_target": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inferred_routes": {
+      "type": "array",
+      "items": {
+        "$ref": "./project-manifest.schema.json#/$defs/documentRoute"
+      },
+      "default": []
+    }
+  }
+}
