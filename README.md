@@ -113,6 +113,7 @@ Use the independent zero-dependency entry point:
 ```bash
 node scripts/task.mjs validate --input task.json
 node scripts/task.mjs create --input task.json
+node scripts/task.mjs claim --id task-id --subject agent-id --expected-revision 1
 node scripts/task.mjs track-git --input git-tracking.json
 node scripts/task.mjs sync-git --id task-id
 node scripts/task.mjs assess --id task-id
@@ -122,7 +123,12 @@ node scripts/task.mjs feedback --input feedback.json
 
 Task Standard v1 creates only `ready` or explicitly `blocked` Tasks; candidate
 work does not use a Task `backlog` status. Acceptance criteria carry stable IDs
-so evidence can reference them without positional inference.
+so evidence can reference them without positional inference. Ready creation
+needs an executable objective, bounded outcome scope, and acceptance results;
+implementation impact, estimates, and verification details can be added during
+the first Work Analysis. An optional `assignee_id` supports direct assignment
+or a lightweight Git-backed claim without pretending Git provides a real-time
+lock.
 
 Feedback is stored at `.zipzap/feedback/<feedback-id>.json` with the current
 ZipZap version and an optional minimal Task snapshot, making real-use problems

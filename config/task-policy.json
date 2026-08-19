@@ -9,8 +9,7 @@
     "default_status": "ready",
     "non_waivable_requirements": [
       "work.objective",
-      "work.acceptance_criteria",
-      "accountability.role"
+      "work.acceptance_criteria"
     ],
     "expedite_waivable_requirements": [
       "work.affected_components",

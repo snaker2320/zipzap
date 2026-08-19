@@ -145,24 +145,43 @@ function taskInput() {
   };
 }
 
-test("Task Standard v1 validates Ready fields before persistence", (context) => {
+test("Task Standard v1 keeps creation light and defers Work Analysis", (context) => {
   const projectRoot = createRepository(context);
-  const incomplete = taskInput();
-  delete incomplete.work.affected_components;
-  const validation = run("validate", [], projectRoot, incomplete);
+  const lightweight = {
+    task_id: "task-1",
+    work: {
+      objective: "Deliver one observable behavior.",
+      scope: ["Requested behavior"],
+      acceptance_criteria: [
+        {
+          id: "behavior-observed",
+          statement: "The requested behavior is observable."
+        }
+      ]
+    }
+  };
+  const validation = run("validate", [], projectRoot, lightweight);
   assert.equal(validation.standard_version, 1);
-  assert.equal(validation.ready, false);
-  assert.equal(validation.status_compatible, false);
-  assert.deepEqual(validation.missing, ["work.affected_components"]);
+  assert.equal(validation.ready, true);
+  assert.equal(validation.status_compatible, true);
+  assert.deepEqual(validation.missing, []);
+  assert.deepEqual(validation.warnings, ["work-analysis-needed"]);
 
+  const created = run("create", [], projectRoot, lightweight);
+  assert.equal(created.task.status, "ready");
+  assert.equal(created.task.work.kind, "other");
+  assert.equal(created.task.planning.priority, "medium");
+  assert.equal(created.task.assignee_id, undefined);
+  assert.equal(created.task.accountability, undefined);
+
+  const incomplete = taskInput();
+  incomplete.task_id = "missing-objective";
+  delete incomplete.work.objective;
   const failed = JSON.parse(
     runFailure("create", [], projectRoot, incomplete)
   );
   assert.equal(failed.error.code, "task-not-ready");
-  assert.deepEqual(
-    failed.error.details.missing,
-    ["work.affected_components"]
-  );
+  assert.deepEqual(failed.error.details.missing, ["work.objective"]);
 });
 
 test("Task creation defaults to ready and rejects the retired backlog status", (context) => {
@@ -203,7 +222,7 @@ test("Task creation defaults to ready and rejects the retired backlog status", (
   assert.equal(goalFailure.error.code, "invalid-input");
 });
 
-test("Expedite records narrow, authorized, expiring Ready waivers", (context) => {
+test("legacy Expedite waivers remain readable after Ready is simplified", (context) => {
   const projectRoot = createRepository(context);
   const expedited = taskInput();
   expedited.work.affected_components = [];
@@ -222,11 +241,81 @@ test("Expedite records narrow, authorized, expiring Ready waivers", (context) =>
   assert.equal(validation.ready, true);
   assert.deepEqual(validation.missing, []);
   assert.deepEqual(validation.warnings, [
-    "waived:work.affected_components",
-    "waived:planning.target_finish-or-deadline"
+    "work-analysis-needed",
+    "waiver-not-needed:work.affected_components",
+    "waiver-not-needed:planning.target_finish-or-deadline"
   ]);
   const created = run("create", [], projectRoot, expedited);
   assert.equal(created.task.readiness_policy.authority, "project-owner");
+});
+
+test("an unassigned Task can be claimed without changing its status", (context) => {
+  const projectRoot = createRepository(context);
+  const input = taskInput();
+  delete input.accountability;
+  const created = run("create", [], projectRoot, input);
+  assert.equal(created.task.assignee_id, undefined);
+
+  const claimed = run(
+    "claim",
+    [
+      "--id",
+      "task-1",
+      "--subject",
+      "agent-1",
+      "--expected-revision",
+      "1"
+    ],
+    projectRoot
+  );
+  assert.equal(claimed.claimed, true);
+  assert.equal(claimed.task.assignee_id, "agent-1");
+  assert.equal(claimed.task.status, "ready");
+  assert.equal(claimed.task.revision, 2);
+  const claimedList = run(
+    "list",
+    ["--subject", "agent-1"],
+    projectRoot
+  );
+  assert.equal(claimedList.length, 1);
+  assert.equal(claimedList[0].assignee_id, "agent-1");
+
+  const repeated = run(
+    "claim",
+    [
+      "--id",
+      "task-1",
+      "--subject",
+      "agent-1",
+      "--expected-revision",
+      "2"
+    ],
+    projectRoot
+  );
+  assert.equal(repeated.claimed, false);
+  assert.equal(repeated.task.revision, 2);
+
+  const conflict = JSON.parse(
+    runFailure(
+      "claim",
+      [
+        "--id",
+        "task-1",
+        "--subject",
+        "agent-2",
+        "--expected-revision",
+        "2"
+      ],
+      projectRoot
+    )
+  );
+  assert.equal(conflict.error.code, "task-already-assigned");
+
+  const directed = taskInput();
+  directed.task_id = "directed-task";
+  directed.assignee_id = "manager-choice";
+  const assigned = run("create", [], projectRoot, directed);
+  assert.equal(assigned.task.assignee_id, "manager-choice");
 });
 
 test("A blocked Task requires an explicit open blocker and exit condition", (context) => {

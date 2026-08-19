@@ -56,10 +56,13 @@ create it only after authorization and readiness, with status `ready`, or with
 status `blocked` when an explicit open blocker and its resolution condition are
 recorded. Do not use a `backlog` Task status.
 
-Record origin, bounded scope and exclusions, stable acceptance-criterion IDs,
-verification and evidence requirements, priority, schedule, three-point
-estimate, accountability, dependencies, blockers, source locators, and the
-readiness policy. Keep project rules at their authoritative locations;
+At creation, record the executable objective, bounded outcome scope and
+exclusions, stable acceptance-criterion IDs and statements, priority, known
+dependencies and blockers, source locators, and the readiness policy. Treat
+`affected_components` as a non-exhaustive implementation hint. Add or refine
+the affected areas, three-point estimate, verification approach, and evidence
+types during the first risk-proportionate Work Analysis; their absence does not
+block Task creation. Keep project rules at their authoritative locations;
 `source_refs` contains locators, not copied rule content. Use
 `origin.kind: direct` without promotion and reserve `backlog-item` for later
 demand-pool promotion.
@@ -71,10 +74,11 @@ node scripts/task.mjs validate --input task.json
 ```
 
 The result exposes `ready`, status compatibility, missing requirements,
-warnings, and decisions. `create` invokes the same validation. Expedite mode
+warnings, and decisions. `work-analysis-needed` is a non-blocking reminder,
+not a request for more creation-time scanning. `create` invokes the same
+validation. Expedite mode
 requires named authorization, reason, explicit waived requirements, and an
-unexpired waiver. Objective, acceptance criteria, and accountable role cannot
-be waived.
+unexpired waiver. Objective and acceptance criteria cannot be waived.
 
 ## Local Entry Point
 
@@ -85,6 +89,7 @@ node scripts/task.mjs validate --input task.json
 node scripts/task.mjs create --input task.json
 node scripts/task.mjs show --id task-id
 node scripts/task.mjs list --status in-progress
+node scripts/task.mjs claim --id task-id --subject agent-id --expected-revision 1
 node scripts/task.mjs transition --input transition.json
 ```
 
@@ -103,6 +108,13 @@ cancelled; completed work may reopen to `in-progress`; cancelled work may
 return to `ready`. Supply `blocker` while entering `blocked`, or
 `resolve_blocker_ids` while leaving it, so the status and blocker mutation are
 atomic. Do not change status through the general `update` command.
+
+Task assignment is optional. A manager may set `assignee_id` when creating the
+Task, or an Agent may claim an unassigned Task. Claiming is an ordinary
+revision-checked Git mutation: the merged repository state is shared truth, not
+a real-time lock. Publish a claim before expensive analysis or implementation
+to reduce duplicate work. Roles remain runtime perspectives and are not a
+creation-time staffing requirement.
 
 ## Git Evidence
 

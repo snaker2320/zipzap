@@ -21,8 +21,7 @@ const TASK_STATUSES = new Set([
 const TASK_CREATION_STATUSES = new Set(["ready", "blocked"]);
 const NON_WAIVABLE_READY_REQUIREMENTS = new Set([
   "work.objective",
-  "work.acceptance_criteria",
-  "accountability.role"
+  "work.acceptance_criteria"
 ]);
 const EXPEDITE_WAIVABLE_REQUIREMENTS = new Set([
   "work.affected_components",
@@ -77,6 +76,11 @@ const TASK_COMMANDS = {
     summary: "List Tasks with optional status or participant filters.",
     usage:
       "list [--project <dir>] [--status <status>] [--subject <id>] [--team <id>] [--compact]"
+  },
+  claim: {
+    summary: "Claim an unassigned Task with a revision-checked update.",
+    usage:
+      "claim [--project <dir>] --id <task-id> --subject <id> --expected-revision <n> [--compact]"
   },
   update: {
     summary: "Replace editable Task state with optimistic revision control.",
@@ -300,6 +304,24 @@ function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
 }
 
+function normalizeTaskShape(value) {
+  const task = clone(value ?? {});
+  task.origin = task.origin ?? { kind: "direct" };
+  task.work = task.work ?? {};
+  task.work.kind = task.work.kind ?? "other";
+  task.work.exclusions = task.work.exclusions ?? [];
+  task.work.requested_action = task.work.requested_action ?? "execute";
+  task.work.constraints = task.work.constraints ?? [];
+  task.planning = task.planning ?? {};
+  task.planning.priority = task.planning.priority ?? "medium";
+  task.dependencies = task.dependencies ?? [];
+  task.blockers = task.blockers ?? [];
+  task.source_refs = task.source_refs ?? [];
+  task.readiness_policy = task.readiness_policy ?? { mode: "standard" };
+  task.evidence = task.evidence ?? [];
+  return task;
+}
+
 function identityFingerprint(value) {
   return crypto
     .createHash("sha256")
@@ -373,10 +395,12 @@ function validAcceptanceCriteria(criteria) {
       !Array.isArray(criterion) &&
       ID_PATTERN.test(criterion.id ?? "") &&
       nonEmptyString(criterion.statement) &&
-      nonEmptyString(criterion.verification) &&
-      Array.isArray(criterion.required_evidence) &&
-      criterion.required_evidence.length > 0 &&
-      criterion.required_evidence.every(nonEmptyString) &&
+      (criterion.verification == null ||
+        nonEmptyString(criterion.verification)) &&
+      (criterion.required_evidence == null ||
+        (Array.isArray(criterion.required_evidence) &&
+          criterion.required_evidence.length > 0 &&
+          criterion.required_evidence.every(nonEmptyString))) &&
       !ids.has(criterion.id);
     if (valid) ids.add(criterion.id);
     return valid;
@@ -432,12 +456,6 @@ function taskReadiness(task) {
     nonEmptyString(task?.work?.requested_action)
   );
   requireValue(
-    "work.affected_components",
-    Array.isArray(task?.work?.affected_components) &&
-      task.work.affected_components.length > 0 &&
-      task.work.affected_components.every(nonEmptyString)
-  );
-  requireValue(
     "work.constraints",
     Array.isArray(task?.work?.constraints) &&
       task.work.constraints.every(nonEmptyString)
@@ -449,16 +467,6 @@ function taskReadiness(task) {
   requireValue(
     "planning.priority",
     ["critical", "high", "medium", "low"].includes(task?.planning?.priority)
-  );
-  requireValue("planning.estimate", validEstimate(task?.planning?.estimate));
-  requireValue(
-    "planning.target_finish-or-deadline",
-    validDateTime(task?.planning?.target_finish) ||
-      validDateTime(task?.planning?.deadline)
-  );
-  requireValue(
-    "accountability.role",
-    nonEmptyString(task?.accountability?.role)
   );
   requireValue(
     "dependencies",
@@ -512,6 +520,19 @@ function taskReadiness(task) {
     "readiness_policy.mode",
     ["standard", "expedite"].includes(task?.readiness_policy?.mode)
   );
+
+  const criteria = task?.work?.acceptance_criteria ?? [];
+  const analysisRecorded =
+    Array.isArray(task?.work?.affected_components) &&
+    task.work.affected_components.length > 0 &&
+    validEstimate(task?.planning?.estimate) &&
+    criteria.every(
+      (criterion) =>
+        nonEmptyString(criterion?.verification) &&
+        Array.isArray(criterion?.required_evidence) &&
+        criterion.required_evidence.length > 0
+    );
+  if (!analysisRecorded) warnings.push("work-analysis-needed");
 
   const policy = task?.readiness_policy;
   let effectiveMissing = [...new Set(missing)];
@@ -668,6 +689,7 @@ function writeJsonAtomic(filePath, value) {
 }
 
 function validateTask(task) {
+  task = normalizeTaskShape(task);
   assertObject(task, "Task");
   if (task.schema_version !== 1) {
     throw new Error("Task schema_version must be 1");
@@ -683,7 +705,6 @@ function validateTask(task) {
     !task.origin ||
     !task.work ||
     !task.planning ||
-    !task.accountability ||
     !Array.isArray(task.dependencies) ||
     !Array.isArray(task.blockers) ||
     !Array.isArray(task.source_refs) ||
@@ -714,7 +735,8 @@ function validateTask(task) {
     task.work.scope.length === 0 ||
     !Array.isArray(task.work.exclusions) ||
     !nonEmptyString(task.work.requested_action) ||
-    !Array.isArray(task.work.affected_components) ||
+    (task.work.affected_components != null &&
+      !Array.isArray(task.work.affected_components)) ||
     !Array.isArray(task.work.constraints) ||
     !validAcceptanceCriteria(task.work.acceptance_criteria)
   ) {
@@ -722,15 +744,27 @@ function validateTask(task) {
   }
   if (
     !["critical", "high", "medium", "low"].includes(task.planning.priority) ||
-    !validEstimate(task.planning.estimate)
+    (task.planning.estimate != null &&
+      !validEstimate(task.planning.estimate))
   ) {
     throw new Error("Task planning estimate is invalid");
   }
+  if (!["standard", "expedite"].includes(task.readiness_policy.mode)) {
+    throw new Error("Task readiness policy is invalid");
+  }
+  if (task.assignee_id != null && !nonEmptyString(task.assignee_id)) {
+    throw new Error("Task assignee is invalid");
+  }
   if (
-    !nonEmptyString(task.accountability.role) ||
-    !["standard", "expedite"].includes(task.readiness_policy.mode)
+    task.accountability != null &&
+    (typeof task.accountability !== "object" ||
+      Array.isArray(task.accountability) ||
+      (task.accountability.role != null &&
+        !nonEmptyString(task.accountability.role)) ||
+      (task.accountability.subject_id != null &&
+        !nonEmptyString(task.accountability.subject_id)))
   ) {
-    throw new Error("Task accountability or readiness policy is invalid");
+    throw new Error("Legacy Task accountability is invalid");
   }
   if (
     task.readiness_policy.mode === "expedite" &&
@@ -748,7 +782,9 @@ function validateTask(task) {
   if (
     task.work.scope.some((item) => !nonEmptyString(item)) ||
     task.work.exclusions.some((item) => !nonEmptyString(item)) ||
-    task.work.affected_components.some((item) => !nonEmptyString(item)) ||
+    (task.work.affected_components ?? []).some(
+      (item) => !nonEmptyString(item)
+    ) ||
     task.work.constraints.some((item) => !nonEmptyString(item)) ||
     task.dependencies.some(
       (dependency) =>
@@ -823,11 +859,11 @@ function loadTask(projectRoot, taskId) {
   if (!fs.existsSync(filePath)) {
     throw new Error(`Task does not exist: ${taskId}`);
   }
-  return validateTask(readJson(filePath));
+  return validateTask(normalizeTaskShape(readJson(filePath)));
 }
 
 function saveTask(projectRoot, task) {
-  validateTask(task);
+  task = validateTask(normalizeTaskShape(task));
   const directories = ensureLayout(projectRoot);
   writeJsonAtomic(path.join(directories.tasks, `${task.task_id}.json`), task);
 }
@@ -1477,8 +1513,11 @@ function reportWindow(period, fromValue, toValue) {
 
 function taskInScope(task, scope, subjectId, teamId) {
   if (scope === "person") {
-    return (task.participants ?? []).some(
-      (participant) => participant.subject_id === subjectId
+    return (
+      task.assignee_id === subjectId ||
+      (task.participants ?? []).some(
+        (participant) => participant.subject_id === subjectId
+      )
     );
   }
   return !teamId || task.team_id === teamId;
@@ -1889,10 +1928,22 @@ function requireTaskOption(options, field, flag) {
 }
 
 function validateTaskOptions(options) {
-  if (["show", "git-scan", "sync-git", "assess"].includes(options.command)) {
+  if (
+    ["show", "claim", "git-scan", "sync-git", "assess"].includes(
+      options.command
+    )
+  ) {
     requireTaskOption(options, "id", "--id <task-id>");
   }
   if (options.command === "sync-git") {
+    requireTaskOption(
+      options,
+      "expectedRevision",
+      "--expected-revision <n>"
+    );
+  }
+  if (options.command === "claim") {
+    requireTaskOption(options, "subject", "--subject <id>");
     requireTaskOption(
       options,
       "expectedRevision",
@@ -1914,15 +1965,14 @@ function output(value, compact) {
 
 function createTask(projectRoot, input) {
   const createdAt = input.created_at ?? now();
-  const candidate = normalizeParticipantIdentities({
-    ...clone(input),
+  const candidate = normalizeParticipantIdentities(normalizeTaskShape({
+    ...input,
     schema_version: 1,
     revision: input.revision ?? 1,
     status: input.status ?? "ready",
-    evidence: clone(input.evidence ?? []),
     created_at: createdAt,
     updated_at: input.updated_at ?? createdAt
-  });
+  }));
   const readiness = assertCreationReady(candidate);
   const task = validateTask(candidate);
   const filePath = taskFile(projectRoot, task.task_id);
@@ -1933,6 +1983,7 @@ function createTask(projectRoot, input) {
   const event = taskEvent(task.task_id, "created", {
     status: task.status,
     objective: task.work.objective,
+    assignee_id: task.assignee_id ?? null,
     task_standard_version: readiness.standard_version,
     ready: readiness.ready
   }, {
@@ -1944,7 +1995,9 @@ function createTask(projectRoot, input) {
 
 function updateTask(projectRoot, input) {
   assertObject(input, "Task update");
-  const next = normalizeParticipantIdentities(clone(input.task));
+  const next = normalizeParticipantIdentities(
+    normalizeTaskShape(input.task)
+  );
   const current = loadTask(projectRoot, next.task_id);
   if (input.expected_revision !== current.revision) {
     throw new Error(
@@ -1979,6 +2032,45 @@ function updateTask(projectRoot, input) {
   });
   appendEvent(projectRoot, event);
   return { task: next, event_ref: event.event_id };
+}
+
+function claimTask(projectRoot, taskId, subjectId, expectedRevision) {
+  const task = loadTask(projectRoot, taskId);
+  if (expectedRevision !== task.revision) {
+    throw new Error(
+      `Task revision mismatch: expected ${expectedRevision}, stored ${task.revision}`
+    );
+  }
+  if (["completed", "cancelled"].includes(task.status)) {
+    throw new Error(`Cannot claim ${task.status} Task: ${task.task_id}`);
+  }
+  if (task.assignee_id === subjectId) {
+    return { task, claimed: false, event_ref: null };
+  }
+  if (task.assignee_id != null) {
+    const error = new Error(
+      `Task is already assigned to ${task.assignee_id}`
+    );
+    error.code = "task-already-assigned";
+    error.hint = "Sync the latest Task state or ask the manager to reassign it.";
+    throw error;
+  }
+  task.assignee_id = subjectId;
+  task.revision += 1;
+  task.updated_at = now();
+  saveTask(projectRoot, task);
+  const event = taskEvent(
+    task.task_id,
+    "updated",
+    { source: "claim", assignee_id: subjectId },
+    {
+      actor_id: subjectId,
+      base_revision: task.revision - 1,
+      next_revision: task.revision
+    }
+  );
+  appendEvent(projectRoot, event);
+  return { task, claimed: true, event_ref: event.event_id };
 }
 
 function applyAdapterPatch(projectRoot, input) {
@@ -2539,7 +2631,7 @@ async function main() {
   if (options.command === "validate") {
     const input = readInput(options.input, options.command);
     result = taskReadiness({
-      ...clone(input),
+      ...normalizeTaskShape(input),
       status: input.status ?? "ready"
     });
   } else if (options.command === "create") {
@@ -2561,9 +2653,17 @@ async function main() {
         task_id: task.task_id,
         revision: task.revision,
         status: task.status,
+        assignee_id: task.assignee_id ?? null,
         objective: task.work.objective,
         updated_at: task.updated_at ?? null
       }));
+  } else if (options.command === "claim") {
+    result = claimTask(
+      projectRoot,
+      options.id,
+      options.subject,
+      options.expectedRevision
+    );
   } else if (options.command === "update") {
     result = updateTask(projectRoot, readInput(options.input, options.command));
   } else if (options.command === "apply-patch") {

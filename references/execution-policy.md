@@ -31,6 +31,13 @@ applies:
 Promote an existing ephemeral context rather than reconstructing it from
 scratch. Preserve its decisions, evidence, and unresolved risks.
 
+For a persistent Task, synchronize its latest Git state before expensive work.
+Honor a manager-supplied `assignee_id`; otherwise claim it with the smallest
+available revision-checked update and publish that update early. Treat the
+merged repository state as shared truth, not as a real-time lock. Begin with a
+risk-proportionate Work Analysis, refining implementation hints, estimates, and
+verification details only as far as the current work needs.
+
 ## Risk Factors
 
 Raise assurance when work affects:

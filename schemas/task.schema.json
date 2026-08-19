@@ -12,7 +12,6 @@
     "origin",
     "work",
     "planning",
-    "accountability",
     "dependencies",
     "blockers",
     "source_refs",
@@ -101,6 +100,13 @@
       "type": "string",
       "minLength": 1
     },
+    "assignee_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
     "participants": {
       "type": "array",
       "items": {
@@ -116,7 +122,6 @@
         "scope",
         "exclusions",
         "requested_action",
-        "affected_components",
         "constraints",
         "acceptance_criteria"
       ],
@@ -201,8 +206,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "priority",
-        "estimate"
+        "priority"
       ],
       "properties": {
         "priority": {
@@ -265,9 +269,6 @@
     "accountability": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "role"
-      ],
       "properties": {
         "role": {
           "type": "string",
@@ -524,9 +525,7 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "statement",
-        "verification",
-        "required_evidence"
+        "statement"
       ],
       "properties": {
         "id": {

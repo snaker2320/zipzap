@@ -756,8 +756,7 @@ export function validateCatalogs(catalogs) {
       (requirement) =>
         ![
           "work.objective",
-          "work.acceptance_criteria",
-          "accountability.role"
+          "work.acceptance_criteria"
         ].includes(requirement)
     ) ||
     JSON.stringify(
@@ -4682,6 +4681,12 @@ function validateTask(task) {
   ) {
     throw new Error("task identity or revision is invalid");
   }
+  if (
+    task.assignee_id != null &&
+    (typeof task.assignee_id !== "string" || task.assignee_id.trim() === "")
+  ) {
+    throw new Error("task.assignee_id must be a non-empty string when set");
+  }
   assertObject(task.work, "task.work");
   if (
     typeof task.work.objective !== "string" ||
@@ -4701,13 +4706,11 @@ function validateTask(task) {
       throw new Error(`task.${field} must be an array`);
     }
   }
-  for (const field of [
-    "origin",
-    "planning",
-    "accountability",
-    "readiness_policy"
-  ]) {
+  for (const field of ["origin", "planning", "readiness_policy"]) {
     assertObject(task[field], `task.${field}`);
+  }
+  if (task.accountability != null) {
+    assertObject(task.accountability, "task.accountability");
   }
   if (
     !Array.isArray(task.work.acceptance_criteria) ||
