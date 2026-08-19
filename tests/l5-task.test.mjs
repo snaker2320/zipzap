@@ -148,6 +148,12 @@ test("unified L5 invoke returns a ready execution view", () => {
   assert.equal(response.ok, true);
   assert.equal(response.operation, "execute");
   assert.equal(response.status, "ready");
+  assert.deepEqual(response.decision_interaction, {
+    must_pause: false,
+    presentation: "none",
+    bundle_ids: [],
+    visible_question_ids: []
+  });
   assert.deepEqual(response.user_view, {
     phase: "work",
     label: "Work",
@@ -251,6 +257,17 @@ test("unified L5 invoke returns risk decisions without entering L4", () => {
     "risk-signal-unresolved"
   ]);
   assert.equal(response.execution, undefined);
+  assert.equal(response.decision_bundles.length, 1);
+  assert.deepEqual(response.decision_interaction, {
+    must_pause: true,
+    presentation: "plain-text",
+    bundle_ids: ["risk-clarification"],
+    visible_question_ids: ["risk-signal-unresolved-security-critical"]
+  });
+  assert.equal(
+    response.decision_bundles[0].questions[0].source_decision_code,
+    "risk-signal-unresolved"
+  );
   assert.equal(
     response.decisions_required[0].code,
     "risk-signal-unresolved"

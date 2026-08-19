@@ -97,6 +97,10 @@ test("guides discovery and visible preferences before one project write", (conte
   );
 
   assert.equal(started.status, "decision-required");
+  assert.equal(started.decision_bundles.length, 1);
+  assert.equal(started.decision_bundles[0].questions.length, 6);
+  assert.equal(started.decision_interaction.must_pause, true);
+  assert.equal(started.decision_interaction.presentation, "native-form");
   assert.equal(started.write_performed, false);
   assert.equal(fs.existsSync(manifestPath), false);
   assert.deepEqual(
@@ -125,6 +129,10 @@ test("guides discovery and visible preferences before one project write", (conte
     signatures: "visible"
   });
   assert.equal(preview.status, "preview-ready");
+  assert.equal(
+    preview.decision_bundles[0].questions[0].kind,
+    "confirm"
+  );
   assert.equal(preview.write_performed, false);
   assert.equal(fs.existsSync(manifestPath), false);
   assert.equal(
@@ -139,6 +147,8 @@ test("guides discovery and visible preferences before one project write", (conte
   assert.equal(completed.post_check.preferences_visible_before_write, true);
   assert.equal(completed.post_check.single_manifest_write, true);
   assert.equal(completed.user_view.interaction.mode, "inform");
+  assert.equal(completed.decision_interaction.must_pause, false);
+  assert.equal(completed.decision_interaction.presentation, "none");
   const stored = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   assert.equal(stored.revision, 1);
   assert.equal(stored.sources.length, 1);
@@ -206,6 +216,11 @@ test("falls back to stepwise onboarding when guided forms are not reported", (co
   );
   assert.equal(started.form, undefined);
   assert.equal(started.question.id, "scope");
+  assert.equal(started.decision_interaction.must_pause, true);
+  assert.equal(started.decision_interaction.presentation, "stepwise");
+  assert.deepEqual(started.decision_interaction.visible_question_ids, [
+    "scope"
+  ]);
   assert.equal(
     started.capability_matrix.entries.find(
       (entry) => entry.id === "guided-form"

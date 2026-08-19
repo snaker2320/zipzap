@@ -32,11 +32,40 @@ implementing or debugging that boundary.
 - Interrupt only for material ambiguity, authority, approval, unsafe or
   irreversible action, missing governing sources, or an unmet gate.
 - Ask one concise question for one accountable decision.
+- At a critical checkpoint, emit structured Decision Bundles. One bundle may
+  contain multiple related single-select, multi-select, or confirmation
+  questions for the same authority; split different authorities.
 - Persist only for continuity, coordination, approval, tracking, durable
   Findings, auditability, or project policy.
 
 Read [the execution policy](references/execution-policy.md) when selecting
 persistence, assurance, or gates.
+Read [Decision Forms](references/decision-forms.md) when presenting or changing
+structured choices at a critical checkpoint.
+
+## Stop for Accountable Decisions
+
+After every First Run, onboarding, risk-normalization, L4, or L5 call, inspect
+`decision_interaction` before doing anything else.
+
+1. If `must_pause` is `false`, continue normally.
+2. If `must_pause` is `true`, render the referenced `decision_bundles`, stop
+   execution, and wait for the required authority's answer.
+3. Resume only after mapping the answer to the stable bundle, question,
+   option, authority, and state-revision IDs.
+
+Use a native choice form only when the host provides that interaction. Plan
+mode is not required. Without a native form, ask the visible question in
+ordinary conversation, one accountable question at a time; support
+multi-select by collecting and validating option IDs in text. Never infer an
+answer, accept a recommendation silently, perform a write, or launch multiple
+Agent contexts while `must_pause` is `true`.
+
+When **Initialize** is requested and `.zipzap/project.json` is absent, start
+First Run instead of directly configuring project state. Present its choices
+and final preview confirmation before the single write. Before a Multi-Agent
+launch, treat `multi-agent-authorization-required` as a hard decision gate;
+team selection alone is not authorization.
 
 ## Route Work by Outcome
 

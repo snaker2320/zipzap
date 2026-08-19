@@ -9,7 +9,9 @@
     "status",
     "state",
     "write_performed",
-    "storage"
+    "storage",
+    "decision_bundles",
+    "decision_interaction"
   ],
   "properties": {
     "schema_version": {
@@ -126,6 +128,15 @@
         }
       }
     },
+    "decision_bundles": {
+      "type": "array",
+      "items": {
+        "$ref": "./decision-bundle.schema.json"
+      }
+    },
+    "decision_interaction": {
+      "$ref": "./decision-interaction.schema.json"
+    },
     "configuration": {
       "$ref": "./onboarding-input.schema.json#/$defs/configuration"
     },
@@ -140,6 +151,51 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "decision-required",
+              "preview-ready"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision_bundles": {
+            "minItems": 1
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "decision_bundles": {
+            "maxItems": 0
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "option": {
       "type": "object",

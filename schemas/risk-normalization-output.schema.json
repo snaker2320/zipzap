@@ -9,7 +9,9 @@
     "status",
     "kernel_request",
     "derived_governance",
-    "decisions_required"
+    "decisions_required",
+    "decision_bundles",
+    "decision_interaction"
   ],
   "properties": {
     "schema_version": {
@@ -177,6 +179,15 @@
           }
         }
       }
+    },
+    "decision_bundles": {
+      "type": "array",
+      "items": {
+        "$ref": "./decision-bundle.schema.json"
+      }
+    },
+    "decision_interaction": {
+      "$ref": "./decision-interaction.schema.json"
     }
   },
   "allOf": [
@@ -195,6 +206,16 @@
           },
           "decisions_required": {
             "maxItems": 0
+          },
+          "decision_bundles": {
+            "maxItems": 0
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": false
+              }
+            }
           }
         }
       }
@@ -214,6 +235,16 @@
           },
           "decisions_required": {
             "minItems": 1
+          },
+          "decision_bundles": {
+            "minItems": 1
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": true
+              }
+            }
           }
         }
       }

@@ -11,7 +11,9 @@
     "write_performed",
     "discovery",
     "user_view",
-    "capability_matrix"
+    "capability_matrix",
+    "decision_bundles",
+    "decision_interaction"
   ],
   "properties": {
     "schema_version": {
@@ -53,6 +55,15 @@
     },
     "capability_matrix": {
       "$ref": "./host-capability-matrix.schema.json"
+    },
+    "decision_bundles": {
+      "type": "array",
+      "items": {
+        "$ref": "./decision-bundle.schema.json"
+      }
+    },
+    "decision_interaction": {
+      "$ref": "./decision-interaction.schema.json"
     },
     "question": {
       "$ref": "./onboarding-output.schema.json#/$defs/question"
@@ -164,5 +175,50 @@
         "type": "string"
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "decision-required",
+              "preview-ready"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision_bundles": {
+            "minItems": 1
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "decision_bundles": {
+            "maxItems": 0
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

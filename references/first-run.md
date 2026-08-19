@@ -14,6 +14,10 @@ Use First Run only when `.zipzap/project.json` does not exist. Route an
 initialized project to `onboard` for preference changes or `initialize` with
 `refresh` for source reconciliation.
 
+When a user invokes the public **Initialize** action for an uninitialized
+project, enter First Run automatically. Do not bypass its preference decision
+or preview confirmation by calling direct configuration first.
+
 ## Sequence
 
 Run:
@@ -28,6 +32,10 @@ Run:
 5. Configure project sources and project-scoped preferences in one project
    manifest write.
 6. Return the stored initialization and post-check result.
+
+Expose preference collection and final confirmation through
+`decision_bundles`. Keep the legacy `form` or `question` projection for
+compatible hosts, but treat the bundle as the authoritative rendering input.
 
 Always show the core preference fields before confirmation:
 

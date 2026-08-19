@@ -59,6 +59,15 @@
         "$ref": "#/$defs/decision"
       }
     },
+    "decision_bundles": {
+      "type": "array",
+      "items": {
+        "$ref": "./decision-bundle.schema.json"
+      }
+    },
+    "decision_interaction": {
+      "$ref": "./decision-interaction.schema.json"
+    },
     "continuation": {
       "type": [
         "object",
@@ -100,7 +109,9 @@
       "required": [
         "operation",
         "status",
-        "user_view"
+        "user_view",
+        "decision_bundles",
+        "decision_interaction"
       ],
       "not": {
         "required": [
@@ -163,11 +174,33 @@
       },
       "then": {
         "required": [
-          "decisions_required"
+          "decisions_required",
+          "decision_bundles"
         ],
         "properties": {
           "decisions_required": {
             "minItems": 1
+          },
+          "decision_bundles": {
+            "minItems": 1
+          },
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "decision_interaction": {
+            "properties": {
+              "must_pause": {
+                "const": false
+              }
+            }
           }
         }
       }
