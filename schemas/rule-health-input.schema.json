@@ -66,6 +66,35 @@
       "type": "integer",
       "minimum": 1
     },
+    "semantic_budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_source_files"
+      ],
+      "properties": {
+        "max_source_files": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      }
+    },
+    "semantic_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "findings"
+      ],
+      "properties": {
+        "findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/semanticFinding"
+          }
+        }
+      }
+    },
     "include_ignored": {
       "type": "boolean",
       "default": false
@@ -87,6 +116,110 @@
     "timestamp": {
       "type": "string",
       "format": "date-time"
+    }
+  },
+  "$defs": {
+    "semanticFinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "severity",
+        "confidence",
+        "source_refs",
+        "evidence",
+        "impact",
+        "recommendation"
+      ],
+      "properties": {
+        "category": {
+          "enum": [
+            "semantic-duplicate",
+            "semantic-conflict",
+            "unclear-precedence",
+            "mixed-responsibilities",
+            "project-structure-mismatch",
+            "missing-applicability",
+            "likely-superseded",
+            "duplicated-business-rule",
+            "excessive-design-sources",
+            "whole-document-reference",
+            "archived-design-authority"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "blocker",
+            "high",
+            "medium",
+            "low",
+            "advisory"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_id"
+            ],
+            "properties": {
+              "source_id": {
+                "type": "string"
+              },
+              "heading": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "source_id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "source_id": {
+                "type": "string"
+              },
+              "heading": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "impact": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recommendation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "migration_proposal": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
     }
   },
   "allOf": [

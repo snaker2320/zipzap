@@ -54,6 +54,22 @@ function diagnose(projectRoot, projectManifest, overrides = {}) {
   });
 }
 
+function materializeSources(root, count) {
+  fs.mkdirSync(path.join(root, "docs", "standards"), { recursive: true });
+  return Array.from({ length: count }, (_, index) => {
+    const locator = `docs/standards/source-${index}.md`;
+    fs.writeFileSync(path.join(root, locator), `# Source ${index}\n`);
+    return source({
+      id: `source-${index}`,
+      locator,
+      owner: "engineering",
+      authority: "engineering",
+      version: null,
+      priority: count - index
+    });
+  });
+}
+
 test("reports deterministic source availability, duplication, and metadata smells", (context) => {
   const root = project(context);
   fs.mkdirSync(path.join(root, "docs", "standards"), { recursive: true });
@@ -257,4 +273,84 @@ test("exposes explicit rule health diagnosis through CLI and schemas", (context)
   assert.equal(catalogs.schemas.ruleHealthInput.title, "ZipZap Rule Health Input");
   assert.equal(catalogs.schemas.ruleHealthOutput.title, "ZipZap Rule Health Output");
   assert.equal(catalogs.schemas.ruleHealthIgnore.title, "ZipZap Rule Health Ignore");
+  assert.equal(
+    catalogs.schemas.ruleHealthInput.properties.semantic_budget.properties
+      .max_source_files.maximum,
+    100
+  );
+  assert.equal(
+    catalogs.schemas.ruleHealthInput.properties.semantic_assessment.properties
+      .findings.type,
+    "array"
+  );
+});
+
+test("bounds standard semantic candidates and discloses omitted sources", (context) => {
+  const root = project(context);
+  const projectManifest = manifest(materializeSources(root, 10));
+
+  const result = diagnose(root, projectManifest, { depth: "standard" });
+
+  assert.equal(result.depth, "standard");
+  assert.equal(result.semantic_review_request.budget.max_source_files, 8);
+  assert.equal(result.semantic_review_request.selected_sources.length, 8);
+  assert.equal(result.semantic_review_request.omitted_sources, 2);
+  assert.equal(result.semantic_review_request.claim_limit, "advisory");
+});
+
+test("requires and enforces an explicit deep semantic source budget", (context) => {
+  const root = project(context);
+  const projectManifest = manifest(materializeSources(root, 12));
+
+  assert.throws(
+    () => diagnose(root, projectManifest, { depth: "deep" }),
+    /deep.*max_source_files/i
+  );
+  const result = diagnose(root, projectManifest, {
+    depth: "deep",
+    semantic_budget: { max_source_files: 10 }
+  });
+  assert.equal(result.semantic_review_request.selected_sources.length, 10);
+  assert.equal(result.semantic_review_request.omitted_sources, 2);
+});
+
+test("validates and merges evidence-backed semantic assessment findings", (context) => {
+  const root = project(context);
+  const sources = materializeSources(root, 2);
+  const projectManifest = manifest(sources);
+  const semanticFinding = {
+    category: "semantic-duplicate",
+    severity: "medium",
+    confidence: "high",
+    source_refs: [
+      { source_id: "source-0", heading: "Rules" },
+      { source_id: "source-1", heading: "Rules" }
+    ],
+    evidence: [
+      { id: "duplicate-rule", source_id: "source-0", heading: "Rules" }
+    ],
+    impact: "The same rule may diverge across documents.",
+    recommendation: "Keep one authoritative rule and replace the other with a reference."
+  };
+
+  const result = diagnose(root, projectManifest, {
+    depth: "standard",
+    semantic_assessment: { findings: [semanticFinding] }
+  });
+  const merged = result.findings.find(
+    (finding) => finding.category === "semantic-duplicate"
+  );
+  assert.match(merged.fingerprint, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(merged.source_refs.length, 2);
+
+  const invalid = structuredClone(semanticFinding);
+  invalid.source_refs[1].source_id = "unknown-source";
+  assert.throws(
+    () =>
+      diagnose(root, projectManifest, {
+        depth: "standard",
+        semantic_assessment: { findings: [invalid] }
+      }),
+    /unknown-source/
+  );
 });

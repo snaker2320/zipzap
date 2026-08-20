@@ -3,6 +3,19 @@ import fs from "node:fs";
 import path from "node:path";
 
 const FINGERPRINT_PATTERN = /^sha256:[a-f0-9]{64}$/;
+const SEMANTIC_CATEGORIES = [
+  "semantic-duplicate",
+  "semantic-conflict",
+  "unclear-precedence",
+  "mixed-responsibilities",
+  "project-structure-mismatch",
+  "missing-applicability",
+  "likely-superseded",
+  "duplicated-business-rule",
+  "excessive-design-sources",
+  "whole-document-reference",
+  "archived-design-authority"
+];
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -302,19 +315,153 @@ function candidateFindings(root, sources, maxInstructionLines = 400) {
   return findings;
 }
 
+function semanticReviewRequest(depth, sources, structuralFindings, budgetInput) {
+  if (depth === "quick") return null;
+  let maxSourceFiles = 8;
+  if (depth === "deep") {
+    maxSourceFiles = budgetInput?.max_source_files;
+    if (
+      !Number.isInteger(maxSourceFiles) ||
+      maxSourceFiles < 1 ||
+      maxSourceFiles > 100
+    ) {
+      throw new Error("deep rule health requires semantic_budget.max_source_files from 1 to 100");
+    }
+  } else if (budgetInput?.max_source_files != null) {
+    if (
+      !Number.isInteger(budgetInput.max_source_files) ||
+      budgetInput.max_source_files < 1 ||
+      budgetInput.max_source_files > 100
+    ) {
+      throw new Error("semantic_budget.max_source_files must be from 1 to 100");
+    }
+    maxSourceFiles = budgetInput.max_source_files;
+  }
+  const candidateSourceIds = new Set(
+    structuralFindings
+      .filter((item) =>
+        [
+          "broad-instructions-candidate",
+          "unrelated-topic-concentration",
+          "document-route-mismatch"
+        ].includes(item.category)
+      )
+      .flatMap((item) => item.source_refs.map((ref) => ref.source_id))
+  );
+  const ordered = [...sources].sort((left, right) => {
+    const leftCandidate = candidateSourceIds.has(left.id) ? 1 : 0;
+    const rightCandidate = candidateSourceIds.has(right.id) ? 1 : 0;
+    return (
+      rightCandidate - leftCandidate ||
+      (right.priority ?? 0) - (left.priority ?? 0) ||
+      left.id.localeCompare(right.id)
+    );
+  });
+  const selected = ordered.slice(0, maxSourceFiles);
+  return {
+    depth,
+    claim_limit: "advisory",
+    budget: {
+      max_source_files: maxSourceFiles
+    },
+    categories: [...SEMANTIC_CATEGORIES],
+    selected_sources: selected.map((source) => ({
+      ...sourceRef(source),
+      load_required: true
+    })),
+    omitted_sources: Math.max(0, ordered.length - selected.length),
+    instructions: [
+      "Inspect only selected sources and cited heading ranges.",
+      "Return advisory Findings with source-bound evidence.",
+      "Do not modify, migrate, approve, or persist project content."
+    ]
+  };
+}
+
+function semanticFindings(assessment, request, sources) {
+  if (assessment == null) return [];
+  if (!request) {
+    throw new Error("semantic_assessment requires standard or deep diagnosis");
+  }
+  if (!Array.isArray(assessment.findings)) {
+    throw new Error("semantic_assessment.findings must be an array");
+  }
+  const candidates = new Set(
+    request.selected_sources.map((source) => source.source_id)
+  );
+  const byId = new Map(sources.map((source) => [source.id, source]));
+  return assessment.findings.map((assessed) => {
+    if (!SEMANTIC_CATEGORIES.includes(assessed.category)) {
+      throw new Error(`unsupported semantic category: ${assessed.category}`);
+    }
+    if (!["blocker", "high", "medium", "low", "advisory"].includes(assessed.severity)) {
+      throw new Error(`invalid semantic severity: ${assessed.severity}`);
+    }
+    if (!["high", "medium", "low"].includes(assessed.confidence)) {
+      throw new Error(`invalid semantic confidence: ${assessed.confidence}`);
+    }
+    if (!Array.isArray(assessed.source_refs) || assessed.source_refs.length === 0) {
+      throw new Error("semantic Finding requires source_refs");
+    }
+    const refs = assessed.source_refs.map((ref) => {
+      if (!candidates.has(ref.source_id) || !byId.has(ref.source_id)) {
+        throw new Error(`semantic Finding references non-candidate source: ${ref.source_id}`);
+      }
+      const source = byId.get(ref.source_id);
+      return {
+        ...sourceRef(source),
+        ...(ref.heading ? { heading: ref.heading } : {})
+      };
+    });
+    if (!Array.isArray(assessed.evidence) || assessed.evidence.length === 0) {
+      throw new Error("semantic Finding requires evidence");
+    }
+    const evidenceIds = assessed.evidence.map((evidence) => {
+      if (!evidence?.id || !candidates.has(evidence.source_id)) {
+        throw new Error(`semantic evidence references non-candidate source: ${evidence?.source_id}`);
+      }
+      return `${evidence.source_id}:${evidence.id}:${evidence.heading ?? ""}`;
+    });
+    if (!assessed.impact || !assessed.recommendation) {
+      throw new Error("semantic Finding requires impact and recommendation");
+    }
+    const identity = {
+      category: assessed.category,
+      source_ids: refs.map((ref) => ref.source_id).sort(),
+      evidence_ids: [...evidenceIds].sort(),
+      source_versions: refs
+        .map((ref) => [ref.source_id, ref.version])
+        .sort(([left], [right]) => left.localeCompare(right))
+    };
+    return {
+      fingerprint: digest(canonical(identity)),
+      category: assessed.category,
+      severity: assessed.severity,
+      confidence: assessed.confidence,
+      source_refs: refs,
+      evidence: structuredClone(assessed.evidence),
+      impact: assessed.impact,
+      recommendation: assessed.recommendation,
+      migration_proposal: assessed.migration_proposal ?? null,
+      disposition: "open"
+    };
+  });
+}
+
 export function diagnoseRuleHealth(input) {
   if (input?.schema_version !== 1 || input.operation !== "diagnose") {
     throw new Error("rule health diagnose requires schema_version 1 and operation diagnose");
   }
-  if ((input.depth ?? "quick") !== "quick") {
-    throw new Error("only quick rule health diagnosis is available in this slice");
+  const depth = input.depth ?? "quick";
+  if (!["quick", "standard", "deep"].includes(depth)) {
+    throw new Error(`unsupported rule health depth: ${depth}`);
   }
   const root = projectRoot(input);
   const sources = input.manifest?.sources;
   if (!Array.isArray(sources)) {
     throw new Error("rule health diagnosis requires manifest.sources");
   }
-  const openFindings = [
+  const structuralFindings = [
     ...duplicateLocatorFindings(sources),
     ...availabilityFindings(root, sources),
     ...metadataFindings(sources),
@@ -322,6 +469,16 @@ export function diagnoseRuleHealth(input) {
     ...coverageFindings(sources, input.required_topics),
     ...routeFindings(sources, input.manifest.document_routing),
     ...candidateFindings(root, sources, input.max_instruction_lines)
+  ];
+  const semanticRequest = semanticReviewRequest(
+    depth,
+    sources,
+    structuralFindings,
+    input.semantic_budget
+  );
+  const openFindings = [
+    ...structuralFindings,
+    ...semanticFindings(input.semantic_assessment, semanticRequest, sources)
   ].sort(
     (left, right) =>
       left.category.localeCompare(right.category) ||
@@ -345,10 +502,10 @@ export function diagnoseRuleHealth(input) {
   return {
     schema_version: 1,
     status: "completed",
-    depth: "quick",
+    depth,
     findings,
     ignored_count: ignoredCount,
-    semantic_review_request: null,
+    semantic_review_request: semanticRequest,
     limitations: []
   };
 }

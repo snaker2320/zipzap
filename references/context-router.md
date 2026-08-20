@@ -44,3 +44,11 @@ coverage boundary. Stop after the configured source-file limit, disclose
 uninspected areas, and offer an expanded diagnostic. Do not load
 Finding-specific implementation fragments, run tests, or persist output until
 the user authorizes an upgraded scope.
+
+For an explicit Rule Doctor Work, keep deterministic scanning separate from
+semantic judgment. `quick` returns deterministic Findings only. `standard` and
+`deep` return a bounded `semantic_review_request`; a Reviewer reads only its
+selected sources and exact evidence ranges. The script validates the Reviewer's
+source-bound assessment and creates stable Finding fingerprints, but it never
+claims to perform semantic reasoning itself. Rule health is never triggered by
+initialization, ordinary Work, source refresh, or file changes.
