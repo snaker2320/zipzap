@@ -21,6 +21,11 @@ import {
   loadModuleCatalog,
   validateModuleCatalog
 } from "./lib/module-catalog.mjs";
+import {
+  capabilityProfileDigest,
+  loadCapabilityProfiles,
+  validateCapabilityProfile
+} from "./lib/capability-profiles.mjs";
 
 export {
   applyDocumentMaintenance,
@@ -1582,7 +1587,12 @@ const SOURCE_SELECTOR_KEYS = [
   "risk_flags"
 ];
 
-function validateProjectManifest(manifest, catalogs = loadCatalogs()) {
+export function validateProjectManifest(manifest, catalogs = loadCatalogs()) {
+  if (manifest?.schema_version === 1) {
+    throw new Error(
+      "migration-required: project Manifest v1 must be reinitialized as v2"
+    );
+  }
   assertAllowedFields(
     manifest,
     [
@@ -1590,14 +1600,14 @@ function validateProjectManifest(manifest, catalogs = loadCatalogs()) {
       "project_id",
       "revision",
       "sources",
-      "extensions",
+      "capabilities",
       "collaboration",
       "persistence",
       "document_routing"
     ],
     "project manifest"
   );
-  if (manifest.schema_version !== 1 || !ID_PATTERN.test(manifest.project_id)) {
+  if (manifest.schema_version !== 2 || !ID_PATTERN.test(manifest.project_id)) {
     throw new Error("project manifest version or project_id is invalid");
   }
   if (
@@ -1608,6 +1618,36 @@ function validateProjectManifest(manifest, catalogs = loadCatalogs()) {
   }
   if (!Array.isArray(manifest.sources)) {
     throw new Error("project manifest sources must be an array");
+  }
+  if (!Array.isArray(manifest.capabilities)) {
+    throw new Error("project manifest capabilities must be an array");
+  }
+  const capabilityIds = new Set();
+  for (const registration of manifest.capabilities) {
+    assertAllowedFields(
+      registration,
+      ["id", "locator", "enabled"],
+      "capability registration"
+    );
+    if (!ID_PATTERN.test(registration.id ?? "")) {
+      throw new Error("capability registration id is invalid");
+    }
+    if (capabilityIds.has(registration.id)) {
+      throw new Error(`duplicate capability registration id: ${registration.id}`);
+    }
+    capabilityIds.add(registration.id);
+    const locator = String(registration.locator ?? "").replaceAll("\\", "/");
+    if (
+      !locator ||
+      locator.startsWith("/") ||
+      /^[A-Za-z]:\//.test(locator) ||
+      locator.split("/").includes("..")
+    ) {
+      throw new Error(`${registration.id} capability locator escapes project root`);
+    }
+    if (typeof registration.enabled !== "boolean") {
+      throw new Error(`${registration.id} capability enabled must be boolean`);
+    }
   }
   const sourceIds = new Set();
   for (const source of manifest.sources) {
@@ -4111,9 +4151,10 @@ function writeProjectOnboarding(state, input, catalogs) {
     "project"
   );
   const manifest = projectState.manifest ?? {
-    schema_version: 1,
+    schema_version: 2,
     project_id: projectId,
     sources: [],
+    capabilities: [],
     persistence: {
       adapter: "local-json",
       locator: catalogs.taskPolicy.local_store.locator
@@ -4337,6 +4378,9 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
     manifest_locator: persistence === "project" ? manifestLocator : null,
     write_performed: false,
     sources: [],
+    capability_profiles: [],
+    capability_changes: [],
+    preview_fingerprint: null,
     document_routing: null,
     coverage: [],
     changes: [],
@@ -4399,9 +4443,10 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
       );
     }
     validateProjectManifest({
-      schema_version: 1,
+      schema_version: 2,
       project_id: projectId,
-      sources: selectedSources
+      sources: selectedSources,
+      capabilities: []
     });
     const inspected = selectedSources.map((source) =>
       inspectRegisteredSource(projectRoot, source)
@@ -4471,13 +4516,74 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
         }
       : null);
   emptyInitialization.document_routing = documentRouting;
+  let capabilityProfiles = [];
+  try {
+    if (request.initialization.capability_profiles != null) {
+      if (!Array.isArray(request.initialization.capability_profiles)) {
+        throw new Error("initialization capability_profiles must be an array");
+      }
+      const profileIds = new Set();
+      capabilityProfiles = request.initialization.capability_profiles.map(
+        (profile) => {
+          const candidate = clone(profile);
+          validateCapabilityProfile(candidate);
+          if (profileIds.has(candidate.id)) {
+            throw new Error(`duplicate capability profile id: ${candidate.id}`);
+          }
+          profileIds.add(candidate.id);
+          return candidate;
+        }
+      );
+    } else if (existingManifest?.capabilities?.length) {
+      capabilityProfiles = loadCapabilityProfiles(
+        projectRoot,
+        existingManifest.capabilities
+      ).map(clone);
+    }
+  } catch (error) {
+    emptyInitialization.unresolved.push(
+      `Capability profile validation failed: ${error.message}`
+    );
+    return initializationResponse(request, emptyInitialization, "blocked", catalogs);
+  }
+  const selectedSourceIds = new Set(selectedSources.map((source) => source.id));
+  for (const profile of capabilityProfiles) {
+    const missingSourceIds = unique([
+      ...profile.facts.map((fact) => fact.source_id),
+      ...profile.source_refs.map((sourceRef) => sourceRef.source_id)
+    ]).filter((sourceId) => !selectedSourceIds.has(sourceId));
+    if (missingSourceIds.length) {
+      emptyInitialization.unresolved.push(
+        `${profile.id} references missing project sources: ${missingSourceIds.join(", ")}`
+      );
+    }
+  }
+  if (emptyInitialization.unresolved.length) {
+    return initializationResponse(
+      request,
+      { ...emptyInitialization, capability_profiles: capabilityProfiles },
+      "blocked",
+      catalogs
+    );
+  }
+  const capabilities =
+    request.initialization.capability_profiles != null
+      ? capabilityProfiles.map((profile) => ({
+          id: profile.id,
+          locator: `.zipzap/capabilities/${profile.id}.json`,
+          enabled: profile.status === "active"
+        }))
+      : clone(existingManifest?.capabilities ?? []);
   const manifest = {
-    schema_version: 1,
+    schema_version: 2,
     project_id: projectId,
-    ...(existingManifest?.revision
-      ? { revision: existingManifest.revision }
+    ...(action !== "discover" && persistence === "project"
+      ? { revision: (existingManifest?.revision ?? 0) + 1 }
+      : existingManifest?.revision
+        ? { revision: existingManifest.revision }
       : {}),
     sources: selectedSources,
+    capabilities,
     collaboration: {
       ...(existingManifest?.collaboration ?? {}),
       enabled_roles: enabledRoles,
@@ -4495,11 +4601,41 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
         catalogs.taskPolicy.local_store.locator
     },
     ...(documentRouting ? { document_routing: clone(documentRouting) } : {}),
-    ...(existingManifest?.extensions
-      ? { extensions: clone(existingManifest.extensions) }
-      : {})
   };
   validateProjectManifest(manifest);
+  const existingCapabilities = new Map(
+    (existingManifest?.capabilities ?? []).map((item) => [item.id, item])
+  );
+  const capabilityChanges = capabilityProfiles.map((profile) => {
+    const prior = existingCapabilities.get(profile.id);
+    return {
+      action: prior ? "update" : "create",
+      id: profile.id,
+      target: `.zipzap/capabilities/${profile.id}.json`,
+      reason: prior
+        ? "Refresh the confirmed project capability facts and fingerprints."
+        : "Register confirmed project capability facts and fingerprints."
+    };
+  });
+  const previewFingerprint = capabilityProfiles.length
+    ? `sha256:${crypto
+        .createHash("sha256")
+        .update(
+          canonicalJson({
+            manifest,
+            capability_profiles: capabilityProfiles
+              .map((profile) => ({
+                id: profile.id,
+                digest: capabilityProfileDigest(profile)
+              }))
+              .sort((left, right) => left.id.localeCompare(right.id))
+          })
+        )
+        .digest("hex")}`
+    : null;
+  emptyInitialization.capability_profiles = capabilityProfiles;
+  emptyInitialization.capability_changes = capabilityChanges;
+  emptyInitialization.preview_fingerprint = previewFingerprint;
   const coverage = initializationCoverage(
     sourceResults,
     enabledRoles,
@@ -4523,10 +4659,41 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
       reason: "Session persistence does not write project state."
     });
   } else {
+    if (capabilityProfiles.length) {
+      const confirmation = request.initialization.confirmation;
+      if (
+        confirmation?.approved !== true ||
+        confirmation.preview_fingerprint !== previewFingerprint
+      ) {
+        const reason = confirmation
+          ? "Capability profile preview changed; review the refreshed preview and confirm again."
+          : "Review and confirm the capability profile preview before project files are written.";
+        return initializationResponse(
+          request,
+          {
+            ...emptyInitialization,
+            manifest,
+            sources: sourceResults,
+            coverage,
+            changes: [
+              ...changes,
+              {
+                action: "skip",
+                target: ".zipzap/capabilities/",
+                reason
+              }
+            ],
+            unresolved: [reason]
+          },
+          "decision-required",
+          catalogs
+        );
+      }
+    }
     try {
-      manifest.revision = (existingManifest?.revision ?? 0) + 1;
       validateProjectManifest(manifest, catalogs);
       const zipzapDirectory = path.dirname(manifestPath);
+      const capabilityDirectory = path.join(zipzapDirectory, "capabilities");
       const taskDirectory = projectFilePath(
         projectRoot,
         manifest.persistence.locator
@@ -4548,6 +4715,9 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
         catalogs.taskPolicy.local_store.report_locator
       );
       fs.mkdirSync(zipzapDirectory, { recursive: true });
+      if (capabilityProfiles.length) {
+        fs.mkdirSync(capabilityDirectory, { recursive: true });
+      }
       for (const directory of [
         taskDirectory,
         eventDirectory,
@@ -4561,14 +4731,47 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
       if (!fs.existsSync(gitignorePath)) {
         fs.writeFileSync(gitignorePath, PROJECT_GITIGNORE);
       }
-      const temporaryPath = `${manifestPath}.tmp`;
-      fs.writeFileSync(temporaryPath, `${JSON.stringify(manifest, null, 2)}\n`);
-      fs.renameSync(temporaryPath, manifestPath);
+      const pendingTargets = [];
+      for (const profile of capabilityProfiles) {
+        const target = path.join(capabilityDirectory, `${profile.id}.json`);
+        const temporary = `${target}.tmp`;
+        fs.writeFileSync(temporary, `${JSON.stringify(profile, null, 2)}\n`);
+        pendingTargets.push({ temporary, target });
+      }
+      const manifestTemporaryPath = `${manifestPath}.tmp`;
+      fs.writeFileSync(
+        manifestTemporaryPath,
+        `${JSON.stringify(manifest, null, 2)}\n`
+      );
+      const completedTargets = [];
+      try {
+        for (const pending of pendingTargets) {
+          fs.renameSync(pending.temporary, pending.target);
+          completedTargets.push(path.relative(projectRoot, pending.target));
+        }
+        fs.renameSync(manifestTemporaryPath, manifestPath);
+        completedTargets.push(manifestLocator);
+      } catch (error) {
+        for (const pending of pendingTargets) {
+          if (fs.existsSync(pending.temporary)) fs.unlinkSync(pending.temporary);
+        }
+        if (fs.existsSync(manifestTemporaryPath)) {
+          fs.unlinkSync(manifestTemporaryPath);
+        }
+        const pending = [
+          ...pendingTargets.map((item) => path.relative(projectRoot, item.target)),
+          manifestLocator
+        ].filter((target) => !completedTargets.includes(target));
+        throw new Error(
+          `${error.message}; completed targets: ${completedTargets.join(", ") || "none"}; pending targets: ${pending.join(", ") || "none"}; rerun Initialize after inspecting these targets`
+        );
+      }
       changes.push({
         action: existingManifest ? "update" : "create",
         target: manifestLocator,
         reason: "Registered project source locators and project Task storage."
       });
+      changes.push(...capabilityChanges);
       changes.push({
         action: "retain",
         target: manifest.persistence.locator,
@@ -4584,6 +4787,9 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
       const failed = {
         ...emptyInitialization,
         sources: sourceResults,
+        capability_profiles: capabilityProfiles,
+        capability_changes: capabilityChanges,
+        preview_fingerprint: previewFingerprint,
         coverage,
         changes,
         unresolved: [`Project initialization write failed: ${error.message}`]
@@ -4606,6 +4812,9 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
       write_performed: action !== "discover" && persistence === "project",
       manifest,
       sources: sourceResults,
+      capability_profiles: capabilityProfiles,
+      capability_changes: capabilityChanges,
+      preview_fingerprint: previewFingerprint,
       coverage,
       changes
     },

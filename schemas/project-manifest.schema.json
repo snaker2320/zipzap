@@ -7,11 +7,12 @@
   "required": [
     "schema_version",
     "project_id",
-    "sources"
+    "sources",
+    "capabilities"
   ],
   "properties": {
     "schema_version": {
-      "const": 1
+      "const": 2
     },
     "project_id": {
       "type": "string",
@@ -27,10 +28,11 @@
         "$ref": "#/$defs/source"
       }
     },
-    "extensions": {
+    "capabilities": {
       "type": "array",
+      "uniqueItems": true,
       "items": {
-        "$ref": "#/$defs/extension"
+        "$ref": "#/$defs/capabilityRegistration"
       }
     },
     "collaboration": {
@@ -301,31 +303,25 @@
         }
       }
     },
-    "extension": {
+    "capabilityRegistration": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "id",
-        "kind",
-        "locator"
+        "locator",
+        "enabled"
       ],
       "properties": {
         "id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
         },
-        "kind": {
-          "enum": [
-            "role",
-            "agent",
-            "team",
-            "control-function",
-            "runtime-policy"
-          ]
-        },
         "locator": {
           "type": "string",
           "minLength": 1
+        },
+        "enabled": {
+          "type": "boolean"
         }
       }
     },

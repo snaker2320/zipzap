@@ -213,7 +213,7 @@ test("L5 initialize requires an explicit action and project manifest contract", 
   );
   assert.deepEqual(
     catalogs.schemas.projectManifest.required,
-    ["schema_version", "project_id", "sources"]
+    ["schema_version", "project_id", "sources", "capabilities"]
   );
   assert.equal(
     catalogs.schemas.documentMaintenanceInput.title,

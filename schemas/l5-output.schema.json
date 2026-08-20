@@ -288,7 +288,9 @@
         "sources",
         "coverage",
         "changes",
-        "unresolved"
+        "unresolved",
+        "capability_profiles",
+        "capability_changes"
       ],
       "properties": {
         "action": {
@@ -319,6 +321,28 @@
         },
         "manifest": {
           "$ref": "./project-manifest.schema.json"
+        },
+        "capability_profiles": {
+          "type": "array",
+          "items": { "$ref": "./capability-profile.schema.json" }
+        },
+        "capability_changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "id", "target"],
+            "properties": {
+              "action": { "enum": ["create", "update", "retain", "disable"] },
+              "id": { "type": "string", "minLength": 1 },
+              "target": { "type": "string", "minLength": 1 },
+              "reason": { "type": "string" }
+            }
+          }
+        },
+        "preview_fingerprint": {
+          "type": ["string", "null"],
+          "pattern": "^sha256:[a-f0-9]{64}$"
         },
         "sources": {
           "type": "array",

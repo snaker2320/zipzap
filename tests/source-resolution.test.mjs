@@ -14,8 +14,9 @@ const catalogs = loadCatalogs();
 
 function manifest(overrides = {}) {
   return {
-    schema_version: 1,
+    schema_version: 2,
     project_id: "example",
+    capabilities: [],
     sources: [
       {
         id: "repository-instructions",

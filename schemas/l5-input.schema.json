@@ -150,6 +150,24 @@
           "items": {
             "$ref": "./project-manifest.schema.json#/$defs/source"
           }
+        },
+        "capability_profiles": {
+          "type": "array",
+          "items": {
+            "$ref": "./capability-profile.schema.json"
+          }
+        },
+        "confirmation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["approved", "preview_fingerprint"],
+          "properties": {
+            "approved": { "const": true },
+            "preview_fingerprint": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            }
+          }
         }
       }
     },

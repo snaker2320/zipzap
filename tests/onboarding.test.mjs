@@ -336,10 +336,11 @@ test("blocks confirmation after a concurrent project change", (context) => {
   fs.writeFileSync(
     manifestPath,
     `${JSON.stringify({
-      schema_version: 1,
+      schema_version: 2,
       project_id: "example",
       revision: 1,
-      sources: []
+      sources: [],
+      capabilities: []
     }, null, 2)}\n`
   );
 
