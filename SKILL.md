@@ -146,6 +146,13 @@ node scripts/zipzap.mjs catalog \
 Read [the context router](references/context-router.md) for source loading,
 budgets, and projection details.
 
+When Work creates or maintains business-capability or development-design
+documentation, read [Business and Development Documentation](references/business-documentation.md).
+Preserve coherent project routes, use one active design as the execution entry
+point, reference exact business headings, and require a confirmed maintenance
+preview before mutation. Do not load this guidance for ordinary Work that does
+not author those documents.
+
 ## Initialize, Persist, and Complete Selectively
 
 Discover sources read-only, preview changes, then write confirmed registration
@@ -153,6 +160,11 @@ to `.zipzap/project.json`. Keep installation separate from project
 initialization. Read [project initialization](references/project-initialization.md),
 [onboarding](references/onboarding.md), or
 [First Run](references/first-run.md) only for those flows.
+
+Run Rule Doctor only after an explicit user request. Initialization, source
+refresh, ordinary Work, and file changes never trigger it. Diagnosis provides
+advice and migration previews only; an ignore remains silent while its
+evidence versions are unchanged.
 
 Keep persistent project state under `.zipzap/`, outside the installed Skill.
 Use `scripts/task.mjs` only when a Task is justified. Treat Git activity as

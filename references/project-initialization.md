@@ -46,6 +46,19 @@ Do not require ZipZap-specific anchors or copy document content into the
 registry. Treat `AGENTS.md` as host-managed instructions; it is not a document
 index. Let a host observation state whether it was already loaded.
 
+Map coherent existing document locations to semantic document kinds and record
+their routes before proposing ZipZap defaults. For a new or unmapped project,
+recommend lazy `docs/business/<capability>.md` and
+`docs/design/active/<demand-id>-<slug>.md` destinations; do not create these
+directories until an authorized document write needs them. Register external
+PRDs as `external-requirement` locators and never copy them locally. Read
+[Business and Development Documentation](business-documentation.md) only when
+the initialization decision concerns business or design document structure.
+
+Initialization may report source availability and inferred routes, but it
+never runs Rule Doctor, performs semantic analysis, migrates documents, or
+rewrites project rules. Rule health remains a separate user-invoked Work.
+
 Do not copy the source's substantive rules into ZipZap configuration. A short
 description used for discovery and routing is not a duplicate source of truth.
 

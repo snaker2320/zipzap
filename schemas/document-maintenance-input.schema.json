@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/document-maintenance-input.schema.json",
+  "title": "ZipZap Document Maintenance Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation",
+    "project",
+    "manifest"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "operation": { "enum": ["create", "edit", "move", "delete"] },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator"],
+      "properties": {
+        "locator": { "type": "string", "minLength": 1 }
+      }
+    },
+    "manifest": { "$ref": "./project-manifest.schema.json" },
+    "manifest_locator": {
+      "type": "string",
+      "minLength": 1,
+      "default": ".zipzap/project.json"
+    },
+    "source": { "$ref": "./project-manifest.schema.json#/$defs/source" },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["filename", "content"],
+      "properties": {
+        "filename": { "type": "string", "minLength": 1 },
+        "content": { "type": "string" }
+      }
+    },
+    "source_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "expected_version": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "content": { "type": "string" },
+    "target_locator": { "type": "string", "minLength": 1 },
+    "reference_repairs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/referenceRepair" },
+      "default": []
+    },
+    "user_target": { "type": "string", "minLength": 1 },
+    "inferred_routes": {
+      "type": "array",
+      "items": { "$ref": "./project-manifest.schema.json#/$defs/documentRoute" },
+      "default": []
+    },
+    "confirmation": { "$ref": "#/$defs/confirmation" }
+  },
+  "$defs": {
+    "referenceRepair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "from", "to", "expected_count"],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "from": { "type": "string", "minLength": 1 },
+        "to": { "type": "string" },
+        "expected_count": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approved", "preview_fingerprint"],
+      "properties": {
+        "approved": { "const": true },
+        "delete_approved": { "type": "boolean" },
+        "preview_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "operation": { "const": "create" } } },
+      "then": { "required": ["source", "document"] }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "edit" } } },
+      "then": { "required": ["source_id", "expected_version", "content"] }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "move" } } },
+      "then": { "required": ["source_id", "expected_version", "target_locator"] }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "delete" } } },
+      "then": { "required": ["source_id", "expected_version"] }
+    }
+  ]
+}

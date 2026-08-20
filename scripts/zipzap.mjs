@@ -13,7 +13,11 @@ import {
   listIgnoredRuleFindings
 } from "./lib/rule-health.mjs";
 
-export { resolveDocumentRoute } from "./lib/document-routing.mjs";
+export {
+  applyDocumentMaintenance,
+  planDocumentMaintenance,
+  resolveDocumentRoute
+} from "./lib/document-routing.mjs";
 export {
   applyRuleHealthDisposition,
   diagnoseRuleHealth,
@@ -426,6 +430,12 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
       ),
       documentRouteOutput: readJson(
         path.join(schemaDir, "document-route-output.schema.json")
+      ),
+      documentMaintenanceInput: readJson(
+        path.join(schemaDir, "document-maintenance-input.schema.json")
+      ),
+      documentMaintenanceOutput: readJson(
+        path.join(schemaDir, "document-maintenance-output.schema.json")
       ),
       ruleHealthInput: readJson(
         path.join(schemaDir, "rule-health-input.schema.json")

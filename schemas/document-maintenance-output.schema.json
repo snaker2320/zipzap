@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/document-maintenance-output.schema.json",
+  "title": "ZipZap Document Maintenance Output",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "status", "operation", "preview_fingerprint"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "operation": { "enum": ["create", "edit", "move", "delete"] },
+    "status": {
+      "enum": ["ready", "decision-required", "approval-required", "completed", "blocked"]
+    },
+    "preview_fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "file_mutations": { "type": "array" },
+    "directories": { "type": "array", "items": { "type": "string" } },
+    "reference_repairs": { "type": "array" },
+    "inbound_relations": { "type": "array" },
+    "reference_risks": { "type": "array" },
+    "decisions_required": { "type": "array" },
+    "manifest_before_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "manifest_change": { "type": "object" },
+    "manifest_after": { "$ref": "./project-manifest.schema.json" },
+    "document_state": {
+      "enum": ["unchanged", "changed", "partially-changed"]
+    },
+    "registry_state": { "enum": ["unchanged", "updated"] },
+    "manifest_revision": { "type": "integer", "minimum": 1 },
+    "error": { "type": "string" },
+    "reconciliation_steps": { "type": "array", "items": { "type": "string" } }
+  }
+}

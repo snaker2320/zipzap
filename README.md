@@ -36,6 +36,7 @@ The project is in active product and workflow design. Its current structure is:
     ├── binding-planner.md          # Logical members, contexts, and scheduling
     ├── control-functions.md        # Coordinator and advisor overlays
     ├── context-router.md           # Runtime context selection and projection
+    ├── business-documentation.md  # Capability docs and active-design entry point
     ├── projection-reconciler.md    # Runtime change and staleness handling
     ├── project-initialization.md  # Project discovery and registration model
     ├── onboarding.md              # Guided preference setup and reset contract
@@ -95,9 +96,47 @@ node scripts/zipzap.mjs source-resolve --input source-resolution-input.json
 ```
 
 The project registry is `.zipzap/project.json`. It stores source locators,
-topics, selectors, hashes, and local Task policy—not source document content.
+topics, selectors, document kinds, relations, hashes, routing, and local Task
+policy—not source document or external PRD content.
 `AGENTS.md` is treated as host-managed instructions rather than a content
 index. Section indexes remain optional, derived accelerators.
+
+Initialization preserves coherent existing locations and only registers their
+routes. New projects use lazy defaults such as
+`docs/business/<capability>.md` and
+`docs/design/active/<demand-id>-<slug>.md`; directories appear only during an
+authorized document write.
+
+## Rule health and governed documents
+
+Rule health is never automatic. Run it explicitly and choose its visible cost
+boundary:
+
+```bash
+node scripts/zipzap.mjs rule-health --input rule-health-input.json
+node scripts/zipzap.mjs document-route --input document-route-input.json
+```
+
+`quick` performs deterministic checks. `standard` adds a bounded semantic
+candidate request, while `deep` requires an explicit source-file budget.
+Diagnosis is read-only and only proposes migrations. Explicit ignore and
+restore operations maintain version-bound records under
+`.zipzap/rule-health/ignores/`; unchanged evidence stays silent.
+
+Authorized Work can use the exported `planDocumentMaintenance` and
+`applyDocumentMaintenance` adapters for governed create, edit, move, and
+delete operations. Previewing is read-only. Apply requires the exact confirmed
+preview fingerprint, writes the manifest last, and reports `blocked` with
+reconciliation steps if document and registry state diverge. These are Work
+internals, not a fourth public lifecycle action.
+
+Business knowledge is grouped in vertical capability documents so actors,
+states, flows, exceptions, and rules needed together stay together. One active
+development design is the entry point for each bounded change and references
+registered business source IDs plus exact headings, normally expanding no more
+than three business sources. See
+[`references/business-documentation.md`](references/business-documentation.md)
+for the landing and maintenance workflow.
 
 Guided preference setup is page-neutral:
 
