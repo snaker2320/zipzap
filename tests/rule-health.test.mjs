@@ -250,6 +250,9 @@ test("exposes explicit rule health diagnosis through CLI and schemas", (context)
     { encoding: "utf8" }
   );
   assert.match(help, /schemas\/rule-health-input\.schema\.json/);
+  assert.match(help, /quick.*standard.*deep/is);
+  assert.match(help, /diagnosis is read-only/i);
+  assert.match(help, /ignore.*restore.*write/is);
 
   const example = JSON.parse(
     execFileSync(

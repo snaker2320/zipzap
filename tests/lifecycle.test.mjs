@@ -100,6 +100,18 @@ test("builds a deterministic zero-dependency release manifest", () => {
   );
   assert.equal(
     first.files.some(
+      (file) => file.path === "schemas/document-maintenance-input.schema.json"
+    ),
+    true
+  );
+  assert.equal(
+    first.files.some(
+      (file) => file.path === "references/business-documentation.md"
+    ),
+    true
+  );
+  assert.equal(
+    first.files.some(
       (file) => file.path === "examples/zipzap/first-run.json"
     ),
     true

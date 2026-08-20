@@ -345,12 +345,9 @@ test("rejects stale confirmation and reports registry reconciliation after parti
     /preview fingerprint/i
   );
 
-  fs.chmodSync(path.join(root, ".zipzap"), 0o555);
-  context.after(() => {
-    if (fs.existsSync(path.join(root, ".zipzap"))) {
-      fs.chmodSync(path.join(root, ".zipzap"), 0o755);
-    }
-  });
+  fs.mkdirSync(
+    path.join(root, ".zipzap", `project.json.${process.pid}.tmp`)
+  );
   const result = applyDocumentMaintenance({
     ...input,
     confirmation: { approved: true, preview_fingerprint: preview.preview_fingerprint }
@@ -359,6 +356,26 @@ test("rejects stale confirmation and reports registry reconciliation after parti
   assert.equal(result.document_state, "changed");
   assert.equal(result.registry_state, "unchanged");
   assert.ok(result.reconciliation_steps.length >= 2);
+});
+
+test("rejects a governed document path whose existing ancestor escapes through a symlink", (context) => {
+  const root = project(context);
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-maintenance-outside-"));
+  context.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+  fs.symlinkSync(outside, path.join(root, "docs"));
+  const value = manifest();
+
+  assert.throws(
+    () =>
+      planDocumentMaintenance(
+        baseInput(root, value, {
+          source: source(),
+          document: { filename: "quotation.md", content: "# Quotation\n" }
+        })
+      ),
+    /escapes project root/i
+  );
+  assert.equal(fs.existsSync(path.join(outside, "business", "quotation.md")), false);
 });
 
 test("loads document maintenance schemas through the catalog", () => {
@@ -370,5 +387,12 @@ test("loads document maintenance schemas through the catalog", () => {
   assert.equal(
     catalogs.schemas.documentMaintenanceOutput.title,
     "ZipZap Document Maintenance Output"
+  );
+  assert.equal(catalogs.schemas.documentMaintenanceOutput.additionalProperties, false);
+  assert.equal(
+    catalogs.schemas.documentMaintenanceOutput.properties.manifest_after.oneOf.some(
+      (branch) => branch.type === "null"
+    ),
+    true
   );
 });

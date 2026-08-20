@@ -3,7 +3,7 @@
   "$id": "https://zipzap.local/schemas/document-maintenance-output.schema.json",
   "title": "ZipZap Document Maintenance Output",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "required": ["schema_version", "status", "operation", "preview_fingerprint"],
   "properties": {
     "schema_version": { "const": 1 },
@@ -26,7 +26,12 @@
       "pattern": "^sha256:[a-f0-9]{64}$"
     },
     "manifest_change": { "type": "object" },
-    "manifest_after": { "$ref": "./project-manifest.schema.json" },
+    "manifest_after": {
+      "oneOf": [
+        { "$ref": "./project-manifest.schema.json" },
+        { "type": "null" }
+      ]
+    },
     "document_state": {
       "enum": ["unchanged", "changed", "partially-changed"]
     },

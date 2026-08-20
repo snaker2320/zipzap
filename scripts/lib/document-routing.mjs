@@ -40,6 +40,29 @@ function containedPath(projectRoot, relative, label) {
   if (fromRoot.startsWith("..") || path.isAbsolute(fromRoot)) {
     throw new Error(`${label} escapes project root`);
   }
+  const realRoot = fs.realpathSync(projectRoot);
+  let existingAncestor = resolved;
+  while (existingAncestor !== path.dirname(existingAncestor)) {
+    try {
+      fs.lstatSync(existingAncestor);
+      break;
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+      existingAncestor = path.dirname(existingAncestor);
+    }
+  }
+  let realAncestor;
+  try {
+    realAncestor = fs.realpathSync(existingAncestor);
+  } catch (error) {
+    throw new Error(`${label} escapes project root through an unavailable symbolic link`, {
+      cause: error
+    });
+  }
+  const fromRealRoot = path.relative(realRoot, realAncestor);
+  if (fromRealRoot.startsWith("..") || path.isAbsolute(fromRealRoot)) {
+    throw new Error(`${label} escapes project root through a symbolic link`);
+  }
   return resolved;
 }
 
@@ -174,6 +197,7 @@ export function defaultDocumentRoutes() {
 
 export function inferDocumentKind(locator) {
   const normalized = locator.toLowerCase().replaceAll("\\", "/");
+  if (/(^|\/)index\.md$/.test(normalized)) return "project-reference";
   if (/^docs\/business\/[^/]+\.md$/.test(normalized)) {
     return "business-capability";
   }
@@ -193,6 +217,45 @@ export function inferDocumentKind(locator) {
   if (/^docs\/operations\//.test(normalized)) return "operations-guide";
   if (/^docs\/governance\//.test(normalized)) return "governance-policy";
   return "project-reference";
+}
+
+export function inferDocumentRoutes(sources) {
+  const targetsByKind = new Map();
+  for (const source of sources ?? []) {
+    if (
+      source.format === "external" ||
+      source.loading === "external-resource" ||
+      /^[a-z][a-z0-9+.-]*:\/\//i.test(source.locator ?? "")
+    ) {
+      continue;
+    }
+    const documentKind =
+      source.document_kind ?? inferDocumentKind(source.locator ?? "");
+    if (documentKind === "project-reference") continue;
+    const locator = normalizeRelative(source.locator, "source locator");
+    const target = path.posix.dirname(locator);
+    if (target === ".") continue;
+    if (!targetsByKind.has(documentKind)) targetsByKind.set(documentKind, new Set());
+    targetsByKind.get(documentKind).add(target);
+  }
+  return [...targetsByKind.entries()]
+    .filter(([, targets]) => targets.size === 1)
+    .map(([documentKind, targets]) => {
+      const defaultRoute = DEFAULT_ROUTES.find((route) =>
+        route.document_kinds.includes(documentKind)
+      );
+      return {
+        id: `inferred-${documentKind}`,
+        document_kinds: [documentKind],
+        target: [...targets][0],
+        ...(defaultRoute?.filename_pattern
+          ? { filename_pattern: defaultRoute.filename_pattern }
+          : {}),
+        priority: 100,
+        origin: "inferred"
+      };
+    })
+    .sort((left, right) => left.id.localeCompare(right.id));
 }
 
 export function resolveDocumentRoute(input) {

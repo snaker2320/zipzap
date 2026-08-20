@@ -378,6 +378,61 @@ test("configures project source registry and project Task storage", (context) =>
   );
 });
 
+test("registers coherent existing document routes and preserves them on refresh", (context) => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-doc-routes-"));
+  context.after(() => fs.rmSync(projectRoot, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(projectRoot, "docs", "business"), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, "docs", "design", "active"), {
+    recursive: true
+  });
+  fs.writeFileSync(
+    path.join(projectRoot, "docs", "business", "quotation.md"),
+    "# Quotation\n"
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, "docs", "design", "active", "DEM-1-quote.md"),
+    "# DEM-1 Quote\n"
+  );
+
+  const configured = initializeProject(
+    {
+      schema_version: 1,
+      operation: "initialize",
+      project: { id: "example", locator: projectRoot },
+      initialization: { action: "configure", persistence: "project" }
+    },
+    catalogs
+  );
+  assert.equal(configured.status, "completed");
+  const manifestPath = path.join(projectRoot, ".zipzap", "project.json");
+  const stored = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  assert.equal(
+    stored.sources.find((item) => item.locator.endsWith("quotation.md"))
+      .document_kind,
+    "business-capability"
+  );
+  assert.deepEqual(
+    stored.document_routing.routes.map((route) => route.target).sort(),
+    ["docs/business", "docs/design/active"]
+  );
+  assert.equal(
+    fs.existsSync(path.join(projectRoot, ".zipzap", "rule-health")),
+    false
+  );
+
+  initializeProject(
+    {
+      schema_version: 1,
+      operation: "initialize",
+      project: { id: "example", locator: projectRoot },
+      initialization: { action: "refresh", persistence: "project" }
+    },
+    catalogs
+  );
+  const refreshed = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  assert.deepEqual(refreshed.document_routing, stored.document_routing);
+});
+
 test("refreshes hashes without copying source content", (context) => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-refresh-"));
   context.after(() => fs.rmSync(projectRoot, { recursive: true, force: true }));

@@ -6,7 +6,11 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { resolveDocumentRoute } from "./lib/document-routing.mjs";
+import {
+  inferDocumentKind,
+  inferDocumentRoutes,
+  resolveDocumentRoute
+} from "./lib/document-routing.mjs";
 import {
   applyRuleHealthDisposition,
   diagnoseRuleHealth,
@@ -15,6 +19,8 @@ import {
 
 export {
   applyDocumentMaintenance,
+  inferDocumentKind,
+  inferDocumentRoutes,
   planDocumentMaintenance,
   resolveDocumentRoute
 } from "./lib/document-routing.mjs";
@@ -93,7 +99,8 @@ const ZIPZAP_COMMANDS = {
     example: "examples/zipzap/document-route.json"
   },
   "rule-health": {
-    summary: "Explicitly diagnose or disposition project rule health.",
+    summary:
+      "Run quick, standard, or deep rule health explicitly. Diagnosis is read-only; ignore and restore write dispositions.",
     usage: "rule-health --input <file> [--compact]",
     schema: "schemas/rule-health-input.schema.json",
     example: "examples/zipzap/rule-health.json"
@@ -3592,6 +3599,7 @@ function discoveredSource(projectRoot, locator) {
     metadata.kind === "instructions" && normalizedLocator === "AGENTS.md"
       ? "repository-instructions"
       : `source-${readableId}-${locatorHash}`;
+  const documentKind = inferDocumentKind(locator);
   return {
     id,
     locator,
@@ -3600,7 +3608,10 @@ function discoveredSource(projectRoot, locator) {
     loading: metadata.loading,
     topics: metadata.topics,
     priority: metadata.kind === "instructions" ? 100 : 0,
-    version: hashFile(projectFilePath(projectRoot, locator))
+    version: hashFile(projectFilePath(projectRoot, locator)),
+    ...(documentKind === "project-reference"
+      ? {}
+      : { document_kind: documentKind })
   };
 }
 
@@ -4296,6 +4307,7 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
     manifest_locator: persistence === "project" ? manifestLocator : null,
     write_performed: false,
     sources: [],
+    document_routing: null,
     coverage: [],
     changes: [],
     unresolved: []
@@ -4413,8 +4425,22 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
     kind: source.kind ?? "reference",
     loading: source.loading ?? "on-demand",
     version: source.version ?? null,
+    ...(source.document_kind
+      ? { document_kind: source.document_kind }
+      : {}),
     status: sourceStatuses.get(source.id)
   }));
+  const inferredRoutes = inferDocumentRoutes(selectedSources);
+  const documentRouting = existingManifest?.document_routing ??
+    (inferredRoutes.length > 0
+      ? {
+          strategy: "preserve-existing",
+          on_ambiguity: "decision-required",
+          on_mismatch: "approval-required",
+          routes: inferredRoutes
+        }
+      : null);
+  emptyInitialization.document_routing = documentRouting;
   const manifest = {
     schema_version: 1,
     project_id: projectId,
@@ -4438,6 +4464,7 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
         existingManifest?.persistence?.locator ??
         catalogs.taskPolicy.local_store.locator
     },
+    ...(documentRouting ? { document_routing: clone(documentRouting) } : {}),
     ...(existingManifest?.extensions
       ? { extensions: clone(existingManifest.extensions) }
       : {})

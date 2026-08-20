@@ -8,7 +8,8 @@ import {
   assessHost,
   buildHostCapabilityMatrix,
   evaluateKernel,
-  loadCatalogs
+  loadCatalogs,
+  resolveDocumentRoute
 } from "../scripts/zipzap.mjs";
 
 const catalogs = loadCatalogs();
@@ -173,6 +174,45 @@ test("keeps direct JSON compatible without Node", () => {
     result.limitations.some((item) => item.includes("Node accelerator")),
     true
   );
+});
+
+test("projects route ambiguity as an active no-write decision gate", (context) => {
+  const projectRoot = fs.mkdtempSync(path.join(TEST_DIR, "route-gate-"));
+  context.after(() => fs.rmSync(projectRoot, { recursive: true, force: true }));
+  const result = resolveDocumentRoute({
+    schema_version: 1,
+    project: { locator: projectRoot },
+    manifest: {
+      schema_version: 1,
+      project_id: "example",
+      sources: [],
+      document_routing: {
+        routes: [
+          {
+            id: "design-a",
+            document_kinds: ["development-design"],
+            target: "docs/design-a",
+            priority: 100
+          },
+          {
+            id: "design-b",
+            document_kinds: ["development-design"],
+            target: "docs/design-b",
+            priority: 100
+          }
+        ]
+      }
+    },
+    document: {
+      document_kind: "development-design",
+      filename: "DEM-1.md"
+    }
+  });
+
+  assert.equal(result.status, "decision-required");
+  assert.equal(result.decisions_required[0].id, "document-route-ambiguous");
+  assert.equal(result.registry_change, null);
+  assert.equal(fs.existsSync(path.join(projectRoot, "docs")), false);
 });
 
 test("rejects project configuration when project write is unavailable", () => {

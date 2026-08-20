@@ -215,6 +215,15 @@ test("L5 initialize requires an explicit action and project manifest contract", 
     catalogs.schemas.projectManifest.required,
     ["schema_version", "project_id", "sources"]
   );
+  assert.equal(
+    catalogs.schemas.documentMaintenanceInput.title,
+    "ZipZap Document Maintenance Input"
+  );
+  assert.equal(
+    catalogs.schemas.documentMaintenanceOutput.title,
+    "ZipZap Document Maintenance Output"
+  );
+  assert.equal(catalogs.schemas.ruleHealthInput.properties.operation.enum.length, 4);
 });
 
 test("selects Solo for work with no additional assurance", () => {
