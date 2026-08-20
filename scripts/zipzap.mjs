@@ -16,6 +16,11 @@ import {
   diagnoseRuleHealth,
   listIgnoredRuleFindings
 } from "./lib/rule-health.mjs";
+import { selectReconciliationAction } from "./lib/loop-controller.mjs";
+import {
+  loadModuleCatalog,
+  validateModuleCatalog
+} from "./lib/module-catalog.mjs";
 
 export {
   applyDocumentMaintenance,
@@ -378,14 +383,22 @@ function assertAllowedFields(value, fields, label) {
 export function loadCatalogs(rootDir = DEFAULT_ROOT) {
   const configDir = path.join(rootDir, "config");
   const schemaDir = path.join(rootDir, "schemas");
+  const moduleCatalog = loadModuleCatalog(rootDir);
+  const roleModules = Object.fromEntries(
+    moduleCatalog.by_kind.role.map((moduleId) => [
+      moduleId.slice("role:".length),
+      moduleCatalog.modules[moduleId].value
+    ])
+  );
   return {
     rootDir,
+    moduleCatalog,
     invariants: readJson(path.join(configDir, "invariants.json")),
     agents: readJson(path.join(configDir, "agents.json")),
-    roles: readJson(path.join(configDir, "roles.json")),
+    roles: { schema_version: 1, roles: roleModules },
     teams: readJson(path.join(configDir, "teams.json")),
     controlFunctions: readJson(path.join(configDir, "control-functions.json")),
-    runtimePolicy: readJson(path.join(configDir, "runtime-policy.json")),
+    runtimePolicy: moduleCatalog.modules["policy:runtime"].value,
     executionProfiles: readJson(
       path.join(configDir, "execution-profiles.json")
     ),
@@ -396,6 +409,9 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
     experience: readJson(path.join(configDir, "experience.json")),
     lifecycle: readJson(path.join(configDir, "lifecycle.json")),
     schemas: {
+      moduleCatalog: readJson(
+        path.join(schemaDir, "module-catalog.schema.json")
+      ),
       l5Input: readJson(path.join(schemaDir, "l5-input.schema.json")),
       l5Output: readJson(path.join(schemaDir, "l5-output.schema.json")),
       decisionBundle: readJson(
@@ -511,6 +527,14 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
 
 export function validateCatalogs(catalogs) {
   const errors = [];
+  try {
+    validateModuleCatalog({
+      schema_version: catalogs.moduleCatalog.schema_version,
+      modules: catalogs.moduleCatalog.definitions
+    });
+  } catch (error) {
+    errors.push(error.message);
+  }
   const agents = catalogs.agents.agents ?? {};
   const roles = catalogs.roles.roles ?? {};
   const teams = catalogs.teams.teams ?? {};
@@ -2276,7 +2300,10 @@ export function compose(input, catalogs = loadCatalogs()) {
   validateInput(input, catalogs);
 
   const action = input.event
-    ? catalogs.runtimePolicy.event_actions[input.event.type]
+    ? selectReconciliationAction(
+        input.event.type,
+        catalogs.runtimePolicy.event_actions
+      )
     : "initial-compose";
   const revisions = calculateRevisions(input, action);
   const personalization = normalizePersonalization(

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/module-catalog.schema.json",
+  "title": "ZipZap Module Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "modules"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "modules": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^(role|capability|policy|context-provider):[a-z0-9]+(?:-[a-z0-9]+)*$"
+      },
+      "additionalProperties": { "$ref": "#/$defs/module" }
+    }
+  },
+  "$defs": {
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": ["role", "capability", "policy", "context-provider"]
+        },
+        "source": { "type": "string", "minLength": 1 },
+        "pointer": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "value": { "type": "object" }
+      },
+      "oneOf": [
+        { "required": ["source", "pointer"], "not": { "required": ["value"] } },
+        { "required": ["value"], "not": { "required": ["source"] } }
+      ]
+    }
+  }
+}

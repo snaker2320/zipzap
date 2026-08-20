@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "modules": {
+    "role:product": {
+      "kind": "role",
+      "source": "config/roles.json",
+      "pointer": ["roles", "product"]
+    },
+    "role:developer": {
+      "kind": "role",
+      "source": "config/roles.json",
+      "pointer": ["roles", "developer"]
+    },
+    "role:tester": {
+      "kind": "role",
+      "source": "config/roles.json",
+      "pointer": ["roles", "tester"]
+    },
+    "role:reviewer": {
+      "kind": "role",
+      "source": "config/roles.json",
+      "pointer": ["roles", "reviewer"]
+    },
+    "policy:runtime": {
+      "kind": "policy",
+      "source": "config/runtime-policy.json",
+      "pointer": []
+    },
+    "context-provider:project-sources": {
+      "kind": "context-provider",
+      "value": {
+        "id": "project-sources",
+        "mode": "registered-locators"
+      }
+    }
+  }
+}
