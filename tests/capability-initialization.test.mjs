@@ -168,3 +168,75 @@ test("rejects a stale capability confirmation without writing", (t) => {
   assert.match(result.initialization.unresolved.join(" "), /preview changed/i);
   assert.equal(fs.existsSync(path.join(root, ".zipzap/project.json")), false);
 });
+
+test("profiles declared Maven evidence into an Initialize preview", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-cap-discover-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(
+    path.join(root, "pom.xml"),
+    "<project><properties><maven.compiler.release>21</maven.compiler.release></properties></project>\n"
+  );
+
+  const preview = initializeProject(
+    {
+      schema_version: 1,
+      operation: "initialize",
+      project: { id: "example", locator: root },
+      initialization: {
+        action: "configure",
+        persistence: "project",
+        sources: [
+          {
+            id: "maven-project",
+            locator: "pom.xml",
+            topics: ["coding", "testing"]
+          }
+        ]
+      }
+    },
+    catalogs
+  );
+
+  assert.equal(preview.status, "decision-required");
+  assert.deepEqual(
+    Object.fromEntries(
+      preview.initialization.capability_profiles[0].facts.map((fact) => [
+        fact.key,
+        fact.value
+      ])
+    ),
+    { "build-tool": "maven", "java-version": "21" }
+  );
+  assert.equal(fs.existsSync(path.join(root, ".zipzap/project.json")), false);
+
+  const confirmed = initializeProject(
+    {
+      schema_version: 1,
+      operation: "initialize",
+      project: { id: "example", locator: root },
+      initialization: {
+        action: "configure",
+        persistence: "project",
+        sources: [
+          {
+            id: "maven-project",
+            locator: "pom.xml",
+            topics: ["coding", "testing"]
+          }
+        ],
+        confirmation: {
+          approved: true,
+          preview_fingerprint: preview.initialization.preview_fingerprint
+        }
+      }
+    },
+    catalogs
+  );
+  assert.equal(confirmed.status, "completed");
+  assert.equal(
+    JSON.parse(
+      fs.readFileSync(path.join(root, ".zipzap/project.json"), "utf8")
+    ).capabilities[0].id,
+    "java-development"
+  );
+});

@@ -28,6 +28,7 @@ import {
   validateCapabilityProfile
 } from "./lib/capability-profiles.mjs";
 import { buildExecutionSpec } from "./lib/execution-spec.mjs";
+import { profileProjectCapabilities } from "./lib/project-capability-profiler.mjs";
 
 export {
   applyDocumentMaintenance,
@@ -4716,11 +4717,31 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
           return candidate;
         }
       );
-    } else if (existingManifest?.capabilities?.length) {
-      capabilityProfiles = loadCapabilityProfiles(
+    } else {
+      const existingProfiles = existingManifest?.capabilities?.length
+        ? loadCapabilityProfiles(
+            projectRoot,
+            existingManifest.capabilities
+          ).map(clone)
+        : [];
+      const derivedProfiles = profileProjectCapabilities(
         projectRoot,
-        existingManifest.capabilities
-      ).map(clone);
+        selectedSources
+      );
+      if (derivedProfiles.length) {
+        const existingById = new Map(
+          existingProfiles.map((profile) => [profile.id, profile])
+        );
+        capabilityProfiles = derivedProfiles.map((profile) => {
+          const candidate = clone(profile);
+          candidate.revision =
+            (existingById.get(candidate.id)?.revision ?? 0) + 1;
+          candidate.profile_digest = capabilityProfileDigest(candidate);
+          return candidate;
+        });
+      } else {
+        capabilityProfiles = existingProfiles;
+      }
     }
   } catch (error) {
     emptyInitialization.unresolved.push(
@@ -4749,7 +4770,7 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
     );
   }
   const capabilities =
-    request.initialization.capability_profiles != null
+    capabilityProfiles.length
       ? capabilityProfiles.map((profile) => ({
           id: profile.id,
           locator: `.zipzap/capabilities/${profile.id}.json`,
@@ -5392,8 +5413,7 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
       onboardingState.scope === "project"
         ? clone(onboardingState.configuration)
         : null;
-    const configured = initializeProject(
-      {
+    const configurationRequest = {
         schema_version: 1,
         operation: "initialize",
         project: clone(state.project),
@@ -5402,13 +5422,34 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
           persistence: "project",
           enabled_roles: clone(state.enabled_roles),
           sources: clone(discovery.initialization.manifest.sources),
+          capability_profiles: clone(
+            discovery.initialization.capability_profiles ?? []
+          ),
           ...(projectPreferences
             ? { preferences: projectPreferences }
             : {})
         }
-      },
-      catalogs
-    );
+      };
+    let configured = initializeProject(configurationRequest, catalogs);
+    if (
+      configured.status === "decision-required" &&
+      configured.initialization.preview_fingerprint
+    ) {
+      configured = initializeProject(
+        {
+          ...configurationRequest,
+          initialization: {
+            ...configurationRequest.initialization,
+            confirmation: {
+              approved: true,
+              preview_fingerprint:
+                configured.initialization.preview_fingerprint
+            }
+          }
+        },
+        catalogs
+      );
+    }
     if (configured.status !== "completed") {
       return firstRunBlocked(
         discovery,
