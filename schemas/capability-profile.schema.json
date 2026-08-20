@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zipzap.local/schemas/capability-profile.schema.json",
+  "title": "ZipZap Project Capability Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "revision",
+    "status",
+    "facts",
+    "selectors",
+    "source_refs",
+    "profile_digest"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": { "$ref": "#/$defs/id" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["active", "disabled"] },
+    "facts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fact" }
+    },
+    "selectors": { "$ref": "#/$defs/selectors" },
+    "source_refs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sourceRef" }
+    },
+    "module_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(role|capability|policy|context-provider):[a-z0-9]+(?:-[a-z0-9]+)*$"
+      }
+    },
+    "context_budget": { "$ref": "#/$defs/contextBudget" },
+    "profile_digest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "value", "source_id", "evidence", "source_digest"],
+      "properties": {
+        "key": { "$ref": "#/$defs/id" },
+        "value": { "type": ["string", "number", "boolean", "null"] },
+        "source_id": { "$ref": "#/$defs/id" },
+        "evidence": { "type": "string", "minLength": 1 },
+        "source_digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "selectors": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "roles": { "$ref": "#/$defs/idList" },
+        "stages": { "$ref": "#/$defs/idList" },
+        "actions": { "$ref": "#/$defs/idList" },
+        "components": { "$ref": "#/$defs/idList" },
+        "risk_flags": { "$ref": "#/$defs/idList" },
+        "file_patterns": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "idList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "sourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id"],
+      "properties": {
+        "source_id": { "$ref": "#/$defs/id" },
+        "section": { "type": "string", "minLength": 1 },
+        "start_line": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "contextBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_facts", "max_source_refs"],
+      "properties": {
+        "max_facts": { "type": "integer", "minimum": 0 },
+        "max_source_refs": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

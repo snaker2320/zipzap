@@ -412,6 +412,9 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
       moduleCatalog: readJson(
         path.join(schemaDir, "module-catalog.schema.json")
       ),
+      capabilityProfile: readJson(
+        path.join(schemaDir, "capability-profile.schema.json")
+      ),
       l5Input: readJson(path.join(schemaDir, "l5-input.schema.json")),
       l5Output: readJson(path.join(schemaDir, "l5-output.schema.json")),
       decisionBundle: readJson(
