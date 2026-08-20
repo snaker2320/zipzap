@@ -22,10 +22,12 @@ import {
   validateModuleCatalog
 } from "./lib/module-catalog.mjs";
 import {
+  assessCapabilityProfile,
   capabilityProfileDigest,
   loadCapabilityProfiles,
   validateCapabilityProfile
 } from "./lib/capability-profiles.mjs";
+import { buildExecutionSpec } from "./lib/execution-spec.mjs";
 
 export {
   applyDocumentMaintenance,
@@ -419,6 +421,9 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
       ),
       capabilityProfile: readJson(
         path.join(schemaDir, "capability-profile.schema.json")
+      ),
+      executionSpec: readJson(
+        path.join(schemaDir, "execution-spec.schema.json")
       ),
       l5Input: readJson(path.join(schemaDir, "l5-input.schema.json")),
       l5Output: readJson(path.join(schemaDir, "l5-output.schema.json")),
@@ -2080,14 +2085,25 @@ export function routeProjection(
   const matchedRules = (signals.project_rules ?? []).filter((rule) =>
     selectorMatches(rule, state, signals)
   );
+  const executionSpec = signals.execution_spec ?? null;
   const projectionId = `${slug(input.work_id)}-${slug(member.slot)}-${
     state.current_stage ?? state.current_checkpoint
   }`;
-  const sourceLocators = matchedRules.map((rule) => ({
-    id: rule.id,
-    locator: rule.locator,
-    version: rule.version ?? null
-  }));
+  const sourceLocators = [
+    ...matchedRules.map((rule) => ({
+      id: rule.id,
+      locator: rule.locator,
+      version: rule.version ?? null
+    })),
+    ...(executionSpec?.source_refs ?? []).map((sourceRef) => ({
+      id: sourceRef.source_id,
+      locator: sourceRef.locator,
+      version: sourceRef.version ?? null
+    }))
+  ].filter(
+    (source, index, all) =>
+      all.findIndex((candidate) => candidate.id === source.id) === index
+  );
   const included = [
     `profile:${member.profile}`,
     role ? `role:${state.current_role}` : `function:${state.current_function}`,
@@ -2097,6 +2113,10 @@ export function routeProjection(
     ...(executionProfile
       ? [`execution-profile:${signals.execution_profile}`]
       : []),
+    ...(executionSpec?.module_ids ?? []),
+    ...(executionSpec?.capability_profile_ids ?? []).map(
+      (id) => `project-capability:${id}`
+    ),
     ...matchedRules.map((rule) => `project-rule:${rule.id}`)
   ];
 
@@ -2144,6 +2164,12 @@ export function routeProjection(
             execution_budget: clone(executionBudget)
           }
         : null,
+      capability_profiles: clone(
+        executionSpec?.capability_profiles ?? []
+      ),
+      capability_facts: clone(executionSpec?.facts ?? []),
+      capability_source_refs: clone(executionSpec?.source_refs ?? []),
+      capability_limitations: clone(executionSpec?.limitations ?? []),
       source_access: [
         "Locate with native search or rg before reading.",
         "Read the smallest relevant heading or line range.",
@@ -2196,7 +2222,10 @@ export function routeProjection(
       topology: clone(binding.assurance),
       claim_limit: signals.claim_limit ?? null
     },
-    unresolved: clone(state.unresolved ?? [])
+    unresolved: unique([
+      ...(state.unresolved ?? []),
+      ...(executionSpec?.unresolved ?? [])
+    ])
   };
 
   return {
@@ -2216,8 +2245,9 @@ export function routeProjection(
       checkpoint: state.current_checkpoint ?? null,
       included,
       source_versions: Object.fromEntries(
-        matchedRules.map((rule) => [rule.id, rule.version ?? null])
+        sourceLocators.map((source) => [source.id, source.version ?? null])
       ),
+      execution_spec_digest: executionSpec?.spec_digest ?? null,
       assurance: clone(binding.assurance),
       unresolved: clone(runtimeProjection.unresolved)
     }
@@ -2530,6 +2560,8 @@ function validateRiskNormalizationInput(input, catalogs) {
       "objective",
       "scope",
       "requested_action",
+      "affected_files",
+      "capabilities",
       "constraints",
       "acceptance_criteria"
     ],
@@ -2863,6 +2895,8 @@ export function normalizeRiskAssessment(
         (request.scope?.length ? request.scope.join(", ") : null),
       work_type: input.work_type ?? null,
       affected_components: clone(input.affected_components ?? []),
+      affected_files: clone(request.affected_files ?? []),
+      capabilities: clone(request.capabilities ?? []),
       acceptance_criteria: clone(request.acceptance_criteria ?? [])
     },
     ...(hasPreferences
@@ -2932,6 +2966,11 @@ function validateKernelRequest(request) {
       throw new Error(`kernel request work.${field} must be a non-empty string`);
     }
   }
+  for (const field of ["affected_files", "capabilities"]) {
+    if (request.work[field] != null && !Array.isArray(request.work[field])) {
+      throw new Error(`kernel request work.${field} must be an array`);
+    }
+  }
   assertObject(request.governance, "kernel request governance");
   for (const field of [
     "risk_flags",
@@ -2997,6 +3036,8 @@ function kernelToRuntimeInput(request) {
       work_type: request.work.work_type ?? null,
       requested_action: request.work.requested_action,
       affected_components: clone(request.work.affected_components ?? []),
+      affected_files: clone(request.work.affected_files ?? []),
+      requested_capabilities: clone(request.work.capabilities ?? []),
       acceptance_criteria: clone(request.work.acceptance_criteria ?? []),
       risk_flags: clone(request.governance.risk_flags),
       required_gates: clone(request.governance.required_gates),
@@ -3038,6 +3079,40 @@ function kernelToRuntimeInput(request) {
         }
       : {})
   };
+}
+
+function executionSpecParticipant(request, catalogs) {
+  if (request.state?.current_role) {
+    return {
+      role: request.state.current_role,
+      stage: request.state.current_stage
+    };
+  }
+  if (request.state?.current_function) {
+    return {
+      function: request.state.current_function,
+      checkpoint: request.state.current_checkpoint
+    };
+  }
+  const executionProfile = request.governance.execution_profile
+    ? catalogs.executionProfiles.profiles[request.governance.execution_profile]
+    : null;
+  if (executionProfile) {
+    return { role: executionProfile.role, stage: executionProfile.stage };
+  }
+  const action = String(request.work.requested_action ?? "").toLowerCase();
+  if (/(review|audit|diagnos)/.test(action)) {
+    return { role: "reviewer", stage: "review" };
+  }
+  if (/(test|verify|check|retest)/.test(action)) {
+    return { role: "tester", stage: "verify" };
+  }
+  if (/(accept)/.test(action)) return { role: "product", stage: "accept" };
+  if (/(define|clarify|frame)/.test(action)) {
+    return { role: "product", stage: "frame" };
+  }
+  if (/(plan)/.test(action)) return { role: "developer", stage: "plan" };
+  return { role: "developer", stage: "produce" };
 }
 
 function assuranceView(binding, resolution = null) {
@@ -3143,10 +3218,41 @@ function nextActionView(projection) {
 
 function evaluateKernelDetailed(request, catalogs) {
   validateKernelRequest(request);
-  const result = compose(kernelToRuntimeInput(request), catalogs);
+  const executionSpec = buildExecutionSpec({
+    work: {
+      objective: request.work.objective,
+      scope: request.work.scope ?? [],
+      action: request.work.requested_action,
+      files: request.work.affected_files ?? [],
+      components: request.work.affected_components ?? [],
+      capabilities: request.work.capabilities ?? []
+    },
+    participant: executionSpecParticipant(request, catalogs),
+    profiles: request.governance.capability_profiles ?? [],
+    sources: request.governance.project_sources,
+    assessments: request.governance.capability_assessments ?? {},
+    overlays: request.governance.capability_overlays ?? {},
+    governance: {
+      risk_flags: request.governance.risk_flags,
+      required_gates: request.governance.required_gates,
+      required_evidence: request.governance.required_evidence,
+      authority_boundaries: request.governance.requires_approval ?? [],
+      assurance: request.work.assurance_target ?? null
+    },
+    budget: request.work.execution_budget ?? null,
+    revisions: {
+      binding: request.state?.previous_revisions?.binding ?? 1,
+      projection: request.state?.previous_revisions?.projection ?? 1
+    }
+  });
+  const runtimeInput = kernelToRuntimeInput(request);
+  runtimeInput.work_signals.execution_spec = executionSpec;
+  const result = compose(runtimeInput, catalogs);
   const decisions = decisionView(result);
   const resolutionStatus = result.preset_resolution.status;
-  const status =
+  const status = executionSpec.unresolved.length
+    ? "blocked"
+    :
     resolutionStatus === "blocked" ||
     resolutionStatus === "capacity-gap" ||
     resolutionStatus === "authorization-denied"
@@ -3171,7 +3277,18 @@ function evaluateKernelDetailed(request, catalogs) {
     status,
     next_action:
       status === "ready" ? nextActionView(result.runtime_projection) : null,
-    assurance: assuranceView(result.team_binding, result.preset_resolution),
+    assurance: (() => {
+      const assurance = assuranceView(
+        result.team_binding,
+        result.preset_resolution
+      );
+      assurance.limitations = unique([
+        ...assurance.limitations,
+        ...executionSpec.limitations,
+        ...executionSpec.unresolved
+      ]);
+      return assurance;
+    })(),
     decisions_required: decisions,
     decision_bundles: decisionBundles,
     decision_interaction: projectDecisionInteraction(decisionBundles),
@@ -3187,7 +3304,7 @@ function evaluateKernelDetailed(request, catalogs) {
   };
   return {
     response,
-    diagnostics: result
+    diagnostics: { ...result, execution_spec: executionSpec }
   };
 }
 
@@ -3528,7 +3645,8 @@ function l5Execution(nextAction) {
       : {}),
     instructions: clone(nextAction.instructions),
     required_outputs: clone(nextAction.required_outputs),
-    exit_gate: clone(nextAction.exit_gate)
+    exit_gate: clone(nextAction.exit_gate),
+    source_locators: clone(nextAction.source_locators)
   };
 }
 
@@ -3713,6 +3831,70 @@ function inspectRegisteredSource(projectRoot, source) {
       source.version != null && source.version !== version
         ? "stale"
         : "unchanged"
+  };
+}
+
+export function hydrateProjectCapabilities(projectLocator) {
+  const projectRoot = path.resolve(projectLocator);
+  const manifestPath = path.join(projectRoot, ".zipzap", "project.json");
+  if (!fs.existsSync(manifestPath)) {
+    return {
+      manifest: null,
+      profiles: [],
+      sources: [],
+      assessments: {},
+      overlays: {},
+      limitations: ["Project is not initialized; no capability profiles are available."]
+    };
+  }
+  const manifest = validateProjectManifest(readJson(manifestPath));
+  const profiles = loadCapabilityProfiles(
+    projectRoot,
+    manifest.capabilities
+  ).map(clone);
+  const inspected = manifest.sources.map((source) =>
+    inspectRegisteredSource(projectRoot, source)
+  );
+  const sources = inspected.map((item) => item.source);
+  const availableSourcesById = Object.fromEntries(
+    inspected
+      .filter((item) => item.status !== "unavailable")
+      .map((item) => [item.source.id, item.source])
+  );
+  const assessments = {};
+  const overlays = {};
+  const limitations = [];
+  for (const profile of profiles) {
+    const assessment = assessCapabilityProfile(
+      profile,
+      projectRoot,
+      availableSourcesById
+    );
+    assessments[profile.id] = assessment;
+    if (assessment.status === "stale") {
+      const overlay = clone(profile);
+      overlay.facts = overlay.facts.filter(
+        (fact) =>
+          availableSourcesById[fact.source_id]?.version === fact.source_digest
+      );
+      overlay.profile_digest = capabilityProfileDigest(overlay);
+      overlays[profile.id] = overlay;
+      limitations.push(
+        `${profile.id} is stale; Work uses an in-memory overlay and does not update project files.`
+      );
+    } else if (assessment.status !== "current") {
+      limitations.push(
+        `${profile.id} is ${assessment.status}; repair sources or run Initialize Refresh.`
+      );
+    }
+  }
+  return {
+    manifest,
+    profiles,
+    sources,
+    assessments,
+    overlays,
+    limitations
   };
 }
 
@@ -5371,8 +5553,48 @@ function invokeL5Detailed(envelope, catalogs) {
           "execute request must match the assessed L5 invocation"
         );
       }
+      let hydrated = null;
+      if (request.project?.locator) {
+        try {
+          hydrated = hydrateProjectCapabilities(request.project.locator);
+        } catch (error) {
+          if (/migration-required|manifest|capability profile/i.test(error.message)) {
+            const limitation = error.message;
+            return {
+              response: {
+                ...base,
+                status: "blocked",
+                summary: "Project capability context is not executable.",
+                user_view: userExperienceView(
+                  operation,
+                  "blocked",
+                  [],
+                  catalogs
+                ),
+                assurance: {
+                  mode: "custom",
+                  limitations: [limitation]
+                },
+                decisions_required: [],
+                continuation: null,
+                diagnostics_ref: null
+              },
+              normalization: null,
+              kernel: null,
+              diagnostics: { capability_hydration_error: limitation }
+            };
+          }
+          throw error;
+        }
+      }
+      const normalizationInput = clone(
+        envelope.context.risk_normalization
+      );
+      if (hydrated) {
+        normalizationInput.project_sources = clone(hydrated.sources);
+      }
       const normalization = normalizeRiskAssessment(
-        envelope.context.risk_normalization,
+        normalizationInput,
         catalogs
       );
       if (normalization.status === "decision-required") {
@@ -5403,10 +5625,20 @@ function invokeL5Detailed(envelope, catalogs) {
           diagnostics: null
         };
       }
-      const evaluated = evaluateKernelDetailed(
-        normalization.kernel_request,
-        catalogs
-      );
+      const kernelRequest = clone(normalization.kernel_request);
+      if (hydrated) {
+        kernelRequest.governance.project_sources = clone(hydrated.sources);
+        kernelRequest.governance.capability_profiles = clone(
+          hydrated.profiles
+        );
+        kernelRequest.governance.capability_assessments = clone(
+          hydrated.assessments
+        );
+        kernelRequest.governance.capability_overlays = clone(
+          hydrated.overlays
+        );
+      }
+      const evaluated = evaluateKernelDetailed(kernelRequest, catalogs);
       const kernel = evaluated.response;
       const decisions = kernel.decisions_required.map(l5Decision);
       return {

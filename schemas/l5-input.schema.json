@@ -216,6 +216,16 @@
           "type": "string",
           "minLength": 1
         },
+        "affected_files": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
         "constraints": {
           "type": "array",
           "items": {

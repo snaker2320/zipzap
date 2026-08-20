@@ -499,7 +499,8 @@
         "requested_action",
         "instructions",
         "required_outputs",
-        "exit_gate"
+        "exit_gate",
+        "source_locators"
       ],
       "properties": {
         "participant": {
@@ -582,6 +583,9 @@
           "items": {
             "type": "string"
           }
+        },
+        "source_locators": {
+          "$ref": "./runtime-output.schema.json#/$defs/next_action/properties/source_locators"
         }
       }
     },

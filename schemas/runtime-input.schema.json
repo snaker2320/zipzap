@@ -123,6 +123,16 @@
           },
           "uniqueItems": true
         },
+        "affected_files": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
         "acceptance_criteria": {
           "type": "array",
           "items": {
@@ -280,6 +290,18 @@
           "items": {
             "$ref": "#/$defs/project_source"
           }
+        },
+        "capability_profiles": {
+          "type": "array",
+          "items": { "$ref": "./capability-profile.schema.json" }
+        },
+        "capability_assessments": {
+          "type": "object",
+          "additionalProperties": { "type": "object" }
+        },
+        "capability_overlays": {
+          "type": "object",
+          "additionalProperties": { "$ref": "./capability-profile.schema.json" }
         }
       }
     },
