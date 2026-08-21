@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -36,9 +37,30 @@ function source(overrides = {}) {
 
 function manifest(sources, overrides = {}) {
   return {
-    schema_version: 1,
+    schema_version: 2,
     project_id: "example",
     sources,
+    capabilities: [],
+    ...overrides
+  };
+}
+
+function sha256(content) {
+  return `sha256:${crypto.createHash("sha256").update(content).digest("hex")}`;
+}
+
+function capabilityProfile(overrides = {}) {
+  return {
+    schema_version: 1,
+    id: "java-development",
+    revision: 1,
+    status: "active",
+    facts: [],
+    selectors: {},
+    source_refs: [],
+    module_ids: [],
+    context_budget: { max_facts: 4, max_source_refs: 4 },
+    profile_digest: `sha256:${"a".repeat(64)}`,
     ...overrides
   };
 }
@@ -356,4 +378,77 @@ test("validates and merges evidence-backed semantic assessment findings", (conte
       }),
     /unknown-source/
   );
+});
+
+test("reports stale and overbroad capability profiles only on explicit diagnosis", (context) => {
+  const root = project(context);
+  fs.mkdirSync(path.join(root, "config"), { recursive: true });
+  const content = "java.version=21\n";
+  fs.writeFileSync(path.join(root, "config", "java.properties"), content);
+  const projectManifest = manifest(
+    [
+      source({
+        id: "java-configuration",
+        locator: "config/java.properties",
+        version: sha256(content),
+        owner: "engineering",
+        authority: "build-configuration"
+      })
+    ],
+    {
+      capabilities: [
+        {
+          id: "java-development",
+          locator: ".zipzap/capabilities/java-development.json",
+          enabled: true
+        }
+      ]
+    }
+  );
+  const result = diagnose(root, projectManifest, {
+    capability_profiles: [
+      capabilityProfile({
+        facts: [
+          {
+            key: "java-version",
+            value: "17",
+            source_id: "java-configuration",
+            evidence: "config/java.properties:java.version",
+            source_digest: `sha256:${"0".repeat(64)}`
+          }
+        ]
+      })
+    ]
+  });
+  const categories = result.findings.map((item) => item.category);
+
+  assert.equal(categories.includes("stale-capability-fact"), true);
+  assert.equal(categories.includes("overbroad-capability-selector"), true);
+});
+
+test("reports missing capability modules and exceeded profile budgets", (context) => {
+  const root = project(context);
+  const result = diagnose(root, manifest([]), {
+    capability_profiles: [
+      capabilityProfile({
+        facts: [
+          {
+            key: "build-tool",
+            value: "maven",
+            source_id: "missing-source",
+            evidence: "pom.xml:project",
+            source_digest: `sha256:${"1".repeat(64)}`
+          }
+        ],
+        module_ids: ["capability:missing-module"],
+        context_budget: { max_facts: 0, max_source_refs: 0 }
+      })
+    ],
+    known_module_ids: ["role:developer"]
+  });
+  const categories = result.findings.map((item) => item.category);
+
+  assert.equal(categories.includes("missing-capability-source"), true);
+  assert.equal(categories.includes("missing-capability-module"), true);
+  assert.equal(categories.includes("capability-context-budget-exceeded"), true);
 });

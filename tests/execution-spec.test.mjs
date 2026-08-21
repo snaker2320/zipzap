@@ -358,4 +358,6 @@ test("L5 Work hydrates project capabilities instead of trusting caller context",
     response.execution.source_locators.map((item) => item.id).sort(),
     ["backend-standard", "maven-project"]
   );
+  assert.equal(response.rule_health, undefined);
+  assert.equal(fs.existsSync(path.join(root, ".zipzap/rule-health")), false);
 });

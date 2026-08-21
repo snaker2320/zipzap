@@ -315,6 +315,273 @@ function candidateFindings(root, sources, maxInstructionLines = 400) {
   return findings;
 }
 
+function capabilityProfileSource(profile, manifest) {
+  const registration = (manifest.capabilities ?? []).find(
+    (item) => item.id === profile.id
+  );
+  return {
+    id: `capability-profile-${profile.id}`,
+    locator:
+      registration?.locator ?? `.zipzap/capabilities/${profile.id}.json`,
+    version: profile.profile_digest ?? null
+  };
+}
+
+function currentSourceDigest(root, source) {
+  if (!source) return null;
+  if (
+    source.format === "external" ||
+    source.loading === "external-resource" ||
+    /^[a-z][a-z0-9+.-]*:\/\//i.test(source.locator)
+  ) {
+    return source.version ?? null;
+  }
+  const filePath = projectPath(root, source.locator);
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
+  return contentHash(filePath);
+}
+
+function capabilityFindings(
+  root,
+  manifest,
+  profiles = [],
+  selectorCatalog = {},
+  knownModuleIds = []
+) {
+  if (!Array.isArray(profiles)) {
+    throw new Error("rule health capability_profiles must be an array");
+  }
+  const results = [];
+  const sourcesById = new Map(
+    (manifest.sources ?? []).map((source) => [source.id, source])
+  );
+  const knownModules = new Set(knownModuleIds ?? []);
+  const profileGroups = new Map();
+  const factsByKey = new Map();
+  const roleStages = {
+    product: new Set(["frame", "plan", "resolve", "accept", "handoff"]),
+    developer: new Set(["discover", "plan", "produce", "self-review", "handoff"]),
+    tester: new Set(["plan", "verify", "retest", "report", "handoff"]),
+    reviewer: new Set(["plan", "review", "re-review", "report", "handoff"])
+  };
+
+  for (const profile of profiles) {
+    const profileSource = capabilityProfileSource(profile, manifest);
+    if (!profileGroups.has(profile.id)) profileGroups.set(profile.id, []);
+    profileGroups.get(profile.id).push(profileSource);
+    const facts = Array.isArray(profile.facts) ? profile.facts : [];
+    const sourceRefs = Array.isArray(profile.source_refs)
+      ? profile.source_refs
+      : [];
+    const requiredSourceIds = new Set([
+      ...facts.map((fact) => fact.source_id),
+      ...sourceRefs.map((sourceRef) => sourceRef.source_id)
+    ]);
+    for (const sourceId of [...requiredSourceIds].sort()) {
+      const source = sourcesById.get(sourceId);
+      if (!source || currentSourceDigest(root, source) == null) {
+        results.push(
+          finding(
+            "missing-capability-source",
+            "high",
+            "high",
+            [profileSource],
+            `Capability ${profile.id} requires unavailable source ${sourceId}.`,
+            "Restore or register the authoritative source, then explicitly Refresh the profile.",
+            [sourceId]
+          )
+        );
+      }
+    }
+    for (const fact of facts) {
+      if (!factsByKey.has(fact.key)) factsByKey.set(fact.key, []);
+      factsByKey.get(fact.key).push({ profile, profileSource, fact });
+      const source = sourcesById.get(fact.source_id);
+      const actualDigest = currentSourceDigest(root, source);
+      if (actualDigest && actualDigest !== fact.source_digest) {
+        results.push(
+          finding(
+            "stale-capability-fact",
+            "medium",
+            "high",
+            [profileSource, source],
+            `Capability fact ${profile.id}.${fact.key} no longer matches its authoritative source.`,
+            "Review current project evidence and explicitly Refresh the capability profile.",
+            [fact.key, fact.source_digest, actualDigest]
+          )
+        );
+      }
+    }
+
+    const selectors =
+      profile.selectors && typeof profile.selectors === "object"
+        ? profile.selectors
+        : {};
+    for (const field of ["roles", "stages", "actions", "components", "risk_flags"]) {
+      const known = selectorCatalog[field];
+      if (!Array.isArray(known) || !Array.isArray(selectors[field])) continue;
+      const invalid = selectors[field].filter((value) => !known.includes(value));
+      if (invalid.length) {
+        results.push(
+          finding(
+            "invalid-capability-selector",
+            "high",
+            "high",
+            [profileSource],
+            `Capability ${profile.id} has unsupported ${field} selectors.`,
+            "Replace selector values with current project catalog values.",
+            invalid
+          )
+        );
+      }
+    }
+    const invalidPatterns = (selectors.file_patterns ?? []).filter((pattern) => {
+      const normalized = String(pattern).replaceAll("\\", "/");
+      return !normalized || normalized.startsWith("/") || normalized.split("/").includes("..");
+    });
+    if (invalidPatterns.length) {
+      results.push(
+        finding(
+          "invalid-capability-selector",
+          "high",
+          "high",
+          [profileSource],
+          `Capability ${profile.id} has file selectors outside the project boundary.`,
+          "Use project-relative file patterns only.",
+          invalidPatterns
+        )
+      );
+    }
+    if (selectors.roles?.length && selectors.stages?.length) {
+      const canMatch = selectors.roles.some((role) =>
+        selectors.stages.some((stage) => roleStages[role]?.has(stage))
+      );
+      if (!canMatch) {
+        results.push(
+          finding(
+            "never-matching-capability-selector",
+            "high",
+            "high",
+            [profileSource],
+            `Capability ${profile.id} has no valid Role and Stage combination.`,
+            "Align the Stage selector with at least one selected accountable Role.",
+            [...selectors.roles, ...selectors.stages]
+          )
+        );
+      }
+    }
+    const nonEmptySelectorGroups = Object.values(selectors).filter(
+      (values) => Array.isArray(values) && values.length > 0
+    );
+    if (
+      nonEmptySelectorGroups.length === 0 ||
+      ((selectors.roles?.length ?? 0) >= 4 &&
+        !selectors.file_patterns?.length &&
+        !selectors.components?.length &&
+        !selectors.actions?.length)
+    ) {
+      results.push(
+        finding(
+          "overbroad-capability-selector",
+          "medium",
+          "high",
+          [profileSource],
+          `Capability ${profile.id} can load into unrelated work.`,
+          "Add the smallest useful Role, action, component, or file-pattern selectors."
+        )
+      );
+    }
+
+    const missingModules = (profile.module_ids ?? []).filter(
+      (moduleId) => !knownModules.has(moduleId)
+    );
+    if (knownModuleIds != null && missingModules.length) {
+      results.push(
+        finding(
+          "missing-capability-module",
+          "high",
+          "high",
+          [profileSource],
+          `Capability ${profile.id} references unavailable Module Definitions.`,
+          "Remove the references or restore the modules in the installed ZipZap package.",
+          missingModules
+        )
+      );
+    }
+    const requiredRefCount = requiredSourceIds.size;
+    if (
+      profile.context_budget &&
+      (facts.length > profile.context_budget.max_facts ||
+        requiredRefCount > profile.context_budget.max_source_refs)
+    ) {
+      results.push(
+        finding(
+          "capability-context-budget-exceeded",
+          "high",
+          "high",
+          [profileSource],
+          `Capability ${profile.id} requires more facts or sources than its declared budget permits.`,
+          "Narrow the profile or explicitly increase its bounded context budget.",
+          [`facts:${facts.length}`, `sources:${requiredRefCount}`]
+        )
+      );
+    }
+    const proseFields = ["instructions", "rules", "guidance", "commands", "hooks", "script"].filter(
+      (field) => profile[field] != null
+    );
+    const proseFacts = facts
+      .filter(
+        (fact) =>
+          typeof fact.value === "string" &&
+          (fact.value.includes("\n") || fact.value.length > 300)
+      )
+      .map((fact) => fact.key);
+    if (proseFields.length || proseFacts.length) {
+      results.push(
+        finding(
+          "copied-capability-rule",
+          "advisory",
+          "medium",
+          [profileSource],
+          `Capability ${profile.id} may copy substantive rule prose into derived state.`,
+          "Keep only bounded facts and source references; leave rule prose authoritative at its source.",
+          [...proseFields, ...proseFacts]
+        )
+      );
+    }
+  }
+
+  for (const [profileId, group] of profileGroups) {
+    if (group.length < 2) continue;
+    results.push(
+      finding(
+        "duplicate-capability-profile",
+        "high",
+        "high",
+        group,
+        `Capability ID ${profileId} is registered more than once.`,
+        "Keep one authoritative profile registration for the capability."
+      )
+    );
+  }
+  for (const [factKey, entries] of factsByKey) {
+    const values = new Set(entries.map((entry) => canonical(entry.fact.value)));
+    if (entries.length < 2 || values.size < 2) continue;
+    results.push(
+      finding(
+        "conflicting-capability-fact",
+        "high",
+        "high",
+        entries.map((entry) => entry.profileSource),
+        `Capability profiles disagree on fact ${factKey}.`,
+        "Resolve the authoritative project source and explicitly Refresh overlapping profiles.",
+        [...values]
+      )
+    );
+  }
+  return results;
+}
+
 function semanticReviewRequest(depth, sources, structuralFindings, budgetInput) {
   if (depth === "quick") return null;
   let maxSourceFiles = 8;
@@ -468,7 +735,14 @@ export function diagnoseRuleHealth(input) {
     ...selectorFindings(sources, input.selector_catalog),
     ...coverageFindings(sources, input.required_topics),
     ...routeFindings(sources, input.manifest.document_routing),
-    ...candidateFindings(root, sources, input.max_instruction_lines)
+    ...candidateFindings(root, sources, input.max_instruction_lines),
+    ...capabilityFindings(
+      root,
+      input.manifest,
+      input.capability_profiles ?? [],
+      input.selector_catalog,
+      input.known_module_ids
+    )
   ];
   const semanticRequest = semanticReviewRequest(
     depth,

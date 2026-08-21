@@ -45,6 +45,15 @@
     "manifest": {
       "$ref": "./project-manifest.schema.json"
     },
+    "capability_profiles": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "known_module_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string" }
+    },
     "selector_catalog": {
       "type": "object",
       "additionalProperties": {

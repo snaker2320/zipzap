@@ -7520,7 +7520,11 @@ async function main() {
   if (command === "rule-health") {
     let result;
     if (input.operation === "diagnose") {
-      result = diagnoseRuleHealth(input);
+      result = diagnoseRuleHealth({
+        ...input,
+        known_module_ids:
+          input.known_module_ids ?? Object.keys(catalogs.moduleCatalog.modules)
+      });
     } else if (input.operation === "list-ignored") {
       result = {
         schema_version: 1,
