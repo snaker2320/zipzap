@@ -144,7 +144,7 @@ test("blocks a selected profile whose required source is missing", () => {
 test("projects selected capability facts into the accountable action", () => {
   const result = evaluateKernel(
     {
-      schema_version: 1,
+      schema_version: 2,
       work: {
         id: "java-work",
         objective: "change quote service",
@@ -306,7 +306,7 @@ test("L5 Work hydrates project capabilities instead of trusting caller context",
     )}\n`
   );
   const request = {
-    schema_version: 1,
+    schema_version: 2,
     operation: "execute",
     request_id: "java-l5",
     project: { id: "example", locator: root },
@@ -318,7 +318,7 @@ test("L5 Work hydrates project capabilities instead of trusting caller context",
   };
   const riskIds = Object.keys(loadCatalogs().riskTaxonomy.signals);
   const response = invokeL5({
-    schema_version: 1,
+    schema_version: 2,
     request,
     context: {
       risk_normalization: {

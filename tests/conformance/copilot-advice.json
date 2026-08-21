@@ -1,8 +1,8 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "copilot-advice",
   "request": {
-    "schema_version": 1,
+    "schema_version": 2,
     "work": {
       "id": "copilot-advice",
       "objective": "Challenge an implementation before verification.",

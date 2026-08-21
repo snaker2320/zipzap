@@ -1,8 +1,8 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "squad-high-risk",
   "request": {
-    "schema_version": 1,
+    "schema_version": 2,
     "work": {
       "id": "squad-high-risk",
       "objective": "Verify a regulated high-risk change.",

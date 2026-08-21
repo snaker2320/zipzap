@@ -1,8 +1,8 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "multi-agent-authorization-required",
   "request": {
-    "schema_version": 1,
+    "schema_version": 2,
     "work": {
       "id": "multi-agent-authorization-required",
       "objective": "Challenge a material implementation.",

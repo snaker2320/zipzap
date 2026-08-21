@@ -31,7 +31,7 @@ function normalizationInput({
       schema_version: 1,
       taxonomy_version: 1,
       invocation: {
-        schema_version: 1,
+        schema_version: 2,
         operation: "execute",
         request: {
           intent: "Change the requested behavior.",

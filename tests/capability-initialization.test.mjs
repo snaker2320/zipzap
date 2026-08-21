@@ -49,7 +49,7 @@ function profile(sourceDigest) {
 
 function request(projectRoot, capabilityProfile) {
   return {
-    schema_version: 1,
+    schema_version: 2,
     operation: "initialize",
     project: { id: "example", locator: projectRoot },
     initialization: {
@@ -179,7 +179,7 @@ test("profiles declared Maven evidence into an Initialize preview", (t) => {
 
   const preview = initializeProject(
     {
-      schema_version: 1,
+      schema_version: 2,
       operation: "initialize",
       project: { id: "example", locator: root },
       initialization: {
@@ -211,7 +211,7 @@ test("profiles declared Maven evidence into an Initialize preview", (t) => {
 
   const confirmed = initializeProject(
     {
-      schema_version: 1,
+      schema_version: 2,
       operation: "initialize",
       project: { id: "example", locator: root },
       initialization: {

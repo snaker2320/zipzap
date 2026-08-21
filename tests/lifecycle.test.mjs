@@ -33,8 +33,8 @@ function compatibleHost() {
       runtimes: [],
       tools: [],
       interfaces: {
-        l5: [1],
-        kernel: [1]
+        l5: [2],
+        kernel: [2]
       }
     },
     "execute",
@@ -48,8 +48,9 @@ test("builds a deterministic zero-dependency release manifest", () => {
   const second = buildReleaseManifest(catalogs);
   assert.deepEqual(first, second);
   assert.deepEqual(first.runtime_dependencies, []);
-  assert.equal(first.skill.version, "0.1.1-beta.4");
+  assert.equal(first.skill.version, "0.1.1-beta.5");
   assert.equal(first.skill.channel, "beta");
+  assert.deepEqual(first.interfaces, { l5: 2, kernel: 2 });
   assert.equal(
     first.files.some((file) => file.path === "SKILL.md"),
     true
@@ -129,6 +130,42 @@ test("builds a deterministic zero-dependency release manifest", () => {
   );
 });
 
+test("routes a v1 project manifest to explicit reinitialization without writing", (context) => {
+  const projectRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "zipzap-v1-project-")
+  );
+  context.after(() =>
+    fs.rmSync(projectRoot, { recursive: true, force: true })
+  );
+  const stateRoot = path.join(projectRoot, ".zipzap");
+  const manifestPath = path.join(stateRoot, "project.json");
+  fs.mkdirSync(stateRoot, { recursive: true });
+  const legacyManifest = `${JSON.stringify({
+    schema_version: 1,
+    project_id: "legacy-project",
+    revision: 1,
+    sources: []
+  }, null, 2)}\n`;
+  fs.writeFileSync(manifestPath, legacyManifest);
+
+  const result = assessLifecycle(
+    {
+      schema_version: 1,
+      operation: "upgrade",
+      installed_version: "0.1.1-beta.4",
+      target_version: "0.1.1-beta.5",
+      host_conformance: compatibleHost(),
+      project: { locator: projectRoot }
+    },
+    catalogs
+  );
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.project_check.status, "migration-required");
+  assert.match(result.next_actions.join(" "), /reinitializ/i);
+  assert.equal(fs.readFileSync(manifestPath, "utf8"), legacyManifest);
+});
+
 test("verifies a release manifest against current package bytes", () => {
   const result = assessLifecycle(
     {
@@ -175,26 +212,26 @@ test("rejects a release channel that disagrees with the semantic version", () =>
         },
         catalogs
       ),
-    /channel development does not match version 0\.1\.1-beta\.4/
+    /channel development does not match version 0\.1\.1-beta\.5/
   );
 });
 
-test("upgrades both beta archive and misreported internal versions", () => {
-  const host = compatibleHost();
-  for (const installedVersion of ["0.1.0-beta.1", "0.1.0"]) {
-    const result = assessLifecycle(
-      {
-        schema_version: 1,
-        operation: "upgrade",
-        installed_version: installedVersion,
-        target_version: "0.1.1-beta.4",
-        host_conformance: host
-      },
-      catalogs
-    );
-    assert.equal(result.allowed, true, installedVersion);
-    assert.deepEqual(result.migration_plan, []);
-  }
+test("reports the explicit reinitialization plan for the v2 interface upgrade", () => {
+  const result = assessLifecycle(
+    {
+      schema_version: 1,
+      operation: "upgrade",
+      installed_version: "0.1.1-beta.4",
+      target_version: "0.1.1-beta.5",
+      host_conformance: compatibleHost()
+    },
+    catalogs
+  );
+  assert.equal(result.allowed, true);
+  assert.deepEqual(
+    result.migration_plan.map((migration) => migration.id),
+    ["reinitialize-v2-project-state"]
+  );
 });
 
 test("routes uninitialized and incomplete projects during upgrade checks", (context) => {
@@ -209,8 +246,8 @@ test("routes uninitialized and incomplete projects during upgrade checks", (cont
     {
       schema_version: 1,
       operation: "upgrade",
-      installed_version: "0.1.0-beta.1",
-      target_version: "0.1.1-beta.4",
+      installed_version: "0.1.1-beta.4",
+      target_version: "0.1.1-beta.5",
       host_conformance: host,
       project: {
         id: "example",
@@ -231,7 +268,7 @@ test("routes uninitialized and incomplete projects during upgrade checks", (cont
   );
   initializeProject(
     {
-      schema_version: 1,
+      schema_version: 2,
       operation: "initialize",
       project: {
         id: "example",
@@ -248,8 +285,8 @@ test("routes uninitialized and incomplete projects during upgrade checks", (cont
     {
       schema_version: 1,
       operation: "upgrade",
-      installed_version: "0.1.0-beta.1",
-      target_version: "0.1.1-beta.4",
+      installed_version: "0.1.1-beta.4",
+      target_version: "0.1.1-beta.5",
       host_conformance: host,
       project: {
         id: "example",
@@ -266,8 +303,8 @@ test("routes uninitialized and incomplete projects during upgrade checks", (cont
     {
       schema_version: 1,
       operation: "verify-upgrade",
-      installed_version: "0.1.0-beta.1",
-      target_version: "0.1.1-beta.4",
+      installed_version: "0.1.1-beta.4",
+      target_version: "0.1.1-beta.5",
       host_conformance: host,
       release_manifest: buildReleaseManifest(catalogs),
       project: {
@@ -301,10 +338,11 @@ test("blocks post-upgrade verification when project state changed", (context) =>
   fs.writeFileSync(
     manifestPath,
     `${JSON.stringify({
-      schema_version: 1,
+      schema_version: 2,
       project_id: "example",
       revision: 1,
       sources: [],
+      capabilities: [],
       collaboration: {
         preferred_preset: "auto",
         personalization: {
@@ -318,8 +356,8 @@ test("blocks post-upgrade verification when project state changed", (context) =>
     {
       schema_version: 1,
       operation: "upgrade",
-      installed_version: "0.1.0-beta.1",
-      target_version: "0.1.1-beta.4",
+      installed_version: "0.1.1-beta.4",
+      target_version: "0.1.1-beta.5",
       host_conformance: compatibleHost(),
       project: {
         locator: projectRoot
@@ -336,8 +374,8 @@ test("blocks post-upgrade verification when project state changed", (context) =>
     {
       schema_version: 1,
       operation: "verify-upgrade",
-      installed_version: "0.1.0-beta.1",
-      target_version: "0.1.1-beta.4",
+      installed_version: "0.1.1-beta.4",
+      target_version: "0.1.1-beta.5",
       host_conformance: compatibleHost(),
       release_manifest: buildReleaseManifest(catalogs),
       project: {

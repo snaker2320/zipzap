@@ -1,8 +1,8 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "solo-basic",
   "request": {
-    "schema_version": 1,
+    "schema_version": 2,
     "work": {
       "id": "solo-basic",
       "objective": "Implement a bounded reversible change.",

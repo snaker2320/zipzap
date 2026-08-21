@@ -114,7 +114,7 @@ function adapterInput(taskValue, assessmentValue, overrides = {}) {
 function invokeEnvelope(taskValue, assessmentValue) {
   const assessmentInput = prepareTaskAssessment(taskValue, catalogs);
   return {
-    schema_version: 1,
+    schema_version: 2,
     request: assessmentInput.invocation,
     context: {
       risk_normalization: {
@@ -173,7 +173,7 @@ test("unified L5 invoke returns a ready execution view", () => {
 
 test("unified L5 invoke exposes a silent design diagnostic profile", () => {
   const invocation = {
-    schema_version: 1,
+    schema_version: 2,
     operation: "execute",
     request: {
       intent: "diagnose",
@@ -190,7 +190,7 @@ test("unified L5 invoke exposes a silent design diagnostic profile", () => {
   };
   const response = invokeL5(
     {
-      schema_version: 1,
+      schema_version: 2,
       request: invocation,
       context: {
         risk_normalization: {
@@ -287,9 +287,9 @@ test("unified L5 invoke returns structured errors for mismatched input", () => {
 test("unified L5 invoke supports initialize and inspect adapters", () => {
   const initialization = invokeL5(
     {
-      schema_version: 1,
+      schema_version: 2,
       request: {
-        schema_version: 1,
+        schema_version: 2,
         operation: "initialize",
         project: {
           locator: "."
@@ -319,9 +319,9 @@ test("unified L5 invoke supports initialize and inspect adapters", () => {
 
   const inspection = invokeL5(
     {
-      schema_version: 1,
+      schema_version: 2,
       request: {
-        schema_version: 1,
+        schema_version: 2,
         operation: "inspect",
         inspection: {
           target: "catalog"

@@ -33,8 +33,8 @@ function host() {
     runtimes: ["node"],
     tools: [],
     interfaces: {
-      l5: [1],
-      kernel: [1]
+      l5: [2],
+      kernel: [2]
     }
   };
 }

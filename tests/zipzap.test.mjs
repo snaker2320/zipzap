@@ -15,7 +15,7 @@ const catalogs = loadCatalogs();
 
 function baseInput(overrides = {}) {
   return {
-    schema_version: 1,
+    schema_version: 2,
     work_id: "test-work",
     work_signals: {
       objective: "Deliver the requested outcome.",
@@ -38,7 +38,7 @@ function baseInput(overrides = {}) {
 
 function baseKernelRequest(overrides = {}) {
   return {
-    schema_version: 1,
+    schema_version: 2,
     work: {
       id: "kernel-work",
       objective: "Deliver the requested outcome.",
@@ -75,7 +75,7 @@ test("catalogs are internally valid", () => {
     task_policies: 12,
     onboarding_questions: 6,
     adapters: 3,
-    releases: 6
+    releases: 7
   });
 });
 
@@ -228,6 +228,7 @@ test("L5 initialize requires an explicit action and project manifest contract", 
 
 test("selects Solo for work with no additional assurance", () => {
   const result = compose(baseInput(), catalogs);
+  assert.equal(result.schema_version, 2);
   assert.equal(result.preset_resolution.effective, "solo");
   assert.equal(result.team_binding.members.length, 1);
 });

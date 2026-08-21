@@ -13,12 +13,27 @@ one Control Function overlay at a valid checkpoint. Add only matching
 project-rule locators, work and handoff state, evidence requirements, Findings,
 authority boundaries, and assurance.
 
+When the Work request names a project, hydrate Capability Profiles only from
+Manifest v2 registrations under `.zipzap/capabilities/`. Build one
+ExecutionSpec and match profiles against the current role, stage, requested
+action, affected components, and affected files. Add only the selected
+profiles' scalar facts and exact authoritative source references. Explicitly
+requesting a capability may make it a candidate, but never bypasses disabled,
+invalid, missing, or stale evidence.
+
 The manifest records included modules, source versions, binding revision, and
 unresolved items. It does not copy authoritative project rule content.
 
 Rebuild when Role, stage, checkpoint, scope, risk, requested action, affected
 components, Findings, handoff, or source version changes. Never let a stale
 Projection authorize a consequential action.
+
+If a selected profile's source fingerprint has changed, invalidate the prior
+Projection. Work may reread registered evidence and build a bounded ephemeral
+overlay, omit facts it cannot re-establish, and return a `refresh-recommended`
+limitation. It must not write the profile or Manifest. Missing or conflicting
+authoritative evidence blocks or requests a decision; Initialize Refresh owns
+the later preview-confirm write.
 
 Resolve `required_rule_topics` against `.zipzap/project.json` before loading
 content. Use `source-resolve` to return only applicable locators. A

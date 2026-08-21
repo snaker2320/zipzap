@@ -38,6 +38,11 @@ as an onboarding route, and changed sources as a refresh route. These routes
 are follow-up actions, not reasons to mutate project state during Skill
 installation.
 
+The `0.1.1-beta.5` release advertises L5 and Kernel interface version 2. When
+upgrading from `0.1.1-beta.4`, preserve the existing Manifest byte-for-byte,
+then route Manifest v1 projects to Initialize discovery, preview, and confirmed
+reinitialization. There is no in-place conversion or dual-read execution path.
+
 ## Rollback
 
 Require a recoverable Skill backup, a registered older release, compatible

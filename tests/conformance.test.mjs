@@ -7,7 +7,9 @@ import { fileURLToPath } from "node:url";
 import {
   assessHost,
   buildHostCapabilityMatrix,
+  compose,
   evaluateKernel,
+  invokeL5,
   loadCatalogs,
   resolveDocumentRoute
 } from "../scripts/zipzap.mjs";
@@ -29,12 +31,68 @@ function hostCapabilities(overrides = {}) {
     runtimes: [],
     tools: [],
     interfaces: {
-      l5: [1],
-      kernel: [1]
+      l5: [2],
+      kernel: [2]
     },
     ...overrides
   };
 }
+
+function kernelRequest(schemaVersion) {
+  return {
+    schema_version: schemaVersion,
+    work: {
+      id: "contract-version-test",
+      objective: "Verify the current Kernel contract",
+      requested_action: "implement"
+    },
+    governance: {
+      risk_flags: [],
+      required_gates: [],
+      required_evidence: [],
+      project_sources: []
+    },
+    host: {
+      concurrency_limit: 1,
+      distinct_context_limit: 1
+    }
+  };
+}
+
+test("rejects L5 v1 requests without a compatibility path", () => {
+  const response = invokeL5({
+    schema_version: 2,
+    request: {
+      schema_version: 1,
+      operation: "inspect",
+      inspection: { target: "catalogs" }
+    },
+    context: {}
+  });
+
+  assert.equal(response.ok, false);
+  assert.equal(response.schema_version, 2);
+  assert.match(response.error.message, /L5 request schema_version must be 2/i);
+  assert.match(response.error.hint, /reinitialize|migrat/i);
+});
+
+test("rejects Kernel and runtime v1 inputs", () => {
+  assert.throws(
+    () => evaluateKernel(kernelRequest(1), catalogs),
+    /kernel request schema_version must be 2/i
+  );
+  assert.throws(
+    () => compose({ schema_version: 1 }, catalogs),
+    /runtime input schema_version must be 2/i
+  );
+});
+
+test("executes a Kernel v2 request and returns a v2 response", () => {
+  const response = evaluateKernel(kernelRequest(2), catalogs);
+
+  assert.equal(response.schema_version, 2);
+  assert.equal(response.status, "ready");
+});
 
 for (const fileName of fs.readdirSync(VECTOR_DIR).sort()) {
   if (!fileName.endsWith(".json")) continue;
@@ -183,9 +241,10 @@ test("projects route ambiguity as an active no-write decision gate", (context) =
     schema_version: 1,
     project: { locator: projectRoot },
     manifest: {
-      schema_version: 1,
+      schema_version: 2,
       project_id: "example",
       sources: [],
+      capabilities: [],
       document_routing: {
         routes: [
           {
@@ -256,6 +315,10 @@ test("L6 schemas and compatibility policy are registered", () => {
   assert.equal(
     catalogs.schemas.conformanceResult.title,
     "ZipZap L6 Conformance Result"
+  );
+  assert.equal(
+    catalogs.schemas.l5Output.$defs.error.properties.hint.type,
+    "string"
   );
   assert.deepEqual(catalogs.compatibility.adapter_order, [
     "codex-native",

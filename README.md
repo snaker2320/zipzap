@@ -15,16 +15,18 @@ The project is in active product and workflow design. Its current structure is:
 │   ├── agents.json                # L2 Agent Profiles and capsules
 │   ├── teams.json                 # L3 Team Presets and assurance
 │   ├── control-functions.json     # L4 Coordinator and Advisor
+│   ├── modules.json               # Internal role, policy, and context modules
 │   ├── runtime-policy.json        # L4 gates, risks, events, lifecycle
 │   ├── risk-taxonomy.json         # L5 evidence-backed risk normalization
 │   ├── task-policy.json           # Local Task persistence and patch policy
 │   ├── onboarding.json            # Page and conversational preference form
 │   ├── compatibility.json         # L6 adapters and host requirements
 │   └── lifecycle.json             # L7 packaging and release policy
-├── schemas/                       # L4–L7, source, Task, and project contracts
+├── schemas/                       # L4–L7, capability, Task, and project contracts
 │   ├── decision-bundle.schema.json # Shared critical-decision form contract
 │   └── decision-interaction.schema.json # Host-neutral pause/render contract
 ├── scripts/zipzap.mjs             # Collaboration and lifecycle runner
+├── scripts/lib/                   # Kernel modules, matchers, and diagnostics
 ├── scripts/task.mjs               # Local Task, Git, Review, and report runner
 ├── tests/                         # Composition and conformance tests
 └── references/
@@ -58,6 +60,10 @@ The project is in active product and workflow design. Its current structure is:
 
 Project-specific business rules remain in each project's own source of truth.
 ZipZap registers and loads those rules when needed instead of copying them.
+Project-derived capability profiles are stored separately under
+`.zipzap/capabilities/*.json`; they contain bounded facts, selectors,
+provenance, fingerprints, and source references, never executable hooks or
+copied rule prose.
 Persistent Tasks are maintained in the project as
 `.zipzap/tasks/<task-id>.json`. Immutable per-event files, Review evidence,
 Feedback, and derived reports remain under `.zipzap/`. Commit shared project
@@ -86,6 +92,25 @@ Run an example directly with `--input`, such as
 CLI failures use structured JSON with a stable error code, message, corrective
 hint, and the most relevant help command.
 
+## Modular Kernel and project capabilities
+
+ZipZap ships as one package with an internal Module Catalog, Loop Controller,
+ExecutionSpec builder, Capability Matcher, and Rule Doctor. These are module
+boundaries for precise context assembly, not installable role plugins. There
+is no plugin marketplace, external module loader, dependency resolver, or
+separate lifecycle for role modules.
+
+Standard Product, Developer, Tester, and Reviewer authority remains fixed.
+Project-specific requirements—such as a declared Java version, build tool,
+framework configuration, verification command, or directory convention—stay
+owned by the project. Initialize can derive bounded evidence-backed facts into
+project Capability Profiles; Work automatically selects only profiles whose
+role, stage, action, component, and file selectors match the current work.
+
+Java/Maven and Java/Gradle support in this repository is local fixture evidence
+for the profiling pipeline. ZipZap does not ship generic Java engineering
+rules: concrete Java behavior must come from each project's registered sources.
+
 ## Project initialization
 
 Discover without writing, then configure or refresh only when requested:
@@ -95,11 +120,20 @@ node scripts/zipzap.mjs initialize --input l5-initialize-request.json
 node scripts/zipzap.mjs source-resolve --input source-resolution-input.json
 ```
 
-The project registry is `.zipzap/project.json`. It stores source locators,
-topics, selectors, document kinds, relations, hashes, routing, and local Task
-policy—not source document or external PRD content.
+The Manifest v2 registry is `.zipzap/project.json`. It stores source locators,
+topics, selectors, document kinds, relations, hashes, capability-profile
+registrations, routing, and local Task policy—not source document, copied
+rules, or external PRD content. Capability profiles are Git-shareable files at
+`.zipzap/capabilities/<capability-id>.json`.
 `AGENTS.md` is treated as host-managed instructions rather than a content
 index. Section indexes remain optional, derived accelerators.
+
+Initialize and Refresh are the only flows that may write shared profiles. They
+first return an exact preview fingerprint and write only after confirmation.
+Ordinary Work reads the confirmed Manifest, matches profiles automatically,
+and projects only selected facts and exact source locators. If evidence has
+changed, Work may rebuild a bounded in-memory overlay and recommend Refresh;
+it never repairs or rewrites the shared profile itself.
 
 Initialization preserves coherent existing locations and only registers their
 routes. New projects use lazy defaults such as
@@ -122,6 +156,10 @@ candidate request, while `deep` requires an explicit source-file budget.
 Diagnosis is read-only and only proposes migrations. Explicit ignore and
 restore operations maintain version-bound records under
 `.zipzap/rule-health/ignores/`; unchanged evidence stays silent.
+Capability checks include missing or stale evidence, selectors that are
+invalid, overbroad, or never match, duplicate or conflicting profiles, missing
+modules, context-budget overflow, and possible copied-rule prose. None of these
+checks run during Initialize, Refresh, or ordinary Work.
 
 Authorized Work can use the exported `planDocumentMaintenance` and
 `applyDocumentMaintenance` adapters for governed create, edit, move, and
@@ -201,6 +239,14 @@ Install only when the result is `ready`, using the files and hashes from the
 release manifest. The host installer owns backup, copy, upgrade, and rollback.
 Installation must not install Node or Python and must not create or modify a
 project's `.zipzap/project.json`.
+
+Release `0.1.1-beta.5` deliberately changes Manifest, L5, Kernel, and runtime
+machine boundaries to version 2. Version 1 payloads have no dual-read path.
+Preserve project-owned state during upgrade, then run Initialize discovery,
+review the new preview, and confirm reinitialization before Work. Independent
+records such as Task Standard, First Run, onboarding, lifecycle requests,
+Host capability reports, and Rule Doctor records retain their own version 1
+contracts.
 
 Before publishing, run L7 `verify-release` and `publish` with evidence for all
 registered release gates. Repository and marketplace locators remain

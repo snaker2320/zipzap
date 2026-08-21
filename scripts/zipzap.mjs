@@ -45,6 +45,8 @@ export {
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = path.resolve(SCRIPT_DIR, "..");
+const L5_INTERFACE_VERSION = 2;
+const KERNEL_INTERFACE_VERSION = 2;
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SEMVER_PATTERN =
   /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -1215,8 +1217,10 @@ function validateInput(input, catalogs) {
       throw new Error(`unknown input field: ${field}`);
     }
   }
-  if (input.schema_version !== 1) {
-    throw new Error("input.schema_version must be 1");
+  if (input.schema_version !== KERNEL_INTERFACE_VERSION) {
+    throw new Error(
+      `runtime input schema_version must be ${KERNEL_INTERFACE_VERSION}`
+    );
   }
   if (typeof input.work_id !== "string" || input.work_id.trim() === "") {
     throw new Error("input.work_id must be a non-empty string");
@@ -2412,7 +2416,7 @@ export function compose(input, catalogs = loadCatalogs()) {
   );
 
   return {
-    schema_version: 1,
+    schema_version: KERNEL_INTERFACE_VERSION,
     preset_resolution: presetResolution,
     team_binding: teamBinding,
     runtime_projection: projectionResult.runtime_projection,
@@ -2532,6 +2536,11 @@ function validateRiskNormalizationInput(input, catalogs) {
     throw new Error("risk assessment versions must match the taxonomy");
   }
   const invocation = input.assessment_input.invocation;
+  if (invocation.schema_version !== L5_INTERFACE_VERSION) {
+    throw new Error(
+      `risk assessment invocation schema_version must be ${L5_INTERFACE_VERSION}`
+    );
+  }
   assertAllowedFields(
     invocation,
     [
@@ -2729,8 +2738,8 @@ function validateRiskNormalizationInput(input, catalogs) {
     limits: clone(input.host),
     runtimes: [],
     interfaces: {
-      l5: [1],
-      kernel: [1]
+      l5: [L5_INTERFACE_VERSION],
+      kernel: [KERNEL_INTERFACE_VERSION]
     }
   });
   if (!Array.isArray(input.project_sources)) {
@@ -2881,7 +2890,7 @@ export function normalizeRiskAssessment(
     collaboration.team_preset != null ||
     collaboration.personalization != null;
   const kernelRequest = {
-    schema_version: 1,
+    schema_version: KERNEL_INTERFACE_VERSION,
     work: {
       id: input.work_id,
       objective: request.objective,
@@ -2955,8 +2964,10 @@ function validateKernelRequest(request) {
       throw new Error(`unknown kernel request field: ${field}`);
     }
   }
-  if (request.schema_version !== 1) {
-    throw new Error("kernel request schema_version must be 1");
+  if (request.schema_version !== KERNEL_INTERFACE_VERSION) {
+    throw new Error(
+      `kernel request schema_version must be ${KERNEL_INTERFACE_VERSION}`
+    );
   }
   assertObject(request.work, "kernel request work");
   for (const field of ["id", "objective", "requested_action"]) {
@@ -3010,7 +3021,7 @@ function kernelToRuntimeInput(request) {
       )
     : undefined;
   return {
-    schema_version: 1,
+    schema_version: KERNEL_INTERFACE_VERSION,
     work_id: request.work.id,
     ...(request.preferences
       ? {
@@ -3274,7 +3285,7 @@ function evaluateKernelDetailed(request, catalogs) {
       : [];
 
   const response = {
-    schema_version: 1,
+    schema_version: KERNEL_INTERFACE_VERSION,
     status,
     next_action:
       status === "ready" ? nextActionView(result.runtime_projection) : null,
@@ -3918,7 +3929,7 @@ function initializationCoverage(sources, enabledRoles, catalogs) {
 function initializationResponse(request, initialization, workflowStatus, catalogs) {
   return invokeL5(
     {
-      schema_version: 1,
+      schema_version: L5_INTERFACE_VERSION,
       request,
       context: {
         workflow_status: workflowStatus,
@@ -4535,7 +4546,7 @@ export function advanceOnboarding(input, catalogs = loadCatalogs()) {
 
 export function initializeProject(request, catalogs = loadCatalogs()) {
   if (
-    request?.schema_version !== 1 ||
+    request?.schema_version !== L5_INTERFACE_VERSION ||
     request.operation !== "initialize" ||
     !request.project?.locator ||
     !request.initialization?.action
@@ -5029,7 +5040,7 @@ export function initializeProject(request, catalogs = loadCatalogs()) {
 function firstRunDiscovery(project, enabledRoles, catalogs) {
   return initializeProject(
     {
-      schema_version: 1,
+      schema_version: L5_INTERFACE_VERSION,
       operation: "initialize",
       project: clone(project),
       initialization: {
@@ -5414,7 +5425,7 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
         ? clone(onboardingState.configuration)
         : null;
     const configurationRequest = {
-        schema_version: 1,
+        schema_version: L5_INTERFACE_VERSION,
         operation: "initialize",
         project: clone(state.project),
         initialization: {
@@ -5526,14 +5537,23 @@ export function runFirstRun(input, catalogs = loadCatalogs()) {
 
 function invalidL5Response(envelope, error) {
   const request = envelope?.request;
+  const requiresMigration = /schema_version|migration-required/i.test(
+    error.message
+  );
   return {
-    schema_version: 1,
+    schema_version: L5_INTERFACE_VERSION,
     ...(request?.request_id ? { request_id: request.request_id } : {}),
     ...(request?.operation ? { operation: request.operation } : {}),
     ok: false,
     error: {
       code: "invalid-invocation",
       message: error.message,
+      ...(requiresMigration
+        ? {
+            hint:
+              "Reinitialize project-owned ZipZap state and migrate callers to the v2 L5 and Kernel contracts."
+          }
+        : {}),
       retryable: false
     }
   };
@@ -5546,18 +5566,22 @@ function invokeL5Detailed(envelope, catalogs) {
       ["schema_version", "request", "context"],
       "L5 adapter invocation"
     );
-    if (envelope.schema_version !== 1) {
-      throw new Error("L5 adapter schema_version must be 1");
+    if (envelope.schema_version !== L5_INTERFACE_VERSION) {
+      throw new Error(
+        `L5 adapter schema_version must be ${L5_INTERFACE_VERSION}`
+      );
     }
     assertObject(envelope.request, "L5 invocation request");
     assertObject(envelope.context, "L5 invocation context");
     const request = envelope.request;
     const operation = request.operation;
-    if (
-      request.schema_version !== 1 ||
-      !["initialize", "execute", "resume", "inspect"].includes(operation)
-    ) {
-      throw new Error("L5 request version or operation is invalid");
+    if (request.schema_version !== L5_INTERFACE_VERSION) {
+      throw new Error(
+        `L5 request schema_version must be ${L5_INTERFACE_VERSION}`
+      );
+    }
+    if (!["initialize", "execute", "resume", "inspect"].includes(operation)) {
+      throw new Error("L5 request operation is invalid");
     }
     if (operation === "resume" && !request.context?.resume_from) {
       throw new Error("resume requires context.resume_from");
@@ -5572,7 +5596,7 @@ function invokeL5Detailed(envelope, catalogs) {
       throw new Error("inspect requires an inspection target");
     }
     const base = {
-      schema_version: 1,
+      schema_version: L5_INTERFACE_VERSION,
       ...(request.request_id ? { request_id: request.request_id } : {}),
       operation,
       ok: true,
@@ -5902,7 +5926,7 @@ function taskExecuteRequest(task) {
     collaboration.persistence != null ||
     collaboration.personalization != null;
   return {
-    schema_version: 1,
+    schema_version: L5_INTERFACE_VERSION,
     operation: "execute",
     request_id: task.task_id,
     request: {
@@ -6024,7 +6048,7 @@ export function adaptTask(input, catalogs = loadCatalogs()) {
     input.action === "execute"
       ? assessmentInput.invocation
       : {
-          schema_version: 1,
+          schema_version: L5_INTERFACE_VERSION,
           operation: "resume",
           request_id: input.task.task_id,
           context: {
@@ -6033,7 +6057,7 @@ export function adaptTask(input, catalogs = loadCatalogs()) {
         };
   const invoked = invokeL5Detailed(
     {
-      schema_version: 1,
+      schema_version: L5_INTERFACE_VERSION,
       request: publicRequest,
       context: {
         risk_normalization: normalizationInput
@@ -6845,6 +6869,22 @@ function inspectUpgradeProject(project, catalogs) {
   try {
     manifest = validateProjectManifest(readJson(manifestPath), catalogs);
   } catch (error) {
+    if (/migration-required/i.test(error.message)) {
+      return {
+        status: "migration-required",
+        manifest_present: true,
+        manifest_compatible: true,
+        manifest_sha256: hashFile(manifestPath),
+        preferences_status: "unknown",
+        source_status: {
+          unchanged: 0,
+          stale: 0,
+          unavailable: 0
+        },
+        next_route: "initialize-reinitialize",
+        limitations: [error.message]
+      };
+    }
     return {
       status: "blocked",
       manifest_present: true,
@@ -6867,7 +6907,7 @@ function inspectUpgradeProject(project, catalogs) {
     Boolean(personalization?.humor);
   const refresh = initializeProject(
     {
-      schema_version: 1,
+      schema_version: L5_INTERFACE_VERSION,
       operation: "initialize",
       project: {
         id: manifest.project_id,
@@ -7231,6 +7271,10 @@ export function assessLifecycle(request, catalogs = loadCatalogs()) {
       } else if (projectCheck.next_route === "initialize-refresh") {
         nextActions.push(
           "Review the reported source changes, then run `initialize` with action `refresh` after authorization."
+        );
+      } else if (projectCheck.next_route === "initialize-reinitialize") {
+        nextActions.push(
+          "Reinitialize the project with Manifest v2: run Initialize discovery, review the preview, and confirm the write. No in-place migration is available."
         );
       }
     }

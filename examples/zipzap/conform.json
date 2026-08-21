@@ -23,10 +23,10 @@
   "tools": [],
   "interfaces": {
     "l5": [
-      1
+      2
     ],
     "kernel": [
-      1
+      2
     ]
   }
 }

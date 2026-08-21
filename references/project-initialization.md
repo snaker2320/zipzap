@@ -16,6 +16,8 @@ Inspect the project before proposing configuration. Look for:
 - preferred team topology and allowed personalization;
 - guided-onboarding presentation and preference scope;
 - commands or tools that produce verification evidence.
+- project-declared language, build, framework, verification, and directory
+  facts that could become narrowly triggered Capability Profiles.
 
 Prefer established project conventions over a ZipZap-specific parallel system.
 For a new project, use the First Run adapter so discovery and preference
@@ -67,8 +69,37 @@ validate it against
 [`schemas/project-manifest.schema.json`](../schemas/project-manifest.schema.json).
 Keep standard roles, profiles, teams, functions, policies, and public
 interfaces in the ZipZap Skill. Keep project source locators, enabled
-collaboration choices, extension locators, and persistence integration in the
-project manifest.
+collaboration choices, Capability Profile registrations, and persistence
+integration in the project manifest.
+
+## Capability Profile Registration
+
+Store confirmed project profiles at
+`.zipzap/capabilities/<capability-id>.json` and register each locator in
+Manifest v2. A profile may contain only bounded scalar facts, selectors,
+source references, provenance, fingerprints, revision/status metadata, module
+references, and context budgets. It must not contain executable hooks,
+authority grants, copied project rules, or generic language guidance.
+
+Use this write sequence:
+
+1. Discover registered sources and local project configuration read-only.
+2. Derive candidate facts only where exact evidence exists.
+3. Return candidate profiles, changes, and one preview fingerprint.
+4. Require confirmation of that exact fingerprint.
+5. Validate and atomically write profile files, then write the Manifest last.
+
+Refresh follows the same preview-confirm sequence. Ordinary Work only reads and
+matches confirmed profiles. If their evidence is stale, Work may rebuild a
+session overlay and recommend Refresh, but it never writes shared state.
+
+The Maven and Gradle profiler is fixture-level proof. It may record a concrete
+project's declared build tool and Java version; it does not supply Java rules
+or infer undeclared versions.
+
+Manifest v1 has no compatibility reader. Return `migration-required`, preserve
+the old files, and route the user through discovery, preview, and confirmed
+reinitialization to Manifest v2.
 
 Resolve required topics through
 [`schemas/source-resolution-input.schema.json`](../schemas/source-resolution-input.schema.json)

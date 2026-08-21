@@ -2,7 +2,7 @@
   "schema_version": 1,
   "skill": {
     "name": "zipzap",
-    "current_version": "0.1.1-beta.4",
+    "current_version": "0.1.1-beta.5",
     "channel": "beta"
   },
   "package": {
@@ -101,9 +101,23 @@
         "l5": 1,
         "kernel": 1
       }
+    },
+    {
+      "version": "0.1.1-beta.5",
+      "interfaces": {
+        "l5": 2,
+        "kernel": 2
+      }
     }
   ],
-  "migrations": [],
+  "migrations": [
+    {
+      "id": "reinitialize-v2-project-state",
+      "from_version": "0.1.1-beta.4",
+      "to_version": "0.1.1-beta.5",
+      "description": "Preserve project-owned state during package upgrade, then run Initialize to preview and confirm a new Manifest v2; no in-place or dual-read migration is available."
+    }
+  ],
   "release_gates": [
     "catalog-valid",
     "tests-pass",

@@ -109,6 +109,11 @@ current-action risk. Let deterministic normalization derive policy.
   evidence, or independence.
 - Keep project rules at their source of truth; register locators and never
   copy governing content into ZipZap state.
+- Ship one modular Kernel package. Module boundaries are internal; do not add
+  an external role-plugin loader, marketplace, installer, or dependency solver.
+- Keep Product, Developer, Tester, and Reviewer authority fixed. Project
+  Capability Profiles may add evidence-backed facts and source locators, never
+  authority, executable hooks, or copied rule prose.
 - Never call sequential self-review independent Review.
 - Never claim approval, host capability, satisfied gates, completion, or
   production readiness without cited evidence.
@@ -128,7 +133,7 @@ Compose one runtime view from:
 
 ```text
 profile capsule + role or control overlay + current stage
-+ triggered policy + project-rule fragments
++ triggered policy + matching project-capability facts and rule fragments
 + work, evidence, Findings, handoff, and exit gate
 ```
 
@@ -146,6 +151,12 @@ node scripts/zipzap.mjs catalog \
 Read [the context router](references/context-router.md) for source loading,
 budgets, and projection details.
 
+For Work with a project locator, hydrate only confirmed registrations from
+Manifest v2, match profiles by current role, stage, action, component, and
+affected file, and project their bounded facts plus authoritative source
+locators. A stale profile may be rebuilt only as an in-memory overlay with a
+Refresh recommendation; ordinary Work never writes `.zipzap/capabilities/`.
+
 When Work creates or maintains business-capability or development-design
 documentation, read [Business and Development Documentation](references/business-documentation.md).
 Preserve coherent project routes, use one active design as the execution entry
@@ -155,8 +166,10 @@ not author those documents.
 
 ## Initialize, Persist, and Complete Selectively
 
-Discover sources read-only, preview changes, then write confirmed registration
-to `.zipzap/project.json`. Keep installation separate from project
+Discover sources and candidate profiles read-only, preview changes, then write
+confirmed registration to `.zipzap/project.json` and validated profiles to
+`.zipzap/capabilities/<capability-id>.json`. Initialize and Refresh are the only
+shared profile write paths. Keep installation separate from project
 initialization. Read [project initialization](references/project-initialization.md),
 [onboarding](references/onboarding.md), or
 [First Run](references/first-run.md) only for those flows.
@@ -165,6 +178,17 @@ Run Rule Doctor only after an explicit user request. Initialization, source
 refresh, ordinary Work, and file changes never trigger it. Diagnosis provides
 advice and migration previews only; an ignore remains silent while its
 evidence versions are unchanged.
+
+Treat the repository's Maven and Gradle profiling as local proof of the
+pipeline, not as generic Java authority. Load Java requirements only when the
+concrete project declares and registers them.
+
+Manifest, L5, Kernel, and runtime machine contracts are version 2 with no v1
+execution path. When v1 project state or machine input is encountered, return
+`migration-required` guidance and require Initialize discovery, preview, and
+confirmation. Do not rewrite old state automatically. Independent Task, First
+Run, onboarding, lifecycle, Host capability, and Rule Doctor records keep
+their own version 1 contracts.
 
 Keep persistent project state under `.zipzap/`, outside the installed Skill.
 Use `scripts/task.mjs` only when a Task is justified. Treat Git activity as

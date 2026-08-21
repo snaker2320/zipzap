@@ -2,10 +2,10 @@
   "schema_version": 1,
   "interfaces": {
     "l5": {
-      "current": 1
+      "current": 2
     },
     "kernel": {
-      "current": 1
+      "current": 2
     }
   },
   "adapter_order": [

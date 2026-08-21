@@ -78,6 +78,7 @@ intermediate manifest.
 - Return session scope to `session-state`; the host must apply it.
 
 Project confirmation uses the manifest revision as an optimistic concurrency
-check. Preserve sources, extensions, enabled roles, enabled presets, and local
+check. Preserve sources, Capability Profile registrations, enabled roles,
+enabled presets, and local
 Task persistence while changing preferences. A reset removes preference
 overrides rather than deleting project-owned sources or governance.

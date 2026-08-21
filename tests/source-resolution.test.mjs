@@ -69,6 +69,7 @@ test("resolves host-preloaded instructions without loading them twice", () => {
     ]
   });
 
+  assert.equal(result.schema_version, 1);
   assert.equal(result.status, "ready");
   assert.equal(result.matches.length, 2);
   assert.equal(
@@ -192,7 +193,7 @@ test("discovers sources read-only and reports role coverage", (context) => {
 
   const result = initializeProject(
     {
-      schema_version: 1,
+      schema_version: 2,
       operation: "initialize",
       project: {
         id: "example",
@@ -247,7 +248,7 @@ test("keeps discovered Unicode source locators and generates unique stable IDs",
     fs.writeFileSync(path.join(projectRoot, locator), `# ${locator}\n`);
   }
   const request = {
-    schema_version: 1,
+    schema_version: 2,
     operation: "initialize",
     project: {
       id: "example",
@@ -310,7 +311,7 @@ test("configures project source registry and project Task storage", (context) =>
 
   const result = initializeProject(
     {
-      schema_version: 1,
+      schema_version: 2,
       operation: "initialize",
       project: {
         id: "example",
@@ -397,7 +398,7 @@ test("registers coherent existing document routes and preserves them on refresh"
 
   const configured = initializeProject(
     {
-      schema_version: 1,
+      schema_version: 2,
       operation: "initialize",
       project: { id: "example", locator: projectRoot },
       initialization: { action: "configure", persistence: "project" }
@@ -423,7 +424,7 @@ test("registers coherent existing document routes and preserves them on refresh"
 
   initializeProject(
     {
-      schema_version: 1,
+      schema_version: 2,
       operation: "initialize",
       project: { id: "example", locator: projectRoot },
       initialization: { action: "refresh", persistence: "project" }
@@ -442,7 +443,7 @@ test("refreshes hashes without copying source content", (context) => {
   fs.writeFileSync(sourcePath, "# Security\nFirst version.\n");
 
   const configureRequest = {
-    schema_version: 1,
+    schema_version: 2,
     operation: "initialize",
     project: {
       id: "example",
