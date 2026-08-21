@@ -1,0 +1,7 @@
+# Derived or machine-local ZipZap state
+/reports/
+/cache/
+/state/
+/locks/
+/index.json
+*.tmp

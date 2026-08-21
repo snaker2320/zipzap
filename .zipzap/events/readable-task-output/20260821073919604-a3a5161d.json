@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "20260821073919604-a3a5161d",
+  "task_id": "readable-task-output",
+  "type": "created",
+  "occurred_at": "2026-08-21T07:39:19.604Z",
+  "actor_id": null,
+  "base_revision": null,
+  "next_revision": 1,
+  "data": {
+    "status": "ready",
+    "objective": "让 ZipZap Task 在保留完整机器契约的同时，为用户提供简洁、可阅读的任务视图，并让 Agent 流转只携带当前阶段所需信息。",
+    "assignee_id": null,
+    "task_standard_version": 1,
+    "ready": true
+  }
+}
