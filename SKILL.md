@@ -92,8 +92,10 @@ actual mutation, access, authority, data, or production risk.
 
 For `diagnose + design-only + advisory|self-review`, use the internal
 `design-diagnostic` profile: Solo Reviewer, read-only, ephemeral, no tests, no
-Task, bounded sources, and advisory output. Load
-[Design Diagnostic Review](references/design-diagnostic.md) for that path.
+Task, bounded sources, and advisory output. Query its compact execution-profile
+capsule for ordinary routing. Load [Design Diagnostic Review](references/design-diagnostic.md)
+only when the detailed review contract or its audit is active and the capsule
+is insufficient.
 
 Assess every risk signal with evidence. For a design diagnostic, label each
 classified signal `subject`, `action`, or `both`; apply formal effects only to
@@ -198,6 +200,9 @@ telemetry; otherwise record unavailable without estimating.
 
 Read [Task integration](references/task-integration.md) before Task mutation,
 Git tracking, persistent Review, reporting, feedback, or usage recording.
+Read [CLI contracts and progress](references/cli-contracts.md) only when command
+parameters, generated contract discovery, real-time Task status, or Host UI
+integration is active.
 
 Complete with outcomes, evidence, actual test and Review coverage, Finding
 dispositions, approvals, residual risk, limitations, and continuation state.
@@ -212,7 +217,9 @@ with explicit fallbacks. Missing Node may reduce acceleration but must not
 weaken semantics. Read [Host capabilities](references/host-capabilities.md)
 only when adapting or explaining a host.
 
-Install no runtime packages. Let the host installer own authorized mutation
-and backup, preserve project-owned `.zipzap/` state across upgrades, and read
+Run installed commands only from the bundled `dist/skill` artifact; do not run
+`npm install` inside an installed Skill. Source dependencies are allowed when
+locked, audited, and bundled during the repository build. Let the installer own
+authorized mutation and backup, preserve project-owned `.zipzap/` state across upgrades, and read
 [lifecycle control](references/lifecycle.md) only for build, verification,
 installation, upgrade, rollback, or publication.

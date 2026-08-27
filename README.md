@@ -74,15 +74,17 @@ ZipZap runtime format is JSON. Markdown contains semantic guidance only.
 
 ## CLI discovery
 
-Both zero-dependency entry points provide global help, command help, and
-copyable JSON input examples:
+Both entry points use Commander for parsing and provide global help, command
+help, generated contract descriptions, and copyable JSON input examples:
 
 ```bash
 node scripts/zipzap.mjs --help
 node scripts/zipzap.mjs invoke --help
 node scripts/zipzap.mjs invoke --example
+node scripts/zipzap.mjs describe invoke --operation execute
 
 node scripts/task.mjs --help
+node scripts/task.mjs describe watch
 node scripts/task.mjs validate --input task.json
 node scripts/task.mjs create --example
 ```
@@ -188,7 +190,7 @@ changes before applying them and can be rerun or reset later.
 
 ## Local Task tracking
 
-Use the independent zero-dependency entry point:
+Use the independent Task entry point:
 
 ```bash
 node scripts/task.mjs validate --input task.json
@@ -199,6 +201,7 @@ node scripts/task.mjs sync-git --id task-id
 node scripts/task.mjs assess --id task-id
 node scripts/task.mjs report --period weekly --scope team
 node scripts/task.mjs feedback --input feedback.json
+node scripts/task.mjs watch --id task-id
 ```
 
 Task Standard v1 creates only `ready` or explicitly `blocked` Tasks; candidate
@@ -218,15 +221,55 @@ Confirm Commit association with an explicit SHA or
 `ZipZap-Task: task-id` trailer. The script returns compact Git statistics and
 locators; it does not load full Diff content by default.
 
-## Install and release
+## Build, install, and release
 
-ZipZap does not modify its own installation. Use the host's Skill installer
-with this repository or a verified release directory.
-
-With the optional Node runner, generate the deterministic release inventory:
+Repository source uses locked npm dependencies. Build a self-contained Skill
+artifact before installation or publication:
 
 ```bash
-node scripts/zipzap.mjs release-plan
+npm ci
+npm test
+npm run build
+npm run test:dist
+npm run release:plan
+```
+
+ZipZap is not published to the npm registry. Do not commit `dist/`. Commit the
+source and create the matching version tag before building the release assets:
+
+```bash
+git tag -a v<version> -m "ZipZap <version>"
+npm run release:bundle
+```
+
+The command reruns the release gates, rebuilds the Skill twice to detect
+content drift, verifies the L7 `publish` contract, and writes:
+
+```text
+dist/release/<version>/
+├── zipzap-<version>.skill.tar.gz
+├── release-manifest.json
+└── SHA256SUMS
+```
+
+The archive contains one top-level `zipzap/` directory. Upload all three files
+to the matching GitHub prerelease or release after pushing the source commit
+and version tag:
+
+```bash
+git push origin main
+git push origin v<version>
+gh release create v<version> dist/release/<version>/* \
+  --title "ZipZap <version>" --prerelease --generate-notes
+```
+
+Omit `--prerelease` for a stable version. `release:bundle` rejects a dirty
+worktree, a missing or mismatched version tag, or a non-private npm package.
+
+Only `dist/skill` is installable. For a recoverable local installation:
+
+```bash
+npm run install:local -- --target ~/.codex/skills/zipzap
 ```
 
 Assess the target host through L6, then check installation eligibility:
@@ -236,9 +279,9 @@ node scripts/zipzap.mjs install-check --input host-conformance.json
 ```
 
 Install only when the result is `ready`, using the files and hashes from the
-release manifest. The host installer owns backup, copy, upgrade, and rollback.
-Installation must not install Node or Python and must not create or modify a
-project's `.zipzap/project.json`.
+release manifest. Installation copies the bundled `dist/skill` artifact and
+does not run `npm install` inside it. The installer owns backup, copy, upgrade,
+and rollback and must not create or modify a project's `.zipzap/project.json`.
 
 Release `0.1.1-beta.5` deliberately changes Manifest, L5, Kernel, and runtime
 machine boundaries to version 2. Version 1 payloads have no dual-read path.
@@ -248,7 +291,7 @@ records such as Task Standard, First Run, onboarding, lifecycle requests,
 Host capability reports, and Rule Doctor records retain their own version 1
 contracts.
 
-Before publishing, run L7 `verify-release` and `publish` with evidence for all
-registered release gates. Repository and marketplace locators remain
+`release:bundle` runs L7 `publish` with evidence for every registered release
+gate before writing assets. Repository and marketplace locators remain
 distribution-channel configuration; do not embed an unpublished URL in the
 Skill.

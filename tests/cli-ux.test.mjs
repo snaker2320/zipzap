@@ -46,6 +46,27 @@ test("Task CLI exposes global and command help without a project", () => {
   assert.match(command.stdout, /create --example/);
 });
 
+test("generated descriptions expose options and schema fields", () => {
+  const zipzap = run(zipzapScript, [
+    "describe",
+    "invoke",
+    "--operation",
+    "execute",
+    "--compact"
+  ]);
+  assert.equal(zipzap.status, 0, zipzap.stderr);
+  const invocation = JSON.parse(zipzap.stdout);
+  assert.equal(invocation.command, "invoke");
+  assert.equal(invocation.filters.operation, "execute");
+  assert.equal(invocation.input_contract.fields.some((field) => field.path === "request.operation"), true);
+
+  const task = run(taskScript, ["describe", "watch", "--compact"]);
+  assert.equal(task.status, 0, task.stderr);
+  const watch = JSON.parse(task.stdout);
+  assert.equal(watch.output_contract.schema, "schemas/task-progress.schema.json");
+  assert.equal(watch.options.includes("--interval-ms <n>"), true);
+});
+
 test("CLI examples are valid JSON and representative inputs execute", (context) => {
   const invokeExample = run(zipzapScript, ["invoke", "--example", "--compact"]);
   assert.equal(invokeExample.status, 0);

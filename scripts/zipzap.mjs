@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 import {
   inferDocumentKind,
@@ -29,6 +29,9 @@ import {
 } from "./lib/capability-profiles.mjs";
 import { buildExecutionSpec } from "./lib/execution-spec.mjs";
 import { profileProjectCapabilities } from "./lib/project-capability-profiler.mjs";
+import { parseMetadataCli } from "./lib/cli.mjs";
+import { describeCommands } from "./lib/command-describe.mjs";
+import { assertSchemaFile } from "./lib/schema-registry.mjs";
 
 export {
   applyDocumentMaintenance,
@@ -74,6 +77,12 @@ const ASSURANCE_KEYS = [
   "product_separate_from_coordinator"
 ];
 const ZIPZAP_COMMANDS = {
+  describe: {
+    summary: "Describe command options and JSON input contracts.",
+    usage:
+      "describe [command] [--operation <operation>] [--action <action>] [--compact]",
+    argument: true
+  },
   validate: {
     summary: "Validate catalogs, schemas, and lifecycle policy.",
     usage: "validate [--root <skill-dir>] [--compact]"
@@ -266,18 +275,6 @@ Run \`node scripts/zipzap.mjs <command> --help\` for command details.
 `;
 }
 
-function optionValue(args, flag) {
-  const value = args.shift();
-  if (!value || value.startsWith("--")) {
-    throw new CliUsageError(
-      "missing-option-value",
-      `${flag} requires a value.`,
-      `Run \`node scripts/zipzap.mjs --help\` or command-level --help.`
-    );
-  }
-  return value;
-}
-
 function parseInputJson(text, source, command) {
   if (!text.trim()) {
     throw new CliUsageError(
@@ -327,6 +324,7 @@ function structuredCliError(error, command) {
       code,
       message: error.message,
       hint,
+      ...(error.details ? { details: error.details } : {}),
       help: knownCommand
         ? `node scripts/zipzap.mjs ${knownCommand} --help`
         : "node scripts/zipzap.mjs --help"
@@ -1057,7 +1055,7 @@ export function validateCatalogs(catalogs) {
     }
   }
   if ((lifecycle.runtime_dependencies ?? []).length !== 0) {
-    errors.push("ZipZap runtime dependencies must remain empty");
+    errors.push("The installed dist artifact must not require npm install");
   }
   const knownVersions = new Set();
   for (const release of lifecycle.known_releases ?? []) {
@@ -1321,6 +1319,52 @@ export function queryCatalog(
     if (result == null) {
       throw new Error(`catalog section not found: ${section}`);
     }
+  }
+  return clone(result);
+}
+
+export function queryCatalogAtRoot(
+  rootDir,
+  kind,
+  id = null,
+  section = null
+) {
+  const definitions = {
+    invariants: { file: "invariants.json", field: null },
+    agents: { file: "agents.json", field: "agents" },
+    roles: { file: "roles.json", field: "roles" },
+    teams: { file: "teams.json", field: "teams" },
+    "control-functions": {
+      file: "control-functions.json",
+      field: "control_functions"
+    },
+    "runtime-policy": { file: "runtime-policy.json", field: null },
+    "execution-profiles": {
+      file: "execution-profiles.json",
+      field: "profiles"
+    },
+    experience: { file: "experience.json", field: null },
+    "risk-taxonomy": { file: "risk-taxonomy.json", field: "signals" },
+    "task-policy": { file: "task-policy.json", field: null }
+  };
+  const definition = definitions[kind];
+  if (!definition) {
+    throw new Error(
+      `catalog kind must be one of: ${Object.keys(definitions).join(", ")}`
+    );
+  }
+  const catalog = readJson(path.join(rootDir, "config", definition.file));
+  let result = definition.field ? catalog[definition.field] : catalog;
+  if (id != null) {
+    result = kind === "invariants"
+      ? result.invariants?.find((item) => item.id === id)
+      : result[id];
+    if (result == null) throw new Error(`unknown ${kind} id: ${id}`);
+  }
+  if (section != null) {
+    assertObject(result, `catalog ${kind}${id ? `.${id}` : ""}`);
+    result = result[section];
+    if (result == null) throw new Error(`catalog section not found: ${section}`);
   }
   return clone(result);
 }
@@ -7056,8 +7100,8 @@ export function assessLifecycle(request, catalogs = loadCatalogs()) {
       checks,
       "runtime-dependencies",
       releaseManifest.runtime_dependencies.length === 0,
-      "The release has no runtime package dependencies.",
-      "Remove runtime package dependencies from the release."
+      "The bundled release requires no install-time package resolution.",
+      "Bundle source dependencies into the dist Skill artifact."
     );
   } else if (
     request.operation === "verify-release" ||
@@ -7092,8 +7136,8 @@ export function assessLifecycle(request, catalogs = loadCatalogs()) {
       checks,
       "runtime-dependencies",
       verification.dependencyPolicyPreserved,
-      "The release preserves the zero-dependency runtime policy.",
-      "Remove undeclared runtime dependencies."
+      "The release is a self-contained bundled artifact.",
+      "Rebuild dist/skill with all declared source dependencies bundled."
     );
     lifecycleCheck(
       checks,
@@ -7140,8 +7184,8 @@ export function assessLifecycle(request, catalogs = loadCatalogs()) {
       checks,
       "runtime-dependencies",
       lifecycle.runtime_dependencies.length === 0,
-      "Installation requires no runtime package dependencies.",
-      "Runtime dependency installation is forbidden."
+      "Installation executes the self-contained dist artifact.",
+      "Rebuild dist/skill so installation requires no npm install step."
     );
 
     if (
@@ -7229,8 +7273,8 @@ export function assessLifecycle(request, catalogs = loadCatalogs()) {
         checks,
         "post-upgrade-runtime-dependencies",
         verification.dependencyPolicyPreserved,
-        "The upgrade preserved the zero-dependency runtime policy.",
-        "Remove undeclared runtime dependencies from the installed Skill."
+        "The upgrade preserved the self-contained dist artifact policy.",
+        "Rebuild and reinstall the verified dist/skill artifact."
       );
     }
 
@@ -7349,57 +7393,49 @@ export function assessLifecycle(request, catalogs = loadCatalogs()) {
 }
 
 function parseArgs(argv) {
-  const args = [...argv];
-  if (args[0] === "-h" || args[0] === "--help") {
-    return { command: null, help: true };
-  }
-  if (args[0] === "help") {
-    args.shift();
-    return { command: args.shift() ?? null, help: true };
-  }
-  const command = args.shift() ?? null;
-  let inputPath = null;
-  let rootDir = DEFAULT_ROOT;
-  let pretty = true;
-  let kind = null;
-  let id = null;
-  let section = null;
-  let operation = null;
-  let action = null;
-  let help = command == null;
-  let example = false;
-  while (args.length) {
-    const flag = args.shift();
-    if (flag === "--input") inputPath = optionValue(args, flag);
-    else if (flag === "--root") rootDir = path.resolve(optionValue(args, flag));
-    else if (flag === "--kind") kind = optionValue(args, flag);
-    else if (flag === "--id") id = optionValue(args, flag);
-    else if (flag === "--section") section = optionValue(args, flag);
-    else if (flag === "--operation") operation = optionValue(args, flag);
-    else if (flag === "--action") action = optionValue(args, flag);
-    else if (flag === "-h" || flag === "--help") help = true;
-    else if (flag === "--example") example = true;
-    else if (flag === "--compact") pretty = false;
-    else {
-      throw new CliUsageError(
-        "unknown-argument",
-        `Unknown argument for ${command}: ${flag}`,
-        `Run \`node scripts/zipzap.mjs ${command} --help\` to see supported options.`
-      );
+  const parsed = parseMetadataCli({
+    argv,
+    commands: ZIPZAP_COMMANDS,
+    executable: "node scripts/zipzap.mjs",
+    description: "ZipZap collaboration CLI",
+    optionSpecs: [
+      { flags: "--input <file>", description: "read JSON input from a file" },
+      { flags: "--root <skill-dir>", description: "select a Skill root" },
+      { flags: "--kind <kind>", description: "select a catalog kind" },
+      { flags: "--id <id>", description: "select an item identifier" },
+      { flags: "--section <section>", description: "select an item section" },
+      { flags: "--operation <operation>", description: "select an operation" },
+      { flags: "--action <action>", description: "select an action" },
+      { flags: "--compact", description: "emit single-line JSON" }
+    ],
+    defaults: {
+      command: null,
+      subject: null,
+      input: null,
+      root: DEFAULT_ROOT,
+      kind: null,
+      id: null,
+      section: null,
+      operation: null,
+      action: null,
+      compact: false,
+      help: false,
+      example: false
     }
-  }
+  });
   return {
-    command,
-    inputPath,
-    rootDir,
-    pretty,
-    kind,
-    id,
-    section,
-    operation,
-    action,
-    help,
-    example
+    command: parsed.command,
+    subject: parsed.subject,
+    inputPath: parsed.input,
+    rootDir: path.resolve(parsed.root),
+    pretty: !parsed.compact,
+    kind: parsed.kind,
+    id: parsed.id,
+    section: parsed.section,
+    operation: parsed.operation,
+    action: parsed.action,
+    help: parsed.help,
+    example: parsed.example
   };
 }
 
@@ -7453,6 +7489,7 @@ function outputForCommand(command, result) {
 async function main() {
   const {
     command,
+    subject,
     inputPath,
     rootDir,
     pretty,
@@ -7490,13 +7527,29 @@ async function main() {
     );
     return;
   }
-  const catalogs = loadCatalogs(rootDir);
-  if (command === "validate") {
-    const validation = validateCatalogs(catalogs);
+  if (command === "describe") {
+    const result = describeCommands({
+      commands: ZIPZAP_COMMANDS,
+      subject,
+      rootDir,
+      executable: "node scripts/zipzap.mjs",
+      filters: { operation, action }
+    });
     process.stdout.write(
-      `${JSON.stringify(validation, null, pretty ? 2 : 0)}\n`
+      `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
     );
-    process.exitCode = validation.valid ? 0 : 1;
+    return;
+  }
+  if (command === "source-resolve" || command === "document-route") {
+    const input = readInput(inputPath, command);
+    const metadata = ZIPZAP_COMMANDS[command];
+    assertSchemaFile(rootDir, metadata.schema, input);
+    const result = command === "source-resolve"
+      ? resolveSources(input)
+      : resolveDocumentRoute(input);
+    process.stdout.write(
+      `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
+    );
     return;
   }
   if (command === "catalog") {
@@ -7508,8 +7561,17 @@ async function main() {
       );
     }
     process.stdout.write(
-      `${JSON.stringify(queryCatalog(catalogs, kind, id, section), null, pretty ? 2 : 0)}\n`
+      `${JSON.stringify(queryCatalogAtRoot(rootDir, kind, id, section), null, pretty ? 2 : 0)}\n`
     );
+    return;
+  }
+  const catalogs = loadCatalogs(rootDir);
+  if (command === "validate") {
+    const validation = validateCatalogs(catalogs);
+    process.stdout.write(
+      `${JSON.stringify(validation, null, pretty ? 2 : 0)}\n`
+    );
+    process.exitCode = validation.valid ? 0 : 1;
     return;
   }
   if (command === "release-plan") {
@@ -7526,6 +7588,9 @@ async function main() {
     return;
   }
   const input = readInput(inputPath, command);
+  if (ZIPZAP_COMMANDS[command].schema) {
+    assertSchemaFile(rootDir, ZIPZAP_COMMANDS[command].schema, input);
+  }
   if (command === "initialize") {
     const result = initializeProject(input, catalogs);
     process.stdout.write(
@@ -7542,20 +7607,6 @@ async function main() {
   }
   if (command === "onboard") {
     const result = advanceOnboarding(input, catalogs);
-    process.stdout.write(
-      `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
-    );
-    return;
-  }
-  if (command === "source-resolve") {
-    const result = resolveSources(input);
-    process.stdout.write(
-      `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
-    );
-    return;
-  }
-  if (command === "document-route") {
-    const result = resolveDocumentRoute(input);
     process.stdout.write(
       `${JSON.stringify(result, null, pretty ? 2 : 0)}\n`
     );
@@ -7674,10 +7725,11 @@ async function main() {
   );
 }
 
-const invokedPath = process.argv[1]
-  ? pathToFileURL(path.resolve(process.argv[1])).href
+const invokedFile = process.argv[1]
+  ? fs.realpathSync(path.resolve(process.argv[1]))
   : null;
-if (invokedPath === import.meta.url) {
+const moduleFile = fs.realpathSync(fileURLToPath(import.meta.url));
+if (invokedFile === moduleFile) {
   main().catch((error) => {
     const command = process.argv[2]?.startsWith("-")
       ? null

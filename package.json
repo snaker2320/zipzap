@@ -1,0 +1,23 @@
+{
+  "name": "zipzap-skill",
+  "version": "0.1.1-beta.6",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "install:local": "node scripts/install-local.mjs",
+    "release:bundle": "node scripts/release-bundle.mjs",
+    "release:plan": "npm run build && node dist/skill/scripts/zipzap.mjs release-plan --compact",
+    "test": "node --test",
+    "test:dist": "node --test tests/dist.test.mjs",
+    "validate": "node scripts/zipzap.mjs validate --compact"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "commander": "^14.0.1",
+    "esbuild": "^0.25.9"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -5,7 +5,14 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+
+import {
+  nonNegativeInteger,
+  parseMetadataCli,
+  positiveInteger
+} from "./lib/cli.mjs";
+import { describeCommands } from "./lib/command-describe.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -19,6 +26,7 @@ const TASK_STATUSES = new Set([
   "cancelled"
 ]);
 const TASK_CREATION_STATUSES = new Set(["ready", "blocked"]);
+const TERMINAL_TASK_STATUSES = new Set(["completed", "cancelled"]);
 const NON_WAIVABLE_READY_REQUIREMENTS = new Set([
   "work.objective",
   "work.acceptance_criteria"
@@ -56,6 +64,11 @@ const TRANSITIONS = {
   cancelled: new Set(["ready"])
 };
 const TASK_COMMANDS = {
+  describe: {
+    summary: "Describe Task command options and JSON input contracts.",
+    usage: "describe [command] [--compact]",
+    argument: true
+  },
   validate: {
     summary: "Evaluate a Task against Task Standard v1 and Definition of Ready.",
     usage: "validate [--project <dir>] --input <file> [--compact]",
@@ -76,6 +89,12 @@ const TASK_COMMANDS = {
     summary: "List Tasks with optional status or participant filters.",
     usage:
       "list [--project <dir>] [--status <status>] [--subject <id>] [--team <id>] [--compact]"
+  },
+  watch: {
+    summary: "Stream verifiable Task progress snapshots as JSON Lines.",
+    usage:
+      "watch [--project <dir>] --id <task-id> [--interval-ms <n>] [--heartbeat-ms <n>] [--once]",
+    outputSchema: "schemas/task-progress.schema.json"
   },
   claim: {
     summary: "Claim an unassigned Task with a revision-checked update.",
@@ -181,6 +200,9 @@ function taskCommandHelp(command) {
     metadata.summary
   ];
   if (metadata.schema) details.push("", `Related schema: ${metadata.schema}`);
+  if (metadata.outputSchema) {
+    details.push("", `Output schema: ${metadata.outputSchema}`);
+  }
   if (metadata.example) {
     details.push(
       `Example input: ${metadata.example}`,
@@ -212,18 +234,6 @@ Global options:
 
 Run \`node scripts/task.mjs <command> --help\` for command details.
 `;
-}
-
-function optionValue(args, flag) {
-  const value = args.shift();
-  if (!value || value.startsWith("--")) {
-    throw new CliUsageError(
-      "missing-option-value",
-      `${flag} requires a value.`,
-      "Run `node scripts/task.mjs --help` or command-level --help."
-    );
-  }
-  return value;
 }
 
 function parseInputJson(text, source, command) {
@@ -1852,69 +1862,63 @@ function readInput(inputPath, command) {
 }
 
 function parseArgs(argv) {
-  const args = [...argv];
-  if (args[0] === "-h" || args[0] === "--help") {
-    return { command: null, help: true };
-  }
-  if (args[0] === "help") {
-    args.shift();
-    return { command: args.shift() ?? null, help: true };
-  }
-  const command = args.shift() ?? null;
-  const options = {
-    command,
-    project: ".",
-    input: null,
-    id: null,
-    status: null,
-    period: null,
-    scope: null,
-    subject: null,
-    team: null,
-    from: null,
-    to: null,
-    expectedRevision: null,
-    write: false,
-    compact: false,
-    help: command == null,
-    example: false
-  };
-  while (args.length > 0) {
-    const flag = args.shift();
-    if (flag === "--project") options.project = optionValue(args, flag);
-    else if (flag === "--input") options.input = optionValue(args, flag);
-    else if (flag === "--id") options.id = optionValue(args, flag);
-    else if (flag === "--status") options.status = optionValue(args, flag);
-    else if (flag === "--period") options.period = optionValue(args, flag);
-    else if (flag === "--scope") options.scope = optionValue(args, flag);
-    else if (flag === "--subject") options.subject = optionValue(args, flag);
-    else if (flag === "--team") options.team = optionValue(args, flag);
-    else if (flag === "--from") options.from = optionValue(args, flag);
-    else if (flag === "--to") options.to = optionValue(args, flag);
-    else if (flag === "--expected-revision") {
-      const value = Number(optionValue(args, flag));
-      if (!Number.isInteger(value) || value < 1) {
-        throw new CliUsageError(
-          "invalid-option-value",
-          "--expected-revision must be a positive integer.",
-          `Run \`node scripts/task.mjs ${command} --help\` for command usage.`
-        );
-      }
-      options.expectedRevision = value;
+  return parseMetadataCli({
+    argv,
+    commands: TASK_COMMANDS,
+    executable: "node scripts/task.mjs",
+    description: "ZipZap project Task CLI",
+    optionSpecs: [
+      { flags: "--project <dir>", description: "select the project root" },
+      { flags: "--input <file>", description: "read JSON input from a file" },
+      { flags: "--id <task-id>", description: "select a Task" },
+      { flags: "--status <status>", description: "filter by Task status" },
+      { flags: "--period <period>", description: "select a report period" },
+      { flags: "--scope <scope>", description: "select report scope" },
+      { flags: "--subject <id>", description: "select a subject" },
+      { flags: "--team <id>", description: "select a team" },
+      { flags: "--from <date>", description: "set the start date" },
+      { flags: "--to <date>", description: "set the end date" },
+      {
+        flags: "--expected-revision <n>",
+        description: "require the current Task revision",
+        parser: positiveInteger
+      },
+      {
+        flags: "--interval-ms <n>",
+        description: "poll interval in milliseconds",
+        parser: positiveInteger
+      },
+      {
+        flags: "--heartbeat-ms <n>",
+        description: "unchanged-state heartbeat interval; 0 disables",
+        parser: nonNegativeInteger
+      },
+      { flags: "--once", description: "emit one snapshot and exit" },
+      { flags: "--write", description: "persist derived output" },
+      { flags: "--compact", description: "emit single-line JSON" }
+    ],
+    defaults: {
+      command: null,
+      subject: null,
+      project: ".",
+      input: null,
+      id: null,
+      status: null,
+      period: null,
+      scope: null,
+      team: null,
+      from: null,
+      to: null,
+      expectedRevision: null,
+      intervalMs: 500,
+      heartbeatMs: 15000,
+      once: false,
+      write: false,
+      compact: false,
+      help: false,
+      example: false
     }
-    else if (flag === "-h" || flag === "--help") options.help = true;
-    else if (flag === "--example") options.example = true;
-    else if (flag === "--write") options.write = true;
-    else if (flag === "--compact") options.compact = true;
-    else {
-      throw new CliUsageError(
-        "unknown-argument",
-        `Unknown argument for ${command}: ${flag}`,
-        `Run \`node scripts/task.mjs ${command} --help\` to see supported options.`
-      );
-    }
-  }
-  return options;
+  });
 }
 
 function requireTaskOption(options, field, flag) {
@@ -1929,7 +1933,7 @@ function requireTaskOption(options, field, flag) {
 
 function validateTaskOptions(options) {
   if (
-    ["show", "claim", "git-scan", "sync-git", "assess"].includes(
+    ["show", "watch", "claim", "git-scan", "sync-git", "assess"].includes(
       options.command
     )
   ) {
@@ -1961,6 +1965,88 @@ function validateTaskOptions(options) {
 
 function output(value, compact) {
   process.stdout.write(`${JSON.stringify(value, null, compact ? 0 : 2)}\n`);
+}
+
+function taskStage(status) {
+  return {
+    ready: "queued",
+    "in-progress": "implementation",
+    blocked: "blocked",
+    review: "review",
+    completed: "completed",
+    cancelled: "cancelled"
+  }[status];
+}
+
+export function taskProgressSnapshot(task, sequence, change, observedAt = now()) {
+  return {
+    schema_version: 1,
+    event: "task-progress",
+    sequence,
+    change,
+    observed_at: observedAt,
+    task_id: task.task_id,
+    revision: task.revision,
+    status: task.status,
+    stage: taskStage(task.status),
+    terminal: TERMINAL_TASK_STATUSES.has(task.status),
+    assignee_id: task.assignee_id ?? null,
+    objective: task.work.objective,
+    blockers: task.blockers
+      .filter((blocker) => blocker.status === "open")
+      .map((blocker) => ({
+        id: blocker.id,
+        statement: blocker.statement,
+        resolution_condition: blocker.resolution_condition
+      })),
+    updated_at: task.updated_at ?? null
+  };
+}
+
+async function watchTask(projectRoot, options) {
+  if (options.intervalMs < 100) {
+    throw new CliUsageError(
+      "invalid-option-value",
+      "--interval-ms must be at least 100.",
+      "Use a bounded polling interval to avoid unnecessary filesystem load."
+    );
+  }
+  let stopped = false;
+  const stop = () => {
+    stopped = true;
+  };
+  process.once("SIGINT", stop);
+  try {
+    let sequence = 1;
+    let task = loadTask(projectRoot, options.id);
+    let fingerprint = `${task.revision}:${task.status}:${task.updated_at ?? ""}`;
+    let emittedAt = Date.now();
+    process.stdout.write(
+      `${JSON.stringify(taskProgressSnapshot(task, sequence, "initial"))}\n`
+    );
+    if (options.once || TERMINAL_TASK_STATUSES.has(task.status)) return;
+    while (!stopped) {
+      await new Promise((resolve) => setTimeout(resolve, options.intervalMs));
+      if (stopped) break;
+      task = loadTask(projectRoot, options.id);
+      const nextFingerprint = `${task.revision}:${task.status}:${task.updated_at ?? ""}`;
+      const changed = nextFingerprint !== fingerprint;
+      const heartbeat =
+        options.heartbeatMs > 0 && Date.now() - emittedAt >= options.heartbeatMs;
+      if (!changed && !heartbeat) continue;
+      sequence += 1;
+      const terminal = TERMINAL_TASK_STATUSES.has(task.status);
+      const change = terminal ? "terminal" : changed ? "revision" : "heartbeat";
+      process.stdout.write(
+        `${JSON.stringify(taskProgressSnapshot(task, sequence, change))}\n`
+      );
+      fingerprint = nextFingerprint;
+      emittedAt = Date.now();
+      if (terminal) break;
+    }
+  } finally {
+    process.removeListener("SIGINT", stop);
+  }
 }
 
 function createTask(projectRoot, input) {
@@ -2618,6 +2704,18 @@ async function main() {
     output(readJson(path.join(DEFAULT_ROOT, examplePath)), options.compact);
     return;
   }
+  if (options.command === "describe") {
+    output(
+      describeCommands({
+        commands: TASK_COMMANDS,
+        subject: options.subject,
+        rootDir: DEFAULT_ROOT,
+        executable: "node scripts/task.mjs"
+      }),
+      options.compact
+    );
+    return;
+  }
   validateTaskOptions(options);
   const projectRoot = path.resolve(options.project);
   if (!fs.existsSync(projectRoot) || !fs.statSync(projectRoot).isDirectory()) {
@@ -2638,6 +2736,9 @@ async function main() {
     result = createTask(projectRoot, readInput(options.input, options.command));
   } else if (options.command === "show") {
     result = loadTask(projectRoot, options.id);
+  } else if (options.command === "watch") {
+    await watchTask(projectRoot, options);
+    return;
   } else if (options.command === "list") {
     result = listTasks(projectRoot)
       .filter((task) => !options.status || task.status === options.status)
@@ -2787,10 +2888,11 @@ async function main() {
   output(result, options.compact);
 }
 
-const invokedPath = process.argv[1]
-  ? pathToFileURL(path.resolve(process.argv[1])).href
+const invokedFile = process.argv[1]
+  ? fs.realpathSync(path.resolve(process.argv[1]))
   : null;
-if (invokedPath === import.meta.url) {
+const moduleFile = fs.realpathSync(fileURLToPath(import.meta.url));
+if (invokedFile === moduleFile) {
   main().catch((error) => {
     const command = process.argv[2]?.startsWith("-")
       ? null

@@ -75,7 +75,7 @@ test("catalogs are internally valid", () => {
     task_policies: 12,
     onboarding_questions: 6,
     adapters: 3,
-    releases: 7
+    releases: 8
   });
 });
 

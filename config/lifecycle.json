@@ -2,7 +2,7 @@
   "schema_version": 1,
   "skill": {
     "name": "zipzap",
-    "current_version": "0.1.1-beta.5",
+    "current_version": "0.1.1-beta.6",
     "channel": "beta"
   },
   "package": {
@@ -46,6 +46,7 @@
       "schemas/risk-normalization-output.schema.json",
       "schemas/task.schema.json",
       "schemas/task-event.schema.json",
+      "schemas/task-progress.schema.json",
       "schemas/feedback.schema.json",
       "schemas/review-result.schema.json",
       "schemas/diagnostic-review.schema.json",
@@ -108,6 +109,13 @@
         "l5": 2,
         "kernel": 2
       }
+    },
+    {
+      "version": "0.1.1-beta.6",
+      "interfaces": {
+        "l5": 2,
+        "kernel": 2
+      }
     }
   ],
   "migrations": [
@@ -116,6 +124,12 @@
       "from_version": "0.1.1-beta.4",
       "to_version": "0.1.1-beta.5",
       "description": "Preserve project-owned state during package upgrade, then run Initialize to preview and confirm a new Manifest v2; no in-place or dual-read migration is available."
+    },
+    {
+      "id": "reinitialize-v2-project-state-from-beta-4",
+      "from_version": "0.1.1-beta.4",
+      "to_version": "0.1.1-beta.6",
+      "description": "Preserve project-owned state while upgrading directly from beta.4, then run Initialize to preview and confirm a new Manifest v2; no in-place or dual-read migration is available."
     }
   ],
   "release_gates": [
@@ -132,7 +146,12 @@
     "preserve_project_manifest_on_upgrade": true,
     "backup_required_for_rollback": true,
     "major_interface_change_requires_migration": true,
-    "runtime_dependency_install_forbidden": true,
+    "source_dependencies_allowed": true,
+    "installed_artifact_self_contained": true,
+    "dist_only_installation": true,
+    "npm_publication_forbidden": true,
+    "release_bundle_required": true,
+    "source_release_requires_clean_git": true,
     "first_run_requires_visible_preview": true,
     "post_upgrade_validation_required": true,
     "project_state_reconciliation_is_read_only": true,

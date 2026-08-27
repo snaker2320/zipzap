@@ -89,6 +89,7 @@ node scripts/task.mjs validate --input task.json
 node scripts/task.mjs create --input task.json
 node scripts/task.mjs show --id task-id
 node scripts/task.mjs list --status in-progress
+node scripts/task.mjs watch --id task-id
 node scripts/task.mjs claim --id task-id --subject agent-id --expected-revision 1
 node scripts/task.mjs transition --input transition.json
 ```
@@ -100,6 +101,15 @@ the stored revision matches:
 ```bash
 node scripts/task.mjs apply-patch --input task-patch.json
 ```
+
+`watch` is read-only and emits one JSON object per line according to
+`schemas/task-progress.schema.json`. It emits an initial snapshot, revision
+changes, bounded heartbeats, and a final terminal snapshot. Use `--once` for a
+single render and `--heartbeat-ms 0` to disable unchanged-state heartbeats.
+Status, revision, blockers, and timestamps are durable facts; do not invent a
+percentage when the Task has no objective progress denominator. A Host may
+render this stream near its composer, but a Skill cannot assume that the Host
+provides a custom composer-widget extension point.
 
 Use `ready → in-progress → review → completed`, with risk-based short paths
 where gates permit. Move active work to `blocked` only with an open blocker,

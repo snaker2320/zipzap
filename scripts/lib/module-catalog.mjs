@@ -99,13 +99,23 @@ export function loadModuleCatalog(rootDir = DEFAULT_ROOT) {
   validateModuleCatalog(raw);
 
   const modules = {};
+  const sourceCache = new Map();
   const byKind = Object.fromEntries([...MODULE_KINDS].map((kind) => [kind, []]));
   for (const [moduleId, definition] of Object.entries(raw.modules)) {
     const value = definition.source
       ? readPointer(
-          JSON.parse(
-            fs.readFileSync(resolveSource(rootDir, definition.source), "utf8")
-          ),
+          sourceCache.has(definition.source)
+            ? sourceCache.get(definition.source)
+            : (() => {
+                const source = JSON.parse(
+                  fs.readFileSync(
+                    resolveSource(rootDir, definition.source),
+                    "utf8"
+                  )
+                );
+                sourceCache.set(definition.source, source);
+                return source;
+              })(),
           definition.pointer,
           moduleId
         )

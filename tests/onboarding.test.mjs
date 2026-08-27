@@ -83,7 +83,7 @@ test("exposes one page-ready form without requiring Plan mode", () => {
   );
 });
 
-test("exposes onboarding through the zero-dependency CLI", () => {
+test("exposes onboarding through the bundled CLI", () => {
   const result = JSON.parse(
     execFileSync("node", ["scripts/zipzap.mjs", "onboard", "--compact"], {
       encoding: "utf8",
