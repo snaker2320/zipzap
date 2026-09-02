@@ -36,6 +36,7 @@ const EXPEDITE_WAIVABLE_REQUIREMENTS = new Set([
   "planning.target_finish-or-deadline"
 ]);
 const OPEN_FINDING_STATUSES = new Set(["open", "deferred"]);
+const TASK_ROLES = new Set(["product", "developer", "tester", "reviewer"]);
 const TASK_EVENT_TYPES = new Set([
   "created",
   "updated",
@@ -83,7 +84,8 @@ const TASK_COMMANDS = {
   },
   show: {
     summary: "Show one Task by identifier.",
-    usage: "show [--project <dir>] --id <task-id> [--compact]"
+    usage:
+      "show [--project <dir>] --id <task-id> [--machine] [--compact]"
   },
   list: {
     summary: "List Tasks with optional status or participant filters.",
@@ -174,6 +176,17 @@ const TASK_COMMANDS = {
     summary: "List captured Feedback records.",
     usage: "feedback-list [--project <dir>] [--compact]",
     schema: "schemas/feedback.schema.json"
+  },
+  "record-handoff": {
+    summary: "Record one immutable cross-context Task handoff.",
+    usage: "record-handoff [--project <dir>] --input <file> [--compact]",
+    schema: "schemas/handoff.schema.json",
+    example: "examples/task/record-handoff.json"
+  },
+  flow: {
+    summary: "Derive a bounded Flow Packet from one Task and its latest handoff.",
+    usage: "flow [--project <dir>] --id <task-id> [--compact]",
+    outputSchema: "schemas/task-flow-packet.schema.json"
   }
 };
 
@@ -374,6 +387,16 @@ function assertId(value, label) {
 
 function nonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
+}
+
+function assertKnownFields(value, allowedFields, label) {
+  assertObject(value, label);
+  const allowed = new Set(allowedFields);
+  for (const field of Object.keys(value)) {
+    if (!allowed.has(field)) {
+      throw new Error(`${label} has unknown field: ${field}`);
+    }
+  }
 }
 
 function validDateTime(value) {
@@ -669,7 +692,8 @@ function layout(projectRoot) {
     events: path.join(zipzap, "events"),
     reviews: path.join(zipzap, "reviews"),
     feedback: path.join(zipzap, "feedback"),
-    reports: path.join(zipzap, "reports")
+    reports: path.join(zipzap, "reports"),
+    handoffs: path.join(zipzap, "handoffs")
   };
 }
 
@@ -681,7 +705,8 @@ function ensureLayout(projectRoot) {
     directories.events,
     directories.reviews,
     directories.feedback,
-    directories.reports
+    directories.reports,
+    directories.handoffs
   ]) {
     fs.mkdirSync(directory, { recursive: true });
   }
@@ -886,6 +911,279 @@ function listTasks(projectRoot) {
     .filter((name) => name.endsWith(".json"))
     .sort()
     .map((name) => validateTask(readJson(path.join(directory, name))));
+}
+
+function validateHandoff(handoff) {
+  assertKnownFields(
+    handoff,
+    [
+      "schema_version",
+      "handoff_id",
+      "task_id",
+      "task_revision",
+      "created_at",
+      "actor_id",
+      "role",
+      "stage",
+      "summary",
+      "artifact_refs",
+      "decision_refs",
+      "evidence_refs",
+      "finding_refs",
+      "blocker_refs",
+      "next"
+    ],
+    "Handoff"
+  );
+  if (
+    handoff.schema_version !== 1 ||
+    !ID_PATTERN.test(handoff.handoff_id ?? "") ||
+    !ID_PATTERN.test(handoff.task_id ?? "") ||
+    !Number.isInteger(handoff.task_revision) ||
+    handoff.task_revision < 1 ||
+    !validDateTime(handoff.created_at) ||
+    !nonEmptyString(handoff.summary) ||
+    (handoff.actor_id != null && !nonEmptyString(handoff.actor_id)) ||
+    (handoff.role != null && !TASK_ROLES.has(handoff.role)) ||
+    (handoff.stage != null && !nonEmptyString(handoff.stage))
+  ) {
+    throw new Error(`Handoff is invalid: ${handoff?.handoff_id ?? "unknown"}`);
+  }
+  if (!Array.isArray(handoff.artifact_refs)) {
+    throw new Error("Handoff artifact_refs must be an array");
+  }
+  for (const reference of handoff.artifact_refs) {
+    assertKnownFields(reference, ["locator", "version"], "Handoff artifact reference");
+    if (
+      !nonEmptyString(reference.locator) ||
+      (reference.version != null && !nonEmptyString(reference.version))
+    ) {
+      throw new Error("Handoff artifact reference is invalid");
+    }
+  }
+  for (const field of [
+    "decision_refs",
+    "evidence_refs",
+    "finding_refs",
+    "blocker_refs"
+  ]) {
+    const references = handoff[field];
+    if (
+      !Array.isArray(references) ||
+      new Set(references).size !== references.length ||
+      references.some((reference) => !ID_PATTERN.test(reference ?? ""))
+    ) {
+      throw new Error(`Handoff ${field} is invalid`);
+    }
+  }
+  assertKnownFields(handoff.next, ["role", "stage", "action"], "Handoff next");
+  if (
+    !TASK_ROLES.has(handoff.next.role) ||
+    !nonEmptyString(handoff.next.stage) ||
+    !nonEmptyString(handoff.next.action)
+  ) {
+    throw new Error("Handoff next action is invalid");
+  }
+  return handoff;
+}
+
+function handoffFile(projectRoot, taskId, handoffId) {
+  assertId(taskId, "Task ID");
+  assertId(handoffId, "Handoff ID");
+  return path.join(layout(projectRoot).handoffs, taskId, `${handoffId}.json`);
+}
+
+function listHandoffs(projectRoot, taskId) {
+  const directory = path.join(layout(projectRoot).handoffs, taskId);
+  if (!fs.existsSync(directory)) return [];
+  return fs
+    .readdirSync(directory)
+    .filter((name) => name.endsWith(".json"))
+    .map((name) => validateHandoff(readJson(path.join(directory, name))))
+    .sort(
+      (left, right) =>
+        left.created_at.localeCompare(right.created_at) ||
+        left.handoff_id.localeCompare(right.handoff_id)
+    );
+}
+
+function latestHandoff(projectRoot, taskId) {
+  return listHandoffs(projectRoot, taskId).at(-1) ?? null;
+}
+
+function assertHandoffReferences(task, handoff) {
+  const referenceSets = {
+    decision_refs: new Set(
+      task.source_refs
+        .filter((reference) => reference.kind === "decision")
+        .map((reference) => reference.id)
+    ),
+    evidence_refs: new Set(task.evidence.map((evidence) => evidence.id)),
+    finding_refs: new Set((task.findings ?? []).map((finding) => finding.id)),
+    blocker_refs: new Set(task.blockers.map((blocker) => blocker.id))
+  };
+  for (const [field, available] of Object.entries(referenceSets)) {
+    const missing = handoff[field].filter((reference) => !available.has(reference));
+    if (missing.length > 0) {
+      const error = new Error(
+        `Handoff ${field} references unknown Task IDs: ${missing.join(", ")}`
+      );
+      error.code = "invalid-input";
+      error.hint = "Reference IDs already stored on the current Task.";
+      throw error;
+    }
+  }
+}
+
+function recordHandoff(projectRoot, input) {
+  const handoff = validateHandoff(clone(input));
+  const task = loadTask(projectRoot, handoff.task_id);
+  if (handoff.task_revision !== task.revision) {
+    throw new Error(
+      `Task revision mismatch: expected ${handoff.task_revision}, stored ${task.revision}`
+    );
+  }
+  assertHandoffReferences(task, handoff);
+  const filePath = handoffFile(projectRoot, task.task_id, handoff.handoff_id);
+  if (fs.existsSync(filePath)) {
+    throw new Error(`Handoff already exists: ${handoff.handoff_id}`);
+  }
+  ensureLayout(projectRoot);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  writeJsonAtomic(filePath, handoff);
+  return {
+    handoff,
+    locator: path.relative(projectRoot, filePath).split(path.sep).join("/")
+  };
+}
+
+function acceptanceStatus(task, criterionId) {
+  const statuses = task.evidence
+    .filter((evidence) => evidence.criteria_refs?.includes(criterionId))
+    .map((evidence) => evidence.status);
+  if (statuses.includes("fail")) return "fail";
+  if (statuses.includes("pass")) return "pass";
+  return "unknown";
+}
+
+export function taskFlowPacket(task, handoff = null) {
+  const criteriaIds = new Set(
+    task.work.acceptance_criteria.map((criterion) => criterion.id)
+  );
+  const handoffEvidence = new Set(handoff?.evidence_refs ?? []);
+  const evidence = task.evidence.filter(
+    (item) =>
+      handoffEvidence.has(item.id) ||
+      (item.criteria_refs ?? []).some((criterionId) => criteriaIds.has(criterionId))
+  );
+  return {
+    schema_version: 1,
+    kind: "task-flow-packet",
+    task: {
+      task_id: task.task_id,
+      revision: task.revision,
+      status: task.status,
+      objective: task.work.objective,
+      scope: clone(task.work.scope),
+      constraints: clone(task.work.constraints)
+    },
+    assignee_id: task.assignee_id ?? null,
+    acceptance_criteria: task.work.acceptance_criteria.map((criterion) => ({
+      id: criterion.id,
+      statement: criterion.statement,
+      status: acceptanceStatus(task, criterion.id)
+    })),
+    blockers: task.blockers
+      .filter((blocker) => blocker.status === "open")
+      .map((blocker) => ({
+        id: blocker.id,
+        statement: blocker.statement,
+        resolution_condition: blocker.resolution_condition
+      })),
+    findings: (task.findings ?? [])
+      .filter((finding) => OPEN_FINDING_STATUSES.has(finding.status))
+      .map((finding) => ({
+        id: finding.id,
+        statement: finding.statement,
+        status: finding.status,
+        severity: finding.severity ?? null,
+        blocking: finding.blocking ?? false
+      })),
+    sources: task.source_refs.map((reference) => ({
+      id: reference.id,
+      kind: reference.kind,
+      locator: reference.locator
+    })),
+    evidence: evidence.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      locator: item.locator,
+      statement: item.statement,
+      status: item.status ?? null,
+      criteria_refs: clone(item.criteria_refs ?? [])
+    })),
+    handoff: handoff
+      ? {
+          handoff_id: handoff.handoff_id,
+          task_revision: handoff.task_revision,
+          fresh: handoff.task_revision === task.revision,
+          summary: handoff.summary,
+          artifact_refs: clone(handoff.artifact_refs),
+          decision_refs: clone(handoff.decision_refs),
+          evidence_refs: clone(handoff.evidence_refs),
+          finding_refs: clone(handoff.finding_refs),
+          blocker_refs: clone(handoff.blocker_refs)
+        }
+      : null,
+    next: handoff
+      ? clone(handoff.next)
+      : {
+          role: null,
+          stage: null,
+          action: task.work.requested_action
+        }
+  };
+}
+
+export function renderTaskCard(task) {
+  const criteria = task.work.acceptance_criteria.map((criterion) => ({
+    ...criterion,
+    status: acceptanceStatus(task, criterion.id)
+  }));
+  const passed = criteria.filter((criterion) => criterion.status === "pass").length;
+  const openBlockers = task.blockers.filter((blocker) => blocker.status === "open");
+  const openFindings = (task.findings ?? []).filter((finding) =>
+    OPEN_FINDING_STATUSES.has(finding.status)
+  );
+  const lines = [
+    `Task ${task.task_id} · ${task.status} · r${task.revision}`,
+    `Owner: ${task.assignee_id ?? "unassigned"}`,
+    `Objective: ${task.work.objective}`,
+    "Scope:",
+    ...task.work.scope.map((item) => `- ${item}`),
+    "Acceptance:",
+    ...criteria.map((criterion) => {
+      const marker = { pass: "x", fail: "!", unknown: " " }[criterion.status];
+      return `- [${marker}] ${criterion.id}: ${criterion.statement}`;
+    }),
+    `Progress: ${passed}/${criteria.length} acceptance criteria have passing evidence`,
+    "Blockers:",
+    ...(openBlockers.length > 0
+      ? openBlockers.map((blocker) => `- ${blocker.id}: ${blocker.statement}`)
+      : ["- none"]),
+    "Open findings:",
+    ...(openFindings.length > 0
+      ? openFindings.map((finding) => `- ${finding.id}: ${finding.statement}`)
+      : ["- none"]),
+    "Evidence:",
+    ...(task.evidence.length > 0
+      ? task.evidence.map(
+          (item) => `- ${item.id}: ${item.statement} (${item.locator})`
+        )
+      : ["- none"]),
+    `Next: ${task.work.requested_action}`
+  ];
+  return `${lines.join("\n")}\n`;
 }
 
 function validateTaskEvent(event) {
@@ -1895,6 +2193,7 @@ function parseArgs(argv) {
       },
       { flags: "--once", description: "emit one snapshot and exit" },
       { flags: "--write", description: "persist derived output" },
+      { flags: "--machine", description: "emit the full machine Task record" },
       { flags: "--compact", description: "emit single-line JSON" }
     ],
     defaults: {
@@ -1914,6 +2213,7 @@ function parseArgs(argv) {
       heartbeatMs: 15000,
       once: false,
       write: false,
+      machine: false,
       compact: false,
       help: false,
       example: false
@@ -1933,7 +2233,7 @@ function requireTaskOption(options, field, flag) {
 
 function validateTaskOptions(options) {
   if (
-    ["show", "watch", "claim", "git-scan", "sync-git", "assess"].includes(
+    ["show", "watch", "claim", "git-scan", "sync-git", "assess", "flow"].includes(
       options.command
     )
   ) {
@@ -2735,7 +3035,12 @@ async function main() {
   } else if (options.command === "create") {
     result = createTask(projectRoot, readInput(options.input, options.command));
   } else if (options.command === "show") {
-    result = loadTask(projectRoot, options.id);
+    const task = loadTask(projectRoot, options.id);
+    if (!options.machine && !options.compact) {
+      process.stdout.write(renderTaskCard(task));
+      return;
+    }
+    result = task;
   } else if (options.command === "watch") {
     await watchTask(projectRoot, options);
     return;
@@ -2882,6 +3187,14 @@ async function main() {
     );
   } else if (options.command === "feedback-list") {
     result = listFeedback(projectRoot);
+  } else if (options.command === "record-handoff") {
+    result = recordHandoff(
+      projectRoot,
+      readInput(options.input, options.command)
+    );
+  } else if (options.command === "flow") {
+    const task = loadTask(projectRoot, options.id);
+    result = taskFlowPacket(task, latestHandoff(projectRoot, task.task_id));
   } else {
     throw new Error(`unknown task command: ${options.command}`);
   }

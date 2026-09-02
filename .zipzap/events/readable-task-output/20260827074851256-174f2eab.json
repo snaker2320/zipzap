@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "event_id": "20260827074851256-174f2eab",
+  "task_id": "readable-task-output",
+  "type": "updated",
+  "occurred_at": "2026-08-27T07:48:51.256Z",
+  "actor_id": "codex",
+  "base_revision": 1,
+  "next_revision": 2,
+  "data": {
+    "source": "claim",
+    "assignee_id": "codex"
+  }
+}

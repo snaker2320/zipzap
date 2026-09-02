@@ -1,0 +1,65 @@
+{
+  "expected_revision": 2,
+  "actor_id": "codex",
+  "task": {
+    "task_id": "readable-task-output",
+    "status": "ready",
+    "origin": {
+      "kind": "direct"
+    },
+    "work": {
+      "kind": "requirement-delivery",
+      "objective": "让 ZipZap Task 在保留完整机器契约的同时，为用户提供简洁、可阅读的任务视图，并让 Agent 流转只携带当前阶段所需信息。",
+      "scope": [
+        "区分机器 Task Record、阶段 Flow Packet 和用户 Task Card",
+        "提供默认可阅读的任务展示，并保留显式查看完整机器 JSON 的能力",
+        "按需记录不可变 Handoff，连续 Solo 工作不自动产生交接记录",
+        "确保用户视图和流转投影由权威 Task 状态派生，不形成第二个可独立编辑的事实源"
+      ],
+      "exclusions": [
+        "本 Task 不改变现有 Task 状态生命周期",
+        "本 Task 不以 Markdown 替换 JSON 权威存储",
+        "本 Task 不引入 Task Workspace、Stage Delivery 或自动阶段留痕"
+      ],
+      "requested_action": "实现可阅读 Task 输出、显式机器视图、按需 Handoff 和精简 Flow Packet。",
+      "constraints": [
+        "保持 Task 创建和 Solo 连续执行轻量，不向普通用户暴露内部治理、运行快照和协议参数",
+        "机器输出必须继续支持校验、revision 冲突检查和审计",
+        "Handoff 仅在跨上下文、跨会话或持久化确有必要时由调用方显式记录"
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "readable-default-view",
+          "statement": "普通用户默认看到目标、状态、负责人、范围、验收条件、进展、阻塞、证据和下一步等可阅读内容，而不是完整内部 JSON。"
+        },
+        {
+          "id": "explicit-machine-view",
+          "statement": "调用方可通过显式机器模式取得完整、稳定且可校验的 Task JSON。"
+        },
+        {
+          "id": "bounded-flow-packet",
+          "statement": "Agent 或阶段间流转只携带当前动作所需的 Task 投影和引用，不默认传递整份 Task 记录或对话。"
+        },
+        {
+          "id": "on-demand-handoff",
+          "statement": "调用方可显式记录不可变 Handoff；连续 Solo 执行不因阶段变化自动生成交接产物。"
+        },
+        {
+          "id": "single-source-of-truth",
+          "statement": "Task Card 和 Flow Packet 均由权威 Task JSON 与不可变 Handoff 可重复生成，不形成需要双向同步的第二事实源。"
+        }
+      ]
+    },
+    "planning": {
+      "priority": "medium"
+    },
+    "assignee_id": "codex",
+    "dependencies": [],
+    "blockers": [],
+    "source_refs": [],
+    "readiness_policy": {
+      "mode": "standard"
+    },
+    "evidence": []
+  }
+}

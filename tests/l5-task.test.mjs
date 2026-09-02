@@ -472,6 +472,11 @@ test("registers the unified L5 and Task Adapter schemas", () => {
     "ZipZap Task Adapter Output"
   );
   assert.equal(catalogs.schemas.taskEvent.title, "ZipZap Task Event");
+  assert.equal(catalogs.schemas.handoff.title, "ZipZap Task Handoff");
+  assert.equal(
+    catalogs.schemas.taskFlowPacket.title,
+    "ZipZap Task Flow Packet"
+  );
   assert.equal(catalogs.schemas.reviewResult.title, "ZipZap Review Result");
   assert.equal(
     catalogs.schemas.resourceUsage.title,

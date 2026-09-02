@@ -5,6 +5,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 
+import { validateSchemaFile } from "../scripts/lib/schema-registry.mjs";
+
 const taskScript = path.resolve("scripts/task.mjs");
 
 function run(command, args, cwd, input = null) {
@@ -37,6 +39,23 @@ function runFailure(command, args, cwd, input = null) {
   );
   assert.notEqual(result.status, 0, "task command unexpectedly succeeded");
   return result.stderr || result.stdout;
+}
+
+function runText(command, args, cwd) {
+  const result = spawnSync(
+    process.execPath,
+    [taskScript, command, "--project", cwd, ...args],
+    {
+      cwd,
+      encoding: "utf8"
+    }
+  );
+  assert.equal(
+    result.status,
+    0,
+    `task command failed: ${result.stderr || result.stdout}`
+  );
+  return result.stdout;
 }
 
 function git(cwd, args) {
@@ -182,6 +201,140 @@ test("Task Standard v1 keeps creation light and defers Work Analysis", (context)
   );
   assert.equal(failed.error.code, "task-not-ready");
   assert.deepEqual(failed.error.details.missing, ["work.objective"]);
+});
+
+test("shows a readable Task Card by default and preserves an explicit machine view", (context) => {
+  const projectRoot = createRepository(context);
+  run("create", [], projectRoot, taskInput());
+
+  const card = runText("show", ["--id", "task-1"], projectRoot);
+  assert.match(card, /Task task-1 · ready · r1/);
+  assert.match(card, /Objective: Implement tracked behavior\./);
+  assert.match(card, /Progress: 1\/1 acceptance criteria have passing evidence/);
+  assert.match(card, /Next: modify/);
+  assert.doesNotMatch(card, /governance_snapshot/);
+
+  const machine = run(
+    "show",
+    ["--id", "task-1", "--machine"],
+    projectRoot
+  );
+  assert.equal(machine.task_id, "task-1");
+  assert.equal(machine.work.objective, "Implement tracked behavior.");
+
+  const compactMachine = run(
+    "show",
+    ["--id", "task-1", "--compact"],
+    projectRoot
+  );
+  assert.equal(compactMachine.task_id, "task-1");
+});
+
+test("derives a bounded Flow Packet without creating a Solo handoff", (context) => {
+  const projectRoot = createRepository(context);
+  run("create", [], projectRoot, taskInput());
+
+  const packet = run("flow", ["--id", "task-1"], projectRoot);
+  assert.equal(
+    validateSchemaFile(
+      path.resolve("."),
+      "schemas/task-flow-packet.schema.json",
+      packet
+    ).valid,
+    true
+  );
+  assert.equal(packet.kind, "task-flow-packet");
+  assert.equal(packet.task.task_id, "task-1");
+  assert.equal(packet.handoff, null);
+  assert.deepEqual(packet.next, {
+    role: null,
+    stage: null,
+    action: "modify"
+  });
+  assert.equal(packet.acceptance_criteria[0].status, "pass");
+  assert.equal("governance_snapshot" in packet, false);
+  assert.equal("runtime_snapshot" in packet, false);
+  assert.equal("participants" in packet, false);
+  assert.equal(fs.existsSync(path.join(projectRoot, ".zipzap", "handoffs")), true);
+  assert.deepEqual(
+    fs.readdirSync(path.join(projectRoot, ".zipzap", "handoffs")),
+    []
+  );
+});
+
+test("records one immutable Handoff and uses it in the next Flow Packet", (context) => {
+  const projectRoot = createRepository(context);
+  const input = taskInput();
+  input.source_refs.push({
+    id: "selected-approach",
+    kind: "decision",
+    locator: "docs/decision.md"
+  });
+  run("create", [], projectRoot, input);
+  const handoff = {
+    schema_version: 1,
+    handoff_id: "developer-to-tester",
+    task_id: "task-1",
+    task_revision: 1,
+    created_at: "2026-08-27T00:00:00.000Z",
+    actor_id: "owl",
+    role: "developer",
+    stage: "produce",
+    summary: "The implementation is ready for verification.",
+    artifact_refs: [
+      {
+        locator: "app.js",
+        version: "git:HEAD"
+      }
+    ],
+    decision_refs: ["selected-approach"],
+    evidence_refs: ["verification-1"],
+    finding_refs: [],
+    blocker_refs: [],
+    next: {
+      role: "tester",
+      stage: "verify",
+      action: "Run the focused acceptance check."
+    }
+  };
+
+  const recorded = run("record-handoff", [], projectRoot, handoff);
+  assert.equal(
+    validateSchemaFile(
+      path.resolve("."),
+      "schemas/handoff.schema.json",
+      recorded.handoff
+    ).valid,
+    true
+  );
+  assert.equal(recorded.handoff.handoff_id, "developer-to-tester");
+  assert.equal(
+    recorded.locator,
+    ".zipzap/handoffs/task-1/developer-to-tester.json"
+  );
+  assert.equal(fs.existsSync(path.join(projectRoot, recorded.locator)), true);
+
+  const packet = run("flow", ["--id", "task-1"], projectRoot);
+  assert.equal(packet.handoff.handoff_id, "developer-to-tester");
+  assert.equal(packet.handoff.fresh, true);
+  assert.deepEqual(packet.next, handoff.next);
+  assert.equal(packet.evidence[0].id, "verification-1");
+
+  const duplicate = JSON.parse(
+    runFailure("record-handoff", [], projectRoot, handoff)
+  );
+  assert.equal(duplicate.error.code, "conflict");
+
+  const unknownReference = {
+    ...handoff,
+    handoff_id: "invalid-reference",
+    evidence_refs: ["missing-evidence"]
+  };
+  const invalid = JSON.parse(
+    runFailure("record-handoff", [], projectRoot, unknownReference)
+  );
+  assert.equal(invalid.error.code, "invalid-input");
+  assert.match(invalid.error.message, /missing-evidence/);
 });
 
 test("Task creation defaults to ready and rejects the retired backlog status", (context) => {
@@ -917,7 +1070,7 @@ test("completion is blocked by Review changes requests", (context) => {
   assert.equal(reassessed.status, "ready-to-complete");
   assert.equal(reassessed.open_findings.blocking, 0);
   assert.equal(
-    run("show", ["--id", "task-1"], projectRoot).findings[0].priority,
+    run("show", ["--id", "task-1", "--machine"], projectRoot).findings[0].priority,
     "p1"
   );
 });

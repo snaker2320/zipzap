@@ -44,6 +44,8 @@
     "format": "one-json-file-per-task",
     "event_locator": ".zipzap/events",
     "event_format": "one-json-file-per-event",
+    "handoff_locator": ".zipzap/handoffs",
+    "handoff_format": "one-json-file-per-handoff",
     "legacy_event_format": "monthly-jsonl-read-only",
     "review_locator": ".zipzap/reviews",
     "feedback_locator": ".zipzap/feedback",

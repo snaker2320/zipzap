@@ -1,0 +1,6 @@
+{
+  "task_id": "readable-task-output",
+  "expected_revision": 3,
+  "status": "in-progress",
+  "actor_id": "codex"
+}

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "event_id": "20260827074935061-801d6432",
+  "task_id": "readable-task-output",
+  "type": "updated",
+  "occurred_at": "2026-08-27T07:49:35.061Z",
+  "actor_id": "codex",
+  "base_revision": 2,
+  "next_revision": 3,
+  "data": {}
+}

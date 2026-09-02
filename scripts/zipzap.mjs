@@ -499,6 +499,10 @@ export function loadCatalogs(rootDir = DEFAULT_ROOT) {
       ),
       task: readJson(path.join(schemaDir, "task.schema.json")),
       taskEvent: readJson(path.join(schemaDir, "task-event.schema.json")),
+      handoff: readJson(path.join(schemaDir, "handoff.schema.json")),
+      taskFlowPacket: readJson(
+        path.join(schemaDir, "task-flow-packet.schema.json")
+      ),
       feedback: readJson(path.join(schemaDir, "feedback.schema.json")),
       reviewResult: readJson(path.join(schemaDir, "review-result.schema.json")),
       diagnosticReview: readJson(
