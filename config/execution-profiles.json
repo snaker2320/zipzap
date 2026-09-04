@@ -4,6 +4,59 @@
     "diagnose": "advisory",
     "accept": "formal-acceptance"
   },
+  "black_box_policy": {
+    "ordinary_work_path": "host-direct",
+    "cli_required_by_default": false,
+    "command_discovery_order": [
+      "help",
+      "example",
+      "describe"
+    ],
+    "inspect_runtime_source_only_for": [
+      "debug-zipzap-runtime",
+      "change-zipzap-runtime"
+    ]
+  },
+  "intent_routes": {
+    "diagnose": {
+      "role": "reviewer",
+      "stage": "review",
+      "default_requested_action": "diagnose",
+      "default_assurance_target": "advisory",
+      "work_path": "host-direct"
+    },
+    "plan": {
+      "role": "developer",
+      "stage": "plan",
+      "default_requested_action": "plan",
+      "work_path": "host-direct"
+    },
+    "implement": {
+      "role": "developer",
+      "stage": "produce",
+      "default_requested_action": "modify",
+      "work_path": "host-direct"
+    },
+    "verify": {
+      "role": "tester",
+      "stage": "verify",
+      "default_requested_action": "verify",
+      "work_path": "host-direct"
+    },
+    "accept": {
+      "role": "product",
+      "stage": "accept",
+      "default_requested_action": "accept",
+      "default_assurance_target": "formal-acceptance",
+      "work_path": "host-direct"
+    },
+    "operate": {
+      "role": "developer",
+      "stage": "produce",
+      "default_requested_action": "operate",
+      "work_path": "host-direct"
+    }
+  },
   "assurance_targets": {
     "advisory": {
       "required_gates": [],

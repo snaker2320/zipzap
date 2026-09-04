@@ -107,6 +107,10 @@ For structured routing, accept:
 - `execution_budget`: evidence depth, initial source-file limit, and explicit
   test, mutation, and persistence permissions.
 
+Query `catalog --kind intent-routes` when the caller needs the compact mapping
+from these canonical intents to Role, stage, requested action, and ordinary
+Host-direct Work. Do not inspect runtime implementation to reconstruct it.
+
 Treat these as machine routing facts, not additional user-facing workflow
 steps. Default `diagnose` to advisory and `accept` to formal acceptance when
 the target is omitted. Read

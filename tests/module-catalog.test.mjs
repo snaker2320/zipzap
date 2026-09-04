@@ -51,6 +51,13 @@ test("reuses a shared module source and narrow catalog queries read one file", (
       reads.map((filePath) => path.relative(root, filePath)),
       ["config/execution-profiles.json"]
     );
+    reads.length = 0;
+    const route = queryCatalogAtRoot(root, "intent-routes", "implement");
+    assert.equal(route.work_path, "host-direct");
+    assert.deepEqual(
+      reads.map((filePath) => path.relative(root, filePath)),
+      ["config/execution-profiles.json"]
+    );
   } finally {
     fs.readFileSync = original;
   }

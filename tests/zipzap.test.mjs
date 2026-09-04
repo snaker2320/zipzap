@@ -71,11 +71,12 @@ test("catalogs are internally valid", () => {
       teams: 4,
       control_functions: 2,
       execution_profiles: 1,
+      intent_routes: 6,
       risk_signals: 11,
     task_policies: 12,
     onboarding_questions: 6,
     adapters: 3,
-    releases: 8
+    releases: 9
   });
 });
 
@@ -108,6 +109,31 @@ test("queries the compact design diagnostic capsule", () => {
   assert.equal(capsule.stage, "review");
   assert.equal(capsule.claim_limit, "advisory");
   assert.match(capsule.prohibited.join(" "), /Run tests/);
+});
+
+test("queries a black-box intent route for ordinary Work", () => {
+  const route = queryCatalog(catalogs, "intent-routes", "implement");
+  assert.deepEqual(route, {
+    role: "developer",
+    stage: "produce",
+    default_requested_action: "modify",
+    work_path: "host-direct"
+  });
+  assert.equal(
+    queryCatalog(catalogs, "black-box-policy").cli_required_by_default,
+    false
+  );
+});
+
+test("rejects incomplete black-box routing policy", () => {
+  const incomplete = structuredClone(catalogs);
+  delete incomplete.executionProfiles.intent_routes.operate;
+  incomplete.executionProfiles.black_box_policy.cli_required_by_default = true;
+
+  const result = validateCatalogs(incomplete);
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join(" "), /intent route is missing: operate/);
+  assert.match(result.errors.join(" "), /black-box execution policy/);
 });
 
 test("bundled runtime schemas match the L4 Kernel envelope", () => {

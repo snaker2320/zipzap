@@ -79,6 +79,10 @@ function scopedSchemaRegistry(rootDir, relativePath) {
   return registry;
 }
 
+export function loadScopedSchemaDocuments(rootDir, relativePath) {
+  return scopedSchemaRegistry(rootDir, relativePath).documents;
+}
+
 export function validateSchemaFile(rootDir, relativePath, value) {
   const registry = scopedSchemaRegistry(rootDir, relativePath);
   const document = registry.documents.find(

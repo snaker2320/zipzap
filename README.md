@@ -17,6 +17,7 @@ The project is in active product and workflow design. Its current structure is:
 │   ├── control-functions.json     # L4 Coordinator and Advisor
 │   ├── modules.json               # Internal role, policy, and context modules
 │   ├── runtime-policy.json        # L4 gates, risks, events, lifecycle
+│   ├── execution-profiles.json    # Black-box intent routes and bounded profiles
 │   ├── risk-taxonomy.json         # L5 evidence-backed risk normalization
 │   ├── task-policy.json           # Local Task persistence and patch policy
 │   ├── onboarding.json            # Page and conversational preference form
@@ -88,6 +89,11 @@ node scripts/task.mjs describe watch
 node scripts/task.mjs validate --input task.json
 node scripts/task.mjs create --example
 ```
+
+Use ZipZap as a black box during ordinary Work. Run project work directly with
+Host tools; do not inspect CLI implementation source to discover usage. Query
+`catalog --kind intent-routes`, then use command help, examples, or a filtered
+`describe` only when a deterministic ZipZap capability is actually needed.
 
 Run an example directly with `--input`, such as
 `node scripts/zipzap.mjs evaluate --input examples/zipzap/evaluate.json`.

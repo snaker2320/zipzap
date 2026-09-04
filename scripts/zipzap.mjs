@@ -96,7 +96,13 @@ const ZIPZAP_COMMANDS = {
     summary: "Discover, configure, or refresh project collaboration.",
     usage: "initialize --input <file> [--compact]",
     schema: "schemas/l5-input.schema.json",
-    example: "examples/zipzap/initialize.json"
+    example: "examples/zipzap/initialize.json",
+    examples: [
+      {
+        path: "examples/zipzap/initialize-configure.json",
+        filters: { operation: "initialize", action: "configure" }
+      }
+    ]
   },
   "first-run": {
     summary: "Guide discovery, visible preferences, preview, and configuration.",
@@ -727,6 +733,46 @@ export function validateCatalogs(catalogs) {
       errors.push(`intent default is invalid: ${intent}`);
     }
   }
+  const requiredIntentRoutes = [
+    "diagnose",
+    "plan",
+    "implement",
+    "verify",
+    "accept",
+    "operate"
+  ];
+  const intentRoutes = executionProfiles.intent_routes ?? {};
+  for (const intent of requiredIntentRoutes) {
+    if (!intentRoutes[intent]) {
+      errors.push(`intent route is missing: ${intent}`);
+    }
+  }
+  for (const [intent, route] of Object.entries(intentRoutes)) {
+    const role = roles[route.role];
+    if (
+      !ID_PATTERN.test(intent) ||
+      !role?.stages?.[route.stage] ||
+      typeof route.default_requested_action !== "string" ||
+      route.default_requested_action.trim() === "" ||
+      route.work_path !== "host-direct" ||
+      (route.default_assurance_target != null &&
+        !executionProfiles.assurance_targets?.[route.default_assurance_target])
+    ) {
+      errors.push(`intent route is invalid: ${intent}`);
+    }
+  }
+  const blackBoxPolicy = executionProfiles.black_box_policy ?? {};
+  if (
+    blackBoxPolicy.ordinary_work_path !== "host-direct" ||
+    blackBoxPolicy.cli_required_by_default !== false ||
+    !Array.isArray(blackBoxPolicy.command_discovery_order) ||
+    blackBoxPolicy.command_discovery_order.join(",") !==
+      "help,example,describe" ||
+    !Array.isArray(blackBoxPolicy.inspect_runtime_source_only_for) ||
+    blackBoxPolicy.inspect_runtime_source_only_for.length === 0
+  ) {
+    errors.push("black-box execution policy is invalid");
+  }
   for (const [profileId, executionProfile] of Object.entries(
     executionProfiles.profiles ?? {}
   )) {
@@ -1135,6 +1181,7 @@ export function validateCatalogs(catalogs) {
       execution_profiles: Object.keys(
         executionProfiles.profiles ?? {}
       ).length,
+      intent_routes: Object.keys(intentRoutes).length,
       risk_signals: Object.keys(riskSignals).length,
       task_policies: Object.keys(taskPolicy.policies ?? {}).length,
       onboarding_questions: onboardingQuestionIds.size,
@@ -1297,6 +1344,8 @@ export function queryCatalog(
     "control-functions": catalogs.controlFunctions.control_functions,
     "runtime-policy": catalogs.runtimePolicy,
     "execution-profiles": catalogs.executionProfiles.profiles,
+    "intent-routes": catalogs.executionProfiles.intent_routes,
+    "black-box-policy": catalogs.executionProfiles.black_box_policy,
     experience: catalogs.experience,
     "risk-taxonomy": catalogs.riskTaxonomy.signals,
     "task-policy": catalogs.taskPolicy
@@ -1346,6 +1395,14 @@ export function queryCatalogAtRoot(
     "execution-profiles": {
       file: "execution-profiles.json",
       field: "profiles"
+    },
+    "intent-routes": {
+      file: "execution-profiles.json",
+      field: "intent_routes"
+    },
+    "black-box-policy": {
+      file: "execution-profiles.json",
+      field: "black_box_policy"
     },
     experience: { file: "experience.json", field: null },
     "risk-taxonomy": { file: "risk-taxonomy.json", field: "signals" },

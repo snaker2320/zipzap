@@ -2,7 +2,7 @@
   "schema_version": 1,
   "skill": {
     "name": "zipzap",
-    "current_version": "0.1.1-beta.6",
+    "current_version": "0.1.1-beta.7",
     "channel": "beta"
   },
   "package": {
@@ -116,6 +116,13 @@
         "l5": 2,
         "kernel": 2
       }
+    },
+    {
+      "version": "0.1.1-beta.7",
+      "interfaces": {
+        "l5": 2,
+        "kernel": 2
+      }
     }
   ],
   "migrations": [
@@ -129,6 +136,12 @@
       "id": "reinitialize-v2-project-state-from-beta-4",
       "from_version": "0.1.1-beta.4",
       "to_version": "0.1.1-beta.6",
+      "description": "Preserve project-owned state while upgrading directly from beta.4, then run Initialize to preview and confirm a new Manifest v2; no in-place or dual-read migration is available."
+    },
+    {
+      "id": "reinitialize-v2-project-state-from-beta-4-to-beta-7",
+      "from_version": "0.1.1-beta.4",
+      "to_version": "0.1.1-beta.7",
       "description": "Preserve project-owned state while upgrading directly from beta.4, then run Initialize to preview and confirm a new Manifest v2; no in-place or dual-read migration is available."
     }
   ],

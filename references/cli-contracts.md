@@ -17,6 +17,14 @@ node scripts/task.mjs describe
 node scripts/task.mjs describe watch
 ```
 
+Filtered descriptions project only the matching operation or action, a
+matching representative example when available, and the Schema closure needed
+by that command. Required fields report `required_scope`: `document` means
+required at the described Schema root, while `parent-present` means required
+only when its parent object exists. Fields with `required: false` are optional.
+Conditional rules may add requirements for the selected operation or action.
+An unfiltered description remains the exhaustive contract view.
+
 Do not maintain a second handwritten field table. Update command metadata,
 Schema, and representative examples, then let `describe` project the overview.
 

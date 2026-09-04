@@ -58,7 +58,47 @@ test("generated descriptions expose options and schema fields", () => {
   const invocation = JSON.parse(zipzap.stdout);
   assert.equal(invocation.command, "invoke");
   assert.equal(invocation.filters.operation, "execute");
-  assert.equal(invocation.input_contract.fields.some((field) => field.path === "request.operation"), true);
+  assert.equal(invocation.input_contract.projection, "filtered");
+  const describedFields = invocation.input_contract.fields.map(
+    (field) => field.path
+  );
+  assert.equal(describedFields.includes("request.operation"), true);
+  assert.equal(describedFields.includes("request.request.scope_depth"), true);
+  assert.equal(describedFields.includes("request.initialization"), false);
+  assert.equal(describedFields.includes("request.inspection"), false);
+  assert.equal(describedFields.includes("context.initialization"), false);
+  assert.equal(invocation.example.request.request.intent, "implement");
+
+  const full = run(zipzapScript, ["describe", "invoke", "--compact"]);
+  assert.equal(full.status, 0, full.stderr);
+  const fullInvocation = JSON.parse(full.stdout);
+  assert.equal(fullInvocation.input_contract.projection, "full");
+  assert.equal(
+    fullInvocation.input_contract.fields.some(
+      (field) => field.path === "request.initialization"
+    ),
+    true
+  );
+  assert.equal(zipzap.stdout.length < full.stdout.length / 2, true);
+
+  const configure = run(zipzapScript, [
+    "describe",
+    "initialize",
+    "--operation",
+    "initialize",
+    "--action",
+    "configure",
+    "--compact"
+  ]);
+  assert.equal(configure.status, 0, configure.stderr);
+  const configureDescription = JSON.parse(configure.stdout);
+  assert.equal(configureDescription.example.initialization.action, "configure");
+  assert.equal(
+    configureDescription.input_contract.fields.find(
+      (field) => field.path === "initialization.action"
+    ).required_scope,
+    "parent-present"
+  );
 
   const task = run(taskScript, ["describe", "watch", "--compact"]);
   assert.equal(task.status, 0, task.stderr);

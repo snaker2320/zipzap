@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { loadSchemaDocuments } from "./schema-registry.mjs";
+import { loadScopedSchemaDocuments } from "./schema-registry.mjs";
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -50,9 +50,13 @@ function flattenFields(node, current, resolve, prefix = "", depth = 0) {
   for (const [name, propertyNode] of Object.entries(value.properties ?? {})) {
     const property = resolve(propertyNode, resolved.current);
     const fieldPath = prefix ? `${prefix}.${name}` : name;
+    const isRequired = required.has(name);
     fields.push({
       path: fieldPath,
-      required: required.has(name),
+      required: isRequired,
+      ...(isRequired
+        ? { required_scope: prefix ? "parent-present" : "document" }
+        : {}),
       type: typeOf(property.node),
       ...(property.node.enum ? { enum: property.node.enum } : {}),
       ...(property.node.const !== undefined ? { const: property.node.const } : {}),
@@ -106,34 +110,59 @@ function requiredFields(node, current, resolve, prefix = "") {
   return fields;
 }
 
-function collectConditions(node, current, resolve, result = [], depth = 0) {
+function collectConditions(
+  node,
+  current,
+  resolve,
+  result = [],
+  depth = 0,
+  prefix = ""
+) {
   const resolved = resolve(node, current);
   const value = resolved.node;
   if (!value || depth > 8) return result;
   if (value.if && value.then) {
     result.push({
-      when: conditionFacts(value.if, resolved.current, resolve),
-      required: requiredFields(value.then, resolved.current, resolve),
-      fields: Object.keys(value.then.properties ?? {})
+      when: conditionFacts(value.if, resolved.current, resolve, prefix),
+      required: requiredFields(value.then, resolved.current, resolve, prefix),
+      fields: Object.keys(value.then.properties ?? {}).map((name) =>
+        prefix ? `${prefix}.${name}` : name
+      )
     });
   }
   for (const branch of value.oneOf ?? []) {
-    const when = conditionFacts(branch, resolved.current, resolve);
+    const when = conditionFacts(branch, resolved.current, resolve, prefix);
     if (Object.keys(when).length === 0) continue;
     result.push({
       ...(branch.title ? { title: branch.title } : {}),
       when,
-      required: requiredFields(branch, resolved.current, resolve),
-      fields: Object.keys(branch.properties ?? {})
+      required: requiredFields(branch, resolved.current, resolve, prefix),
+      fields: Object.keys(branch.properties ?? {}).map((name) =>
+        prefix ? `${prefix}.${name}` : name
+      )
     });
   }
   for (const key of ["allOf", "anyOf", "oneOf"]) {
     for (const child of value[key] ?? []) {
-      collectConditions(child, resolved.current, resolve, result, depth + 1);
+      collectConditions(
+        child,
+        resolved.current,
+        resolve,
+        result,
+        depth + 1,
+        prefix
+      );
     }
   }
-  for (const child of Object.values(value.properties ?? {})) {
-    collectConditions(child, resolved.current, resolve, result, depth + 1);
+  for (const [name, child] of Object.entries(value.properties ?? {})) {
+    collectConditions(
+      child,
+      resolved.current,
+      resolve,
+      result,
+      depth + 1,
+      prefix ? `${prefix}.${name}` : name
+    );
   }
   return result;
 }
@@ -146,25 +175,165 @@ function describedOptions(usage) {
   return options;
 }
 
-function filteredConditions(conditions, filters) {
-  const unique = [
+function expectedMatches(expected, value) {
+  return Array.isArray(expected) ? expected.includes(value) : expected === value;
+}
+
+function conditionFilterState(condition, filters) {
+  let addressed = false;
+  for (const [name, value] of Object.entries(filters)) {
+    if (value == null) continue;
+    const matchingFacts = Object.entries(condition.when).filter(
+      ([field]) => field === name || field.endsWith(`.${name}`)
+    );
+    if (matchingFacts.length === 0) continue;
+    addressed = true;
+    if (!matchingFacts.some(([, expected]) => expectedMatches(expected, value))) {
+      return "conflict";
+    }
+  }
+  return addressed ? "match" : "unrelated";
+}
+
+function uniqueConditions(conditions) {
+  return [
     ...new Map(
       conditions.map((condition) => [JSON.stringify(condition), condition])
     ).values()
   ];
-  const activeFilters = Object.entries(filters).filter(([, value]) => value != null);
-  if (activeFilters.length === 0) return unique;
-  return unique.filter((condition) =>
-    activeFilters.every(([name, value]) => {
-      const matchingFacts = Object.entries(condition.when).filter(
-        ([field]) => field === name || field.endsWith(`.${name}`)
-      );
-      if (matchingFacts.length === 0) return false;
-      return matchingFacts.some(([, expected]) =>
-        Array.isArray(expected) ? expected.includes(value) : expected === value
-      );
-    })
+}
+
+function filteredConditions(conditions, filters) {
+  const unique = uniqueConditions(conditions);
+  const activeFilters = Object.entries(filters).filter(
+    ([, value]) => value != null
   );
+  if (activeFilters.length === 0) return unique;
+  return unique.filter(
+    (condition) => conditionFilterState(condition, filters) === "match"
+  );
+}
+
+function collectValuePaths(value, prefix = "", result = new Set()) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectValuePaths(item, prefix, result);
+    return result;
+  }
+  if (!value || typeof value !== "object") return result;
+  for (const [name, child] of Object.entries(value)) {
+    const fieldPath = prefix ? `${prefix}.${name}` : name;
+    result.add(fieldPath);
+    collectValuePaths(child, fieldPath, result);
+  }
+  return result;
+}
+
+function filterValues(value, name, result = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) filterValues(item, name, result);
+    return result;
+  }
+  if (!value || typeof value !== "object") return result;
+  for (const [key, child] of Object.entries(value)) {
+    if (key === name) result.push(child);
+    filterValues(child, name, result);
+  }
+  return result;
+}
+
+function exampleMatchesFilters(example, filters) {
+  return Object.entries(filters)
+    .filter(([, value]) => value != null)
+    .every(([name, value]) => filterValues(example, name).includes(value));
+}
+
+function selectExample(metadata, rootDir, filters) {
+  const candidates = [
+    ...(metadata.example ? [{ path: metadata.example }] : []),
+    ...(metadata.examples ?? [])
+  ];
+  for (const candidate of candidates) {
+    const declaredFilters = candidate.filters ?? {};
+    const conflicts = Object.entries(filters).some(
+      ([name, value]) =>
+        value != null &&
+        declaredFilters[name] != null &&
+        declaredFilters[name] !== value
+    );
+    if (conflicts) continue;
+    const example = readJson(path.join(rootDir, candidate.path));
+    if (exampleMatchesFilters(example, filters)) {
+      return { path: candidate.path, value: example };
+    }
+  }
+  return null;
+}
+
+function pathRelated(path, target) {
+  return (
+    path === target ||
+    path.startsWith(`${target}.`) ||
+    target.startsWith(`${path}.`)
+  );
+}
+
+function focusFields(fields, conditions, filters, example) {
+  const activeFilters = Object.entries(filters).filter(
+    ([, value]) => value != null
+  );
+  if (activeFilters.length === 0) return fields;
+  const unique = uniqueConditions(conditions);
+  const selected = unique.filter(
+    (condition) => conditionFilterState(condition, filters) === "match"
+  );
+  const selectedPaths = new Set(
+    selected.flatMap((condition) => [
+      ...Object.keys(condition.when),
+      ...condition.required
+    ])
+  );
+  const conflictingPaths = new Set(
+    unique
+      .filter(
+        (condition) => conditionFilterState(condition, filters) === "conflict"
+      )
+      .flatMap((condition) => condition.required)
+      .filter(
+        (path) =>
+          ![...selectedPaths].some((selectedPath) =>
+            pathRelated(path, selectedPath)
+          )
+      )
+  );
+  const examplePaths = example ? collectValuePaths(example) : new Set();
+  return fields.filter((field) => {
+    const path = field.path;
+    if (
+      [...conflictingPaths].some(
+        (conflictingPath) =>
+          path === conflictingPath || path.startsWith(`${conflictingPath}.`)
+      )
+    ) {
+      return false;
+    }
+    if (
+      examplePaths.has(path) ||
+      [...examplePaths].some((examplePath) => examplePath.startsWith(`${path}.`))
+    ) {
+      return true;
+    }
+    if (
+      [...selectedPaths].some(
+        (selectedPath) =>
+          path === selectedPath ||
+          selectedPath.startsWith(`${path}.`) ||
+          (!example && path.startsWith(`${selectedPath}.`))
+      )
+    ) {
+      return true;
+    }
+    return field.required && !path.includes(".");
+  });
 }
 
 export function describeCommands({
@@ -184,7 +353,8 @@ export function describeCommands({
         usage: metadata.usage,
         schema: metadata.schema ?? null,
         output_schema: metadata.outputSchema ?? null,
-        example: metadata.example ?? null
+        example: metadata.example ?? null,
+        examples: (metadata.examples ?? []).map((candidate) => candidate.path)
       }))
     };
   }
@@ -202,26 +372,42 @@ export function describeCommands({
     options: describedOptions(metadata.usage),
     filters
   };
-  if (metadata.example) {
-    result.example = readJson(path.join(rootDir, metadata.example));
+  const selectedExample = selectExample(metadata, rootDir, filters);
+  const filteredExample = selectedExample?.value ?? null;
+  if (selectedExample) {
+    result.example_source = selectedExample.path;
+    result.example = selectedExample.value;
   }
   if (metadata.schema) {
-    const documents = loadSchemaDocuments(rootDir);
+    const documents = loadScopedSchemaDocuments(rootDir, metadata.schema);
     const document = documents.find(
       (candidate) => candidate.relativePath === metadata.schema
     );
     if (!document) throw new Error(`schema is unavailable: ${metadata.schema}`);
     const resolve = resolver(documents);
-    const fields = flattenFields(document.schema, document.schema, resolve);
+    const conditions = collectConditions(
+      document.schema,
+      document.schema,
+      resolve
+    );
+    const fields = focusFields(
+      flattenFields(document.schema, document.schema, resolve),
+      conditions,
+      filters,
+      filteredExample
+    );
     result.input_contract = {
       schema: metadata.schema,
       title: document.schema.title ?? null,
       required: document.schema.required ?? [],
       fields,
       conditional_rules: filteredConditions(
-        collectConditions(document.schema, document.schema, resolve),
+        conditions,
         filters
-      )
+      ),
+      projection: Object.values(filters).some((value) => value != null)
+        ? "filtered"
+        : "full"
     };
     result.selected_parameters = Object.entries(filters)
       .filter(([, value]) => value != null)
@@ -238,7 +424,7 @@ export function describeCommands({
       }));
   }
   if (metadata.outputSchema) {
-    const documents = loadSchemaDocuments(rootDir);
+    const documents = loadScopedSchemaDocuments(rootDir, metadata.outputSchema);
     const document = documents.find(
       (candidate) => candidate.relativePath === metadata.outputSchema
     );

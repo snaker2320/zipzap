@@ -4,7 +4,9 @@
     "schema_version": 2,
     "operation": "execute",
     "request": {
-      "intent": "Change the requested behavior.",
+      "intent": "implement",
+      "scope_depth": "targeted-implementation",
+      "assurance_target": "self-review",
       "objective": "Deliver a bounded verified outcome.",
       "scope": [
         "example component"
@@ -31,7 +33,9 @@
           "schema_version": 2,
           "operation": "execute",
           "request": {
-            "intent": "Change the requested behavior.",
+            "intent": "implement",
+            "scope_depth": "targeted-implementation",
+            "assurance_target": "self-review",
             "objective": "Deliver a bounded verified outcome.",
             "scope": [
               "example component"
