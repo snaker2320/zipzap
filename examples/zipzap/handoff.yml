@@ -1,0 +1,11 @@
+schema_version: 1
+project:
+  locator: .
+base: HEAD~1
+status: partial
+summary: Describe the bounded delivery and remaining work.
+verification:
+  - command: npm test
+    status: passed
+standards:
+  - standards/delivery/git.md

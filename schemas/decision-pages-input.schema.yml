@@ -1,0 +1,30 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://zipzap.local/schemas/decision-pages-input.schema.yml
+title: Decision form paging input
+type: object
+additionalProperties: false
+required: [schema_version, host, questions]
+properties:
+  schema_version: { const: 1 }
+  page_size: { type: integer, minimum: 1, maximum: 3 }
+  host:
+    type: object
+    additionalProperties: false
+    required: [request_user_input]
+    properties:
+      request_user_input:
+        type: object
+        additionalProperties: false
+        required: [callable]
+        properties:
+          callable: { type: boolean }
+          max_questions: { type: integer, minimum: 1, maximum: 3 }
+  questions:
+    type: array
+    items:
+      type: object
+      additionalProperties: true
+      required: [id, question]
+      properties:
+        id: { type: string, pattern: "^[a-z0-9]+(?:_[a-z0-9]+)*$" }
+        question: { type: string, minLength: 1 }

@@ -1,0 +1,23 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://zipzap.local/schemas/standards-initialization-input.schema.yml
+title: Standards initialization input
+type: object
+additionalProperties: false
+required: [schema_version, action, project]
+properties:
+  schema_version: { const: 1 }
+  action: { enum: [preview, apply] }
+  strategy: { enum: [keep, configure, reorganize, rebuild] }
+  project:
+    type: object
+    additionalProperties: false
+    required: [locator]
+    properties:
+      locator: { type: string, minLength: 1 }
+  confirmation:
+    type: object
+    additionalProperties: false
+    required: [preview_fingerprint]
+    properties:
+      preview_fingerprint: { type: string, pattern: "^sha256:[a-f0-9]{64}$" }
+  cache_root: { type: string, minLength: 1 }

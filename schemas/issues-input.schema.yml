@@ -1,0 +1,21 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://zipzap.local/schemas/issues-input.schema.yml
+title: 问题项 consolidation input
+type: object
+additionalProperties: false
+required: [schema_version, issues]
+properties:
+  schema_version: { const: 1 }
+  issues:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [fingerprint, checkpoint, title, severity]
+      properties:
+        fingerprint: { type: string, minLength: 1 }
+        checkpoint: { type: string, minLength: 1 }
+        title: { type: string, minLength: 1 }
+        severity: { enum: [low, medium, high] }
+        bootstrap_gap: { type: boolean }
+        standard_target: { type: string, pattern: "^standards/(foundation|engineering|quality|delivery|governance)/.+\\.md$" }

@@ -1,0 +1,41 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://zipzap.local/schemas/handoff-input.schema.yml
+title: Git Checkpoint Handoff input
+type: object
+additionalProperties: false
+required: [schema_version, project]
+properties:
+  schema_version: { const: 1 }
+  project:
+    type: object
+    additionalProperties: false
+    required: [locator]
+    properties:
+      locator: { type: string, minLength: 1 }
+  base: { type: string, minLength: 1 }
+  head: { type: string, minLength: 1 }
+  subject: { type: string, minLength: 1 }
+  status: { enum: [complete, partial, blocked] }
+  summary: { type: string, minLength: 1 }
+  verification:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [command, status]
+      properties:
+        command: { type: string, minLength: 1 }
+        status: { enum: [passed, failed, not-run] }
+  issues:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [severity, title]
+      properties:
+        severity: { enum: [low, medium, high] }
+        title: { type: string, minLength: 1 }
+  standards:
+    type: array
+    items: { type: string, pattern: "^standards/.+\\.md$" }
+    uniqueItems: true

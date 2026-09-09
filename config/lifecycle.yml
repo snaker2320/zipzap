@@ -1,0 +1,53 @@
+schema_version: 1
+skill:
+  name: zipzap
+  version: 0.2.0-beta.1
+  channel: beta
+package:
+  format: zipzap-skill-directory
+  include_roots:
+    - SKILL.md
+    - agents/openai.yaml
+    - config
+    - examples
+    - schemas
+    - scripts
+    - references
+  required_files:
+    - SKILL.md
+    - agents/openai.yaml
+    - scripts/zipzap.mjs
+    - config/compatibility.yml
+    - config/lifecycle.yml
+    - config/workflow.yml
+    - schemas/standards-initialization-input.schema.yml
+    - schemas/standards-route-input.schema.yml
+    - schemas/gate-input.schema.yml
+    - schemas/loop-input.schema.yml
+    - schemas/issues-input.schema.yml
+    - schemas/handoff-input.schema.yml
+    - schemas/decision-pages-input.schema.yml
+    - schemas/legacy-cleanup-input.schema.yml
+    - schemas/release-manifest.schema.yml
+    - schemas/lifecycle-input.schema.yml
+runtime_dependencies: []
+release_gates:
+  - catalog-valid
+  - tests-pass
+  - schema-valid
+  - skill-valid
+  - diff-check
+migrations:
+  - id: remove-task-and-project-state
+    from_version: 0.1.1-beta.7
+    to_version: 0.2.0-beta.1
+    description: Preview and confirm deletion of obsolete .zipzap Task state, then initialize standards/ and use Git Checkpoint Handoff.
+policies:
+  breaking_upgrade: true
+  installer_managed_mutation: true
+  installation_does_not_initialize_project: true
+  legacy_cleanup_requires_exact_preview_confirmation: true
+  project_runtime_state_is_not_committed: true
+  installed_artifact_self_contained: true
+  npm_publication_forbidden: true
+  source_release_requires_clean_git: true

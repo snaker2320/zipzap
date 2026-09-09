@@ -1,0 +1,11 @@
+schema_version: 1
+risk: medium
+mutates_files: true
+claims_completion: true
+evidence:
+  - id: scope-understood
+    status: passed
+    evidence_ref: standards route
+  - id: verification-passed
+    status: passed
+    evidence_ref: npm test

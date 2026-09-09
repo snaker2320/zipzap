@@ -1,0 +1,41 @@
+schema_version: 1
+standards:
+  root: standards/
+  categories:
+    - foundation
+    - engineering
+    - quality
+    - delivery
+    - governance
+  routing: standard-paths-with-optional-yaml-frontmatter
+  loading: whole-file
+gates:
+  built_in:
+    - scope-understood
+    - human-authorized
+    - verification-passed
+    - independent-review-passed
+loops:
+  types:
+    - work
+    - feedback
+    - maintenance
+  model_correction_limit: 1
+  high_risk_failure: stop-immediately
+  deterministic_script_rerun: does-not-consume-model-correction
+feedback:
+  user_label: 问题项
+  machine_field: issues
+  promote_after_independent_checkpoints: 2
+  high_risk_may_promote_on_first_occurrence: true
+  database: forbidden
+  agents_md_auto_edit: forbidden
+  update_strategy: merge-or-revise-existing-rule
+handoff:
+  source: git-checkpoint
+  effective_commit: head
+  range: base..HEAD
+  structured_trailer: ZipZap-Handoff
+cache:
+  root: user-cache
+  isolation: repository-and-worktree-fingerprint

@@ -3,23 +3,21 @@ import path from "node:path";
 
 import Ajv2020 from "ajv/dist/2020.js";
 
+import { readData, resolveDataFile } from "./data-files.mjs";
+
 const registryCache = new Map();
 const scopedRegistryCache = new Map();
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
-}
 
 export function loadSchemaDocuments(rootDir) {
   const resolvedRoot = path.resolve(rootDir);
   const schemaDir = path.join(resolvedRoot, "schemas");
   return fs
     .readdirSync(schemaDir)
-    .filter((name) => name.endsWith(".schema.json"))
+    .filter((name) => /\.schema\.(?:json|ya?ml)$/.test(name))
     .sort()
     .map((name) => ({
       relativePath: `schemas/${name}`,
-      schema: readJson(path.join(schemaDir, name))
+      schema: readData(path.join(schemaDir, name))
     }));
 }
 
@@ -61,8 +59,10 @@ function scopedSchemaRegistry(rootDir, relativePath) {
   const load = (candidatePath) => {
     const normalized = candidatePath.split(path.sep).join("/");
     if (documents.has(normalized)) return;
-    const schema = readJson(path.join(resolvedRoot, normalized));
-    documents.set(normalized, { relativePath: normalized, schema });
+    const actualPath = resolveDataFile(resolvedRoot, normalized);
+    const actualRelative = path.relative(resolvedRoot, actualPath).split(path.sep).join("/");
+    const schema = readData(actualPath);
+    documents.set(normalized, { relativePath: normalized, actualPath: actualRelative, schema });
     for (const reference of externalRefs(schema)) {
       load(path.join(path.dirname(normalized), reference));
     }

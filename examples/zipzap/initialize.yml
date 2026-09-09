@@ -1,0 +1,5 @@
+schema_version: 1
+action: preview
+strategy: configure
+project:
+  locator: .

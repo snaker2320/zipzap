@@ -1,6 +1,6 @@
 {
   "name": "zipzap-skill",
-  "version": "0.1.1-beta.7",
+  "version": "0.2.0-beta.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,7 +15,8 @@
   "devDependencies": {
     "ajv": "^8.17.1",
     "commander": "^14.0.1",
-    "esbuild": "^0.25.9"
+    "esbuild": "^0.25.9",
+    "yaml": "^2.9.0"
   },
   "engines": {
     "node": ">=20"

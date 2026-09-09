@@ -1,221 +1,77 @@
 ---
 name: zipzap
-description: Run low-friction, role-based human-AI collaboration with project-rule routing, risk-proportionate Solo, Copilot, Trio, or Squad execution, compact context, evidence-backed completion, and Git-shareable local Tasks. Use when Codex needs to initialize collaboration, diagnose an existing design, implement or verify work, conduct self or independent Review, manage Findings and handoffs, assess completion, report exact resource use, or package, install, upgrade, roll back, and publish ZipZap.
+description: Run Git-native AI development with routed project standards, built-in gates, bounded feedback loops, deduplicated problem items, and structured multi-commit handoffs. Use for standards initialization, governed implementation or review, recurring feedback, Git Handoff, and ZipZap lifecycle work; do not use as a project tracker.
 ---
 
 # ZipZap
 
-Run work with explicit authority, minimal context, proportionate assurance, and
-truthful evidence. Treat `config/*.json` and `schemas/*.json` as machine authority.
-Load only the reference needed for the current decision.
+ZipZap is a collaboration control plane, not a project tracker. Do not create a ZipZap Task or project-local runtime database. Git records durable delivery and Handoff facts; ephemeral loop state belongs in the user cache, isolated by repository and worktree fingerprint.
 
-## Keep Three Visible Actions
+## Route before acting
 
-Expose only:
+For project work, inspect `AGENTS.md` and route project standards with:
 
-1. **Initialize**: register project rules and confirm preferences.
-2. **Work**: start or continue the requested outcome.
-3. **Complete**: verify evidence and make an accurate claim.
-
-Keep internal layers hidden unless the user requests diagnostics. Read [the unified
-machine interface](references/skill-interface.md) only when implementing that boundary.
-
-## Use ZipZap as a Black Box
-
-- For ordinary Work, use the Host's normal file, shell, browser, and connector
-  tools directly. A ZipZap CLI call is not required by default.
-- Do not open `scripts/zipzap.mjs`, `scripts/task.mjs`, bundled entrypoints, or
-  `scripts/lib/` merely to learn how to use ZipZap. Inspect runtime source only
-  when the user asks to debug or change ZipZap itself.
-- When an intent route is unclear, query the compact `intent-routes` catalog.
-  When a command shape is unclear, use `--help`, then `--example`, then a
-  filtered `describe`; do not infer it from implementation code.
-- Run relative CLI examples from the Skill root containing this file; do not
-  search the project or runtime source to locate their entrypoints.
-- Invoke a CLI only for its declared deterministic or persistent capability,
-  such as initialization, source resolution, risk normalization, Task state,
-  lifecycle control, or contract diagnostics.
-
-## Stay Unobtrusive
-
-- Start ordinary bounded work ephemerally with automatic team selection.
-- Use Solo Developer Produce for small reversible implementation work.
-- Do not create a Task, ask for preferences, or request a status decision when defaults suffice.
-- Keep a ready action silent and report useful progress without asking.
-- Interrupt only for material ambiguity, authority, approval, unsafe or irreversible
-  action, missing governing sources, or an unmet gate.
-- Ask one concise question for one accountable decision.
-- At a critical checkpoint, emit structured Decision Bundles. Group related choices
-  for one authority; split different authorities.
-- Persist only for continuity, coordination, approval, tracking, durable Findings,
-  auditability, or project policy.
-
-Read [the execution policy](references/execution-policy.md) for persistence,
-assurance, or gates, and [Decision Forms](references/decision-forms.md) for choices.
-
-## Stop for Accountable Decisions
-
-After every First Run, onboarding, risk-normalization, L4, or L5 call, inspect
-`decision_interaction` before doing anything else.
-
-1. If `must_pause` is `false`, continue normally.
-2. If `must_pause` is `true`, render the referenced `decision_bundles`, stop
-   execution, and wait for the required authority's answer.
-3. Resume only after mapping the answer to the stable bundle, question,
-   option, authority, and state-revision IDs.
-
-Use a native choice form only when the host provides it; Plan mode is not required.
-Otherwise ask one accountable question at a time and validate option IDs in text,
-including multi-select. Never infer an answer, write, or launch multiple Agent
-contexts while `must_pause` is `true`.
-
-When **Initialize** is requested and `.zipzap/project.json` is absent, start First
-Run. Present its choices and final preview before the single write. Treat
-`multi-agent-authorization-required` as a hard gate; team selection is not authorization.
-
-## Route Work by Outcome
-
-Classify Work as `diagnose`, `plan`, `implement`, `verify`, `accept`, or `operate`.
-When unclear, query the six compact routes without loading runtime source:
-
-```bash
-node scripts/zipzap.mjs catalog --kind intent-routes --compact
+```sh
+node scripts/zipzap.mjs standards --action route --input <request.yml> --compact
 ```
 
-Use structured request facts when available:
+Load each selected file in full. Standard locations under `standards/` need no routing configuration. YAML frontmatter is only for exceptional applicability, priority, risk, or authority metadata. If no rule matches, load `standards/foundation/project.md` when present and ask only for the missing decision.
 
-```json
-{
-  "intent": "diagnose",
-  "scope_depth": "design-only",
-  "assurance_target": "advisory"
-}
-```
+Read only the ZipZap reference needed for the active operation:
 
-Separate:
+- initialization or restructuring: `references/standards.md`;
+- work, review, verification, or feedback: `references/gates-and-loops.md`;
+- Git transfer or recovery: `references/git-handoff.md`;
+- user decisions and native forms: `references/decision-forms.md`;
+- package install, upgrade, rollback, or release: `references/lifecycle.md`.
 
-- subject risk, which selects what to inspect;
-- current-action risk, which selects safety controls and persistence;
-- assurance target, which selects topology, gates, and allowed claims.
+## Initialize standards
 
-Route implementation to Developer Produce, verification to Tester Verify, diagnosis
-to Reviewer Review, and acceptance to Product Accept. Default `accept` to formal
-acceptance; advisory intent never suppresses actual action risk.
+Initialization is preview-first. If a valid `standards/` structure exists, default `configure` resolves to `keep` and skips restructuring. Otherwise guide the user among:
 
-For `diagnose + design-only + advisory|self-review`, use `design-diagnostic`: Solo
-Reviewer, read-only, ephemeral, no tests or Task, bounded sources, advisory output.
-For ordinary diagnosis query its capsule only; do not load its reference. Load
-[Design Diagnostic Review](references/design-diagnostic.md) only when the user
-explicitly requests the detailed contract or an audit, or the capsule lacks a required field.
+- `configure`: create only project-relevant starter assets;
+- `reorganize`: classify existing `conventions/` or `docs/standards/` documents into the five standard categories;
+- `rebuild`: generate a fresh relevant structure, backing up overwritten standards in the user cache.
 
-Assess every risk signal with evidence. For a design diagnostic, label each
-classified signal `subject`, `action`, or `both`; apply formal effects only to
-current-action risk. Let deterministic normalization derive policy.
+The categories are `foundation`, `engineering`, `quality`, `delivery`, and `governance`. Do not mechanically create every possible file. Show the preview, unresolved collisions, exact writes/moves, and fingerprint before applying it. Never overwrite an existing `AGENTS.md` automatically.
 
-## Preserve Core Invariants
+## Run the bounded loop
 
-- Separate Product, Developer, Tester, and Reviewer roles from named Agent
-  Profiles.
-- Treat Solo, Copilot, Trio, and Squad as logical topologies, not concurrency
-  counts.
-- Let personalization change presentation only, never authority, risk, gates,
-  evidence, or independence.
-- Keep project rules at their source of truth; register locators and never
-  copy governing content into ZipZap state.
-- Ship one modular Kernel package. Module boundaries are internal; do not add
-  an external role-plugin loader, marketplace, installer, or dependency solver.
-- Keep Product, Developer, Tester, and Reviewer authority fixed. Project
-  Capability Profiles may add evidence-backed facts and source locators, never
-  authority, executable hooks, or copied rule prose.
-- Never call sequential self-review independent Review.
-- Never claim approval, host capability, satisfied gates, completion, or
-  production readiness without cited evidence.
-- Require explicit authorization before using multiple Agent contexts.
+Use one of three built-in loops:
 
-Read [the operating model](references/operating-model.md) only for authority disputes,
-design changes, or audits. Read [roles](references/role-catalog.md), [Agent Profiles](references/agent-catalog.md),
-[teams](references/team-catalog.md), or [control functions](references/control-functions.md)
-only when selecting, authoring, or auditing those definitions.
+- Work Loop for framing, producing, verifying, reviewing, and completing a delivery;
+- Feedback Loop for turning observed problem items into bounded corrections or standards proposals;
+- Maintenance Loop for checking and repairing standards quality.
 
-## Load the Smallest Sufficient Context
+All loops use the same Gate and Git Checkpoint rules. Token efficiency is the first optimization boundary: allow the initial attempt plus at most one automatic model correction. If the second model result fails, stop with evidence and escalate. A high-risk gate failure stops immediately. Cheap deterministic checks may rerun without spending the model-correction allowance.
 
-Compose one runtime view from:
+Gate types and algorithms are built in. Project standards may define applicability, verification commands, high-risk areas, and human authority, but may not redefine gate semantics or bypass a failed gate.
+
+## Consolidate feedback
+
+Call user-facing review defects “问题项”; use `issues` in machine fields. Group equivalent observations by stable fingerprint. Two independent Git Checkpoints may propose a standards improvement; a high-risk problem item may propose one on first occurrence.
+
+Do not create a feedback database or append-only history. Do not auto-edit `AGENTS.md`. Prefer merging or revising the narrowest existing standard and suppress duplicate prose. Only a repeated bootstrap-routing gap may propose a minimal, human-reviewed `AGENTS.md` revision. A proposal is never self-approval.
+
+## Handoff through Git
+
+Use `base..HEAD` as the complete multi-commit delivery range. The final effective commit must contain exactly one each of:
 
 ```text
-profile capsule + role or control overlay + current stage
-+ triggered policy + matching project-capability facts and rule fragments
-+ work, evidence, Findings, handoff, and exit gate
+ZipZap-Handoff: 1
+ZipZap-Base: <full-commit-sha>
+ZipZap-Status: complete|partial|blocked
+ZipZap-Summary: <bounded summary>
 ```
 
-Locate before reading. Expand the smallest relevant range only when evidence is
-insufficient, and treat truncation as incomplete. Query compact definitions through `catalog`:
+Add repeatable `ZipZap-Verify`, `ZipZap-Issue`, and `ZipZap-Standard` trailers as needed. Run `handoff --action prepare` before the final commit or amend. If another commit is added later, regenerate and amend the new final commit. The receiver runs `handoff --action inspect` and validates commit availability, ancestry, full changed-file range, evidence, remaining issues, and worktree state.
 
-```bash
-node scripts/zipzap.mjs catalog \
-  --kind execution-profiles \
-  --id design-diagnostic \
-  --section capsule
-```
+## Ask decisions through the host
 
-Read [the context router](references/context-router.md) for source loading,
-budgets, and projection details.
+First detect whether `request_user_input` is callable in the current host and mode. When callable, use the native form in pages of two or three questions, never more than three. Preserve one atomic decision bundle: collect every page before mutating state. When the tool is unavailable, use the projected stepwise text fallback. Tool availability is host- and mode-specific; do not claim native form support from catalog metadata alone.
 
-For Work with a project locator, hydrate only confirmed registrations from
-Manifest v2, match profiles by current role, stage, action, component, and
-affected file, and project their bounded facts plus authoritative source
-locators. A stale profile may be rebuilt only as an in-memory overlay with a
-Refresh recommendation; ordinary Work never writes `.zipzap/capabilities/`.
+## Lifecycle
 
-When Work authors business or development-design documentation, read [Business and
-Development Documentation](references/business-documentation.md). Preserve coherent
-routes, one active design entry point, exact business headings, and a confirmed
-maintenance preview. Do not load it for other Work.
+Installed artifacts are bundled and must not run `npm install`. Upgrading from the Task-based release is destructive: first preview every obsolete `.zipzap/` file, count, and byte size; show that the deletion is unrecoverable; require the exact current fingerprint; then delete it. Initialize `standards/` separately after package installation.
 
-## Initialize, Persist, and Complete Selectively
-
-Discover sources and profiles read-only, preview, then write confirmed registration
-to `.zipzap/project.json` and validated profiles to
-`.zipzap/capabilities/<capability-id>.json`. Only Initialize and Refresh write shared
-profiles. Keep installation separate. Read
-[project initialization](references/project-initialization.md), [onboarding](references/onboarding.md),
-or [First Run](references/first-run.md) only for those flows.
-
-Run Rule Doctor only after an explicit user request. Initialization, source
-refresh, ordinary Work, and file changes never trigger it. Diagnosis provides
-advice and migration previews only; an ignore remains silent while its
-evidence versions are unchanged.
-
-Treat the repository's Maven and Gradle profiling as local proof of the
-pipeline, not as generic Java authority. Load Java requirements only when the
-concrete project declares and registers them.
-
-Manifest, L5, Kernel, and runtime contracts are v2 only. For v1 state or input,
-return `migration-required` and require Initialize discovery, preview, and
-confirmation; never rewrite automatically. Independent Task, First Run, onboarding,
-lifecycle, Host capability, and Rule Doctor records retain v1.
-
-Keep persistent state under `.zipzap/`, outside the installed Skill. Use
-`scripts/task.mjs` only for a justified Task. Git is candidate evidence, not
-completion. Persist Review snapshots with current artifact versions and independence.
-Record token counts only from exact host telemetry; otherwise record unavailable.
-
-Read [Task integration](references/task-integration.md) before Task mutation, Git
-tracking, persistent Review, reporting, feedback, or usage. Read [CLI contracts and
-progress](references/cli-contracts.md) only for command discovery or Host integration.
-
-Complete with outcomes, evidence, actual test and Review coverage, Finding
-dispositions, approvals, residual risk, limitations, and continuation state.
-Use precise labels such as `implemented`, `tested`, `self-reviewed`,
-`independently-reviewed`, or `accepted-by-user`.
-
-## Adapt and Distribute
-
-Use the Host Capability Matrix for Multi-Agent contexts, guided forms, exact token
-telemetry, Goal budgeting, Node acceleration, and project state with explicit
-fallbacks. Missing Node never weakens semantics. Read [Host
-capabilities](references/host-capabilities.md) only when adapting a host.
-
-Run installed commands only from bundled `dist/skill`; never run `npm install` there.
-Source dependencies are allowed only when locked, audited, and bundled at build time.
-Let the installer own authorized mutation and backup, preserve project `.zipzap/`
-state, and read [lifecycle control](references/lifecycle.md) only for distribution work.
+Never claim tests, review, acceptance, release readiness, push, or publication without recorded evidence.

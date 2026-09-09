@@ -1,0 +1,35 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://zipzap.local/schemas/lifecycle-input.schema.yml
+title: ZipZap lifecycle input
+type: object
+additionalProperties: false
+required: [schema_version, operation]
+properties:
+  schema_version: { const: 1 }
+  operation: { enum: [build-release, verify-release, publish, install, upgrade, verify-upgrade, rollback] }
+  target_version: { type: string }
+  installed_version: { type: string }
+  release_manifest: { $ref: ./release-manifest.schema.yml }
+  evidence:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [gate, status, evidence_ref]
+      properties:
+        gate: { type: string }
+        status: { const: passed }
+        evidence_ref: { type: string }
+  host_conformance:
+    type: object
+    additionalProperties: true
+    required: [compatible]
+    properties:
+      compatible: { type: boolean }
+  project:
+    type: object
+    additionalProperties: false
+    required: [locator]
+    properties:
+      locator: { type: string, minLength: 1 }
+  backup_available: { type: boolean }

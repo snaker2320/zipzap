@@ -1,0 +1,24 @@
+schema_version: 1
+interfaces:
+  workflow:
+    current: 1
+  handoff:
+    current: 1
+host_features:
+  required:
+    - project-read
+    - git-read
+    - json-read
+  optional:
+    - project-write
+    - script-execution
+    - request-user-input
+decision_forms:
+  native_max_questions: 3
+  fallback: stepwise-text
+  availability: host-and-mode-specific
+policies:
+  no_governance_downgrade: true
+  no_false_independence_claims: true
+  same_contracts_for_json_and_yml_input: true
+  dynamic_output_format: json

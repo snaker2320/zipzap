@@ -1,0 +1,24 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://zipzap.local/schemas/standards-route-input.schema.yml
+title: Standards route input
+type: object
+additionalProperties: false
+required: [schema_version, project]
+properties:
+  schema_version: { const: 1 }
+  project:
+    type: object
+    additionalProperties: false
+    required: [locator]
+    properties:
+      locator: { type: string, minLength: 1 }
+  context:
+    type: object
+    additionalProperties: false
+    properties:
+      action: { type: string, minLength: 1 }
+      risk: { enum: [low, medium, high] }
+      paths:
+        type: array
+        items: { type: string, minLength: 1 }
+        uniqueItems: true

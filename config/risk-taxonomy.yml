@@ -1,0 +1,132 @@
+schema_version: 1
+signals:
+  ambiguous-material-requirements:
+    effects:
+      persistence_required: false
+      required_evidence:
+        - resolved-requirement-decision
+      required_gates:
+        - peer-challenge
+      requires_approval:
+        - product-or-domain-owner
+      risk_flags: []
+    summary: Material behavior or acceptance criteria remain ambiguous and different interpretations
+      have meaningful consequences.
+  authority-or-external-communication:
+    effects:
+      persistence_required: true
+      required_evidence:
+        - authorized-decision
+      required_gates:
+        - second-context
+      requires_approval:
+        - authorized-human
+      risk_flags: []
+    summary: The work sends external communication or requires credentials, authority, risk acceptance,
+      or a binding human decision.
+  difficult-to-reverse:
+    effects:
+      persistence_required: true
+      required_evidence:
+        - rollback-or-recovery-plan
+      required_gates: []
+      requires_approval: []
+      risk_flags:
+        - difficult-to-reverse
+    summary: Recovery is costly, uncertain, slow, or requires coordinated migration or repair.
+  external-user-impact:
+    effects:
+      persistence_required: true
+      required_evidence:
+        - user-impact-validation
+      required_gates:
+        - independent-testing-from-developer
+        - independent-review-from-developer
+      requires_approval: []
+      risk_flags: []
+    summary: The work changes externally visible behavior or can materially affect users.
+  financial-impact:
+    effects:
+      persistence_required: true
+      required_evidence:
+        - financial-calculation-tests
+        - reconciliation-evidence
+      required_gates:
+        - independent-testing-from-developer
+        - independent-review-from-developer
+        - reviewer-independent-from-tester
+      requires_approval:
+        - business-or-financial-owner
+      risk_flags: []
+    summary: The work can change monetary values, settlement, billing, limits, accounting, or financial
+      decisions.
+  privacy-or-regulated-data:
+    effects:
+      persistence_required: true
+      required_evidence:
+        - data-scope
+        - privacy-or-compliance-validation
+      required_gates: []
+      requires_approval:
+        - data-owner-or-compliance
+      risk_flags:
+        - regulated-data
+    summary: The work accesses, changes, exposes, or governs personal, confidential, or regulated data.
+  production-destructive:
+    effects:
+      persistence_required: true
+      required_evidence:
+        - recovery-plan
+        - rollback-or-restore-evidence
+      required_gates: []
+      requires_approval:
+        - production-owner
+      risk_flags:
+        - production-destructive
+    summary: The requested action can delete, overwrite, corrupt, or irreversibly mutate production state.
+  security-critical:
+    effects:
+      persistence_required: true
+      required_evidence:
+        - threat-analysis
+        - security-tests
+      required_gates: []
+      requires_approval:
+        - security-owner
+      risk_flags:
+        - security-critical
+    summary: The work affects authentication, authorization, secrets, trust boundaries, or exploitable
+      security behavior.
+  shared-interface-or-migration:
+    effects:
+      persistence_required: true
+      required_evidence:
+        - compatibility-tests
+        - migration-and-rollback-plan
+      required_gates: []
+      requires_approval: []
+      risk_flags:
+        - difficult-to-reverse
+    summary: The work changes a shared contract, schema, protocol, migration, or broad dependency surface.
+  unfamiliar-technology:
+    effects:
+      persistence_required: false
+      required_evidence:
+        - technology-specific-validation
+      required_gates:
+        - peer-challenge
+        - independent-testing-from-developer
+      requires_approval: []
+      risk_flags: []
+    summary: The active executor lacks reliable experience or project evidence for the affected technology.
+  weak-or-missing-verification:
+    effects:
+      persistence_required: false
+      required_evidence:
+        - proportionate-test-plan
+      required_gates:
+        - independent-testing-from-developer
+        - independent-review-from-developer
+      requires_approval: []
+      risk_flags: []
+    summary: Objective validation is absent, unreliable, or does not cover the affected behavior.

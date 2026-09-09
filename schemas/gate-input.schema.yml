@@ -1,0 +1,28 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://zipzap.local/schemas/gate-input.schema.yml
+title: Built-in gate input
+type: object
+additionalProperties: false
+required: [schema_version]
+properties:
+  schema_version: { const: 1 }
+  gate: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+  risk: { enum: [low, medium, high] }
+  mutates_files: { type: boolean }
+  destructive: { type: boolean }
+  external_effect: { type: boolean }
+  claims_completion: { type: boolean }
+  required_checks:
+    type: array
+    items: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+    uniqueItems: true
+  evidence:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [id, status]
+      properties:
+        id: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        status: { enum: [passed, failed, not-run] }
+        evidence_ref: { type: string }

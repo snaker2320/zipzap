@@ -1,0 +1,21 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://zipzap.local/schemas/loop-input.schema.yml
+title: Loop transition input
+type: object
+additionalProperties: false
+required: [schema_version, loop, loop_id, project, gate]
+properties:
+  schema_version: { const: 1 }
+  loop: { enum: [work, feedback, maintenance] }
+  loop_id: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+  project:
+    type: object
+    additionalProperties: false
+    required: [locator]
+    properties:
+      locator: { type: string, minLength: 1 }
+  attempt: { type: integer, minimum: 0 }
+  event: { enum: [evaluate, model-correction, deterministic-rerun] }
+  persist: { type: boolean }
+  cache_root: { type: string, minLength: 1 }
+  gate: { $ref: ./gate-input.schema.yml }

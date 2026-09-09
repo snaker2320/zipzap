@@ -1,0 +1,17 @@
+schema_version: 1
+loop: work
+loop_id: example-work
+project:
+  locator: .
+attempt: 0
+event: evaluate
+persist: false
+gate:
+  schema_version: 1
+  risk: medium
+  mutates_files: true
+  claims_completion: true
+  evidence:
+    - id: scope-understood
+      status: passed
+      evidence_ref: standards route

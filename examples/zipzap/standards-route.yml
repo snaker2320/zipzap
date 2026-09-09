@@ -1,0 +1,8 @@
+schema_version: 1
+project:
+  locator: .
+context:
+  action: implement
+  risk: medium
+  paths:
+    - scripts/zipzap.mjs

@@ -179,8 +179,7 @@ function collectTarEntries(skillRoot) {
 export function createSkillArchive(skillRoot, archivePath) {
   for (const required of [
     "SKILL.md",
-    "scripts/zipzap.mjs",
-    "scripts/task.mjs"
+    "scripts/zipzap.mjs"
   ]) {
     if (!fs.existsSync(path.join(skillRoot, required))) {
       throw new Error(`release Skill is missing ${required}`);
@@ -254,10 +253,10 @@ function builtReleasePlan() {
     { capture: true }
   );
   const result = JSON.parse(output);
-  if (!result.allowed || !result.release_manifest) {
-    throw new Error("built Skill did not produce an allowed release manifest");
+  if (result.skill?.name !== "zipzap" || !Array.isArray(result.files)) {
+    throw new Error("built Skill did not produce a release manifest");
   }
-  return result.release_manifest;
+  return result;
 }
 
 function publishAssessment(manifest) {

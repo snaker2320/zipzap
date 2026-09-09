@@ -8,6 +8,14 @@ import process from "node:process";
 import { Command } from "commander";
 
 import { buildSkill } from "./build.mjs";
+import {
+  applyLegacyCleanup,
+  previewLegacyCleanup
+} from "./lib/legacy-cleanup.mjs";
+import {
+  applyStandardsInitialization,
+  planStandardsInitialization
+} from "./lib/standards.mjs";
 
 function safeTarget(target) {
   const resolved = path.resolve(target);
@@ -27,15 +35,36 @@ async function main() {
     .description("Build and install only the dist/skill artifact.")
     .option("--target <dir>", "installation directory", path.join(codexRoot, "skills", "zipzap"))
     .option("--skip-build", "reuse the existing dist/skill artifact")
+    .option("--artifact <dir>", "explicit prebuilt Skill artifact")
+    .option("--project <dir>", "project to inspect for standards initialization")
+    .option(
+      "--standards <mode>",
+      "standards mode: auto, skip, configure, reorganize, or rebuild",
+      "auto"
+    )
+    .option(
+      "--standards-confirm <fingerprint>",
+      "apply the selected standards preview with its exact fingerprint"
+    )
+    .option(
+      "--legacy-confirm <fingerprint>",
+      "delete obsolete project .zipzap state with its exact fingerprint"
+    )
     .parse(process.argv);
   const options = program.opts();
-  const buildResult = options.skipBuild
+  const buildResult = options.artifact
     ? {
-        artifact_root: path.resolve("dist/skill"),
+        artifact_root: path.resolve(options.artifact),
         bundled: true,
         runtime_package_install_required: false
       }
-    : await buildSkill();
+    : options.skipBuild
+      ? {
+          artifact_root: path.resolve("dist/skill"),
+          bundled: true,
+          runtime_package_install_required: false
+        }
+      : await buildSkill();
   const artifactRoot = path.resolve(buildResult.artifact_root);
   if (!fs.existsSync(path.join(artifactRoot, "SKILL.md"))) {
     throw new Error(`built Skill artifact is unavailable: ${artifactRoot}`);
@@ -64,13 +93,60 @@ async function main() {
   } finally {
     fs.rmSync(staging, { recursive: true, force: true });
   }
+  let projectMigration = null;
+  if (options.project) {
+    const projectRoot = path.resolve(options.project);
+    const allowedModes = new Set([
+      "auto",
+      "skip",
+      "configure",
+      "reorganize",
+      "rebuild"
+    ]);
+    if (!allowedModes.has(options.standards)) {
+      throw new Error(`unsupported standards mode: ${options.standards}`);
+    }
+    const legacyPreview = previewLegacyCleanup(projectRoot);
+    const legacy = options.legacyConfirm
+      ? applyLegacyCleanup({
+          project: { locator: projectRoot },
+          confirmation: {
+            preview_fingerprint: options.legacyConfirm
+          }
+        })
+      : legacyPreview;
+    let standards = { skipped: true, reason: "standards mode is skip" };
+    if (options.standards !== "skip") {
+      const initialization = {
+        schema_version: 1,
+        action: options.standardsConfirm ? "apply" : "preview",
+        strategy: options.standards === "auto" ? "configure" : options.standards,
+        project: { locator: projectRoot }
+      };
+      const planned = planStandardsInitialization(initialization);
+      standards = options.standardsConfirm
+        ? applyStandardsInitialization({
+            ...initialization,
+            confirmation: {
+              preview_fingerprint: options.standardsConfirm
+            }
+          })
+        : planned.preview;
+    }
+    projectMigration = {
+      project: projectRoot,
+      legacy,
+      standards
+    };
+  }
   process.stdout.write(
     `${JSON.stringify({
       schema_version: 1,
       installed_from: artifactRoot,
       installed_to: target,
       backup: backupCreated ? backup : null,
-      runtime_package_install_required: false
+      runtime_package_install_required: false,
+      project_migration: projectMigration
     }, null, 2)}\n`
   );
 }

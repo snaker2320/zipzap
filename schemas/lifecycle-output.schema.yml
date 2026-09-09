@@ -1,0 +1,13 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://zipzap.local/schemas/lifecycle-output.schema.yml
+title: ZipZap lifecycle output
+type: object
+additionalProperties: true
+required: [schema_version, operation, status, allowed, checks, required_actions]
+properties:
+  schema_version: { const: 1 }
+  operation: { type: string }
+  status: { enum: [ready, blocked] }
+  allowed: { type: boolean }
+  checks: { type: array }
+  required_actions: { type: array }

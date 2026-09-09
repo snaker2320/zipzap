@@ -1,0 +1,12 @@
+schema_version: 1
+issues:
+  - fingerprint: missing-api-contract
+    checkpoint: abc123
+    title: API contract is incomplete
+    severity: medium
+    standard_target: standards/engineering/api.md
+  - fingerprint: missing-api-contract
+    checkpoint: def456
+    title: API contract is incomplete
+    severity: medium
+    standard_target: standards/engineering/api.md

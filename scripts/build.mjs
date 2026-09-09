@@ -35,8 +35,7 @@ export async function buildSkill() {
   copyStaticRoots();
   await build({
     entryPoints: {
-      zipzap: path.join(ROOT_DIR, "scripts", "zipzap.mjs"),
-      task: path.join(ROOT_DIR, "scripts", "task.mjs")
+      zipzap: path.join(ROOT_DIR, "scripts", "zipzap.mjs")
     },
     outdir: path.join(DIST_ROOT, "scripts"),
     outExtension: { ".js": ".mjs" },
@@ -52,14 +51,14 @@ export async function buildSkill() {
     sourcemap: false,
     logLevel: "silent"
   });
-  for (const name of ["zipzap.mjs", "task.mjs"]) {
+  for (const name of ["zipzap.mjs"]) {
     fs.chmodSync(path.join(DIST_ROOT, "scripts", name), 0o755);
   }
   return {
     schema_version: 1,
     source_root: ROOT_DIR,
     artifact_root: DIST_ROOT,
-    entrypoints: ["scripts/zipzap.mjs", "scripts/task.mjs"],
+    entrypoints: ["scripts/zipzap.mjs"],
     bundled: true,
     runtime_package_install_required: false
   };

@@ -1,0 +1,46 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://zipzap.local/schemas/release-manifest.schema.yml
+title: ZipZap release manifest
+type: object
+additionalProperties: false
+required: [schema_version, skill, package_format, interfaces, catalogs, runtime_dependencies, release_requirements, files]
+properties:
+  schema_version: { const: 1 }
+  skill:
+    type: object
+    additionalProperties: false
+    required: [name, version, channel]
+    properties:
+      name: { const: zipzap }
+      version: { type: string, pattern: "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$" }
+      channel: { enum: [development, alpha, beta, rc, stable] }
+  package_format: { const: zipzap-skill-directory }
+  interfaces:
+    type: object
+    additionalProperties: false
+    required: [workflow, handoff]
+    properties:
+      workflow: { type: integer, minimum: 1 }
+      handoff: { type: integer, minimum: 1 }
+  catalogs:
+    type: object
+    minProperties: 1
+    additionalProperties: { type: integer, minimum: 1 }
+  runtime_dependencies:
+    type: array
+    items: { type: string }
+  release_requirements:
+    type: array
+    items: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+    uniqueItems: true
+  files:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      additionalProperties: false
+      required: [path, sha256, size]
+      properties:
+        path: { type: string, minLength: 1 }
+        sha256: { type: string, pattern: "^[a-f0-9]{64}$" }
+        size: { type: integer, minimum: 0 }
