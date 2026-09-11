@@ -35,6 +35,21 @@ properties:
       properties:
         severity: { enum: [low, medium, high] }
         title: { type: string, minLength: 1 }
+        fingerprint: { type: string, minLength: 1 }
+        checkpoint:
+          type: string
+          minLength: 1
+          description: Accepted from a source issue; inspection rebinds it to the containing commit SHA.
+        status: { enum: [open, resolved, closed] }
+        return_stage: { enum: [plan, design, build, test, deploy, maintain] }
+        verification_ref: { type: string, minLength: 1 }
+      allOf:
+        - if:
+            properties:
+              status: { const: closed }
+            required: [status]
+          then:
+            required: [verification_ref]
   standards:
     type: array
     items: { type: string, pattern: "^standards/.+\\.md$" }

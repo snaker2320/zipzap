@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 const SHA_PATTERN = /^[a-f0-9]{40}$/;
+const ISSUE_STATUSES = new Set(["open", "resolved", "closed"]);
+const SDLC_STAGES = new Set(["plan", "design", "build", "test", "deploy", "maintain"]);
 
 function git(projectRoot, args, options = {}) {
   try {
@@ -84,10 +86,74 @@ function parseVerification(value) {
   return { command: value.slice(0, split), status };
 }
 
-function parseIssue(value) {
+function parseIssue(value, checkpoint = null) {
+  const fields = value.split(/\s+\|\s+/);
+  if (fields[0] === "1") {
+    if (fields.length < 7) throw new Error(`invalid structured ZipZap-Issue trailer: ${value}`);
+    const [version, severity, status, returnStage, fingerprint, verification, ...titleParts] = fields;
+    const title = titleParts.join(" | ");
+    if (
+      version !== "1" ||
+      !["low", "medium", "high"].includes(severity) ||
+      !ISSUE_STATUSES.has(status) ||
+      !SDLC_STAGES.has(returnStage) ||
+      !fingerprint ||
+      fingerprint === "-" ||
+      !title
+    ) {
+      throw new Error(`invalid structured ZipZap-Issue trailer: ${value}`);
+    }
+    const verificationRef = verification === "-" ? null : verification;
+    if (status === "closed" && !verificationRef) {
+      throw new Error(`closed ZipZap-Issue requires verification_ref: ${fingerprint}`);
+    }
+    return {
+      severity,
+      title,
+      fingerprint,
+      ...(checkpoint ? { checkpoint } : {}),
+      status,
+      return_stage: returnStage,
+      ...(verificationRef ? { verification_ref: verificationRef } : {})
+    };
+  }
   const match = value.match(/^(low|medium|high)\s+\|\s+(.+)$/);
   if (!match) throw new Error(`invalid ZipZap-Issue trailer: ${value}`);
   return { severity: match[1], title: match[2] };
+}
+
+function formatIssue(issue) {
+  const richFields = [
+    "fingerprint",
+    "status",
+    "return_stage",
+    "verification_ref"
+  ];
+  const structured = richFields.some((key) => issue[key] !== undefined);
+  if (structured) {
+    for (const key of ["fingerprint", "status", "return_stage"]) {
+      if (!issue[key]) throw new Error(`structured ZipZap-Issue requires ${key}`);
+    }
+    for (const [key, field] of [
+      ["fingerprint", issue.fingerprint],
+      ["verification_ref", issue.verification_ref]
+    ]) {
+      if (field?.includes("|")) throw new Error(`ZipZap-Issue ${key} cannot contain |`);
+    }
+  }
+  const value = structured
+    ? [
+        "1",
+        issue.severity,
+        issue.status,
+        issue.return_stage,
+        issue.fingerprint,
+        issue.verification_ref ?? "-",
+        issue.title
+      ].join(" | ")
+    : `${issue.severity} | ${issue.title}`;
+  parseIssue(value);
+  return value;
 }
 
 export function inspectGitHandoff(input) {
@@ -117,7 +183,7 @@ export function inspectGitHandoff(input) {
     commits: rangeCommits,
     files: changedFiles(projectRoot, base, head),
     verification: (metadata.get("ZipZap-Verify") ?? []).map(parseVerification),
-    issues: (metadata.get("ZipZap-Issue") ?? []).map(parseIssue),
+    issues: (metadata.get("ZipZap-Issue") ?? []).map((value) => parseIssue(value, head)),
     standards: metadata.get("ZipZap-Standard") ?? [],
     receiver_checks: {
       head_available: true,
@@ -146,7 +212,7 @@ export function prepareGitHandoff(input) {
     lines.push(`ZipZap-Verify: ${verification.command} => ${verification.status}`);
   }
   for (const issue of input.issues ?? []) {
-    lines.push(`ZipZap-Issue: ${issue.severity} | ${issue.title}`);
+    lines.push(`ZipZap-Issue: ${formatIssue(issue)}`);
   }
   for (const standard of input.standards ?? []) lines.push(`ZipZap-Standard: ${standard}`);
   return {

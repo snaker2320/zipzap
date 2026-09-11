@@ -1,0 +1,17 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://zipzap.local/schemas/delivery-output.schema.yml
+title: Project build and non-production deploy result
+type: object
+additionalProperties: true
+required: [schema_version, operation, status, allowed, environment, checks, issues, next_actions]
+properties:
+  schema_version: { const: 1 }
+  operation: { enum: [plan, assess] }
+  status: { enum: [ready, passed, blocked] }
+  allowed: { type: boolean }
+  environment:
+    type: object
+    required: [kind, target, shared]
+  checks: { type: array }
+  issues: { type: array }
+  next_actions: { type: array }

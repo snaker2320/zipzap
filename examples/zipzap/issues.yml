@@ -4,9 +4,13 @@ issues:
     checkpoint: abc123
     title: API contract is incomplete
     severity: medium
+    status: open
+    return_stage: design
     standard_target: standards/engineering/api.md
   - fingerprint: missing-api-contract
     checkpoint: def456
     title: API contract is incomplete
     severity: medium
+    status: resolved
+    return_stage: design
     standard_target: standards/engineering/api.md

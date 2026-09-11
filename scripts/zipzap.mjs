@@ -10,6 +10,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 
 import { parseMetadataCli } from "./lib/cli.mjs";
 import { parseData, readData } from "./lib/data-files.mjs";
+import { assessDelivery, planDelivery } from "./lib/delivery.mjs";
 import { projectDecisionPages } from "./lib/decision-pages.mjs";
 import { inspectGitHandoff, prepareGitHandoff } from "./lib/git-handoff.mjs";
 import { applyLegacyCleanup, previewLegacyCleanup } from "./lib/legacy-cleanup.mjs";
@@ -64,13 +65,19 @@ export const ZIPZAP_COMMANDS = {
     example: "examples/zipzap/gate.yml"
   },
   loop: {
-    summary: "Advance Work, Feedback, or Maintenance Loop with one model correction maximum.",
+    summary: "Advance stage-aware Work, Feedback, or Maintenance with one model correction maximum.",
     usage: "loop --input <json-or-yml> [--action <advance|status>] [--compact]",
     schema: "schemas/loop-input.schema.yml",
     example: "examples/zipzap/loop.yml"
   },
+  delivery: {
+    summary: "Plan or assess project-owned Build and non-production Deploy commands.",
+    usage: "delivery --input <json-or-yml> [--action <plan|assess>] [--compact]",
+    schema: "schemas/delivery-input.schema.yml",
+    example: "examples/zipzap/delivery.yml"
+  },
   issues: {
-    summary: "Deduplicate 问题项 and propose bounded standards improvements.",
+    summary: "Track 问题项 closure, deduplicate feedback, and propose bounded standards improvements.",
     usage: "issues --input <json-or-yml> [--compact]",
     schema: "schemas/issues-input.schema.yml",
     example: "examples/zipzap/issues.yml"
@@ -250,7 +257,8 @@ export function buildReleaseManifest(rootDir = DEFAULT_ROOT) {
     package_format: lifecycle.package.format,
     interfaces: {
       workflow: compatibility.interfaces.workflow.current,
-      handoff: compatibility.interfaces.handoff.current
+      handoff: compatibility.interfaces.handoff.current,
+      delivery: compatibility.interfaces.delivery.current
     },
     catalogs: Object.fromEntries(
       Object.entries(catalogs).map(([name, value]) => [name, value.schema_version])
@@ -401,12 +409,24 @@ function executeCommand(options, rootDir) {
       ? discoverStandards(input.project.locator)
       : routeStandards(input);
   }
-  if (command === "gate") return evaluateGate(input);
+  if (command === "gate") {
+    return evaluateGate(input, loadCatalogs(rootDir)["risk-taxonomy"]);
+  }
+  if (command === "delivery") {
+    const action = options.action ?? "plan";
+    if (!new Set(["plan", "assess"]).has(action)) {
+      throw new Error(`unsupported delivery action: ${action}`);
+    }
+    const catalog = loadCatalogs(rootDir).delivery;
+    return action === "assess"
+      ? assessDelivery(input, catalog)
+      : planDelivery(input, catalog);
+  }
   if (command === "loop") {
     if (options.action === "status") {
       return readLoopState(input.project.locator, input.cache_root);
     }
-    const result = advanceLoop(input);
+    const result = advanceLoop(input, loadCatalogs(rootDir)["risk-taxonomy"]);
     return {
       ...result,
       cache_locator:

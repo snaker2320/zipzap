@@ -23,4 +23,15 @@ test("CLI accepts YML input and emits JSON", () => {
     execute(["gate", "--input", "examples/zipzap/gate.yml", "--compact"])
   );
   assert.equal(output.allowed, true);
+  assert.equal(output.collaboration.selected_mode, "solo");
+  assert.equal(output.collaboration.decision_required, false);
+});
+
+test("CLI exposes delivery planning without executing project commands", () => {
+  const output = JSON.parse(
+    execute(["delivery", "--action", "plan", "--input", "examples/zipzap/delivery.yml", "--compact"])
+  );
+  assert.equal(output.operation, "plan");
+  assert.equal(output.allowed, true);
+  assert.equal(output.environment.kind, "development");
 });

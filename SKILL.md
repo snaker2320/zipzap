@@ -21,6 +21,7 @@ Read only the ZipZap reference needed for the active operation:
 
 - initialization or restructuring: `references/standards.md`;
 - work, review, verification, or feedback: `references/gates-and-loops.md`;
+- project Build or development/test Deploy: `references/delivery.md`;
 - Git transfer or recovery: `references/git-handoff.md`;
 - user decisions and native forms: `references/decision-forms.md`;
 - package install, upgrade, rollback, or release: `references/lifecycle.md`.
@@ -45,11 +46,48 @@ Use one of three built-in loops:
 
 All loops use the same Gate and Git Checkpoint rules. Token efficiency is the first optimization boundary: allow the initial attempt plus at most one automatic model correction. If the second model result fails, stop with evidence and escalate. A high-risk gate failure stops immediately. Cheap deterministic checks may rerun without spending the model-correction allowance.
 
-Gate types and algorithms are built in. Project standards may define applicability, verification commands, high-risk areas, and human authority, but may not redefine gate semantics or bypass a failed gate.
+Gate types and algorithms are built in. Project standards may define applicability, verification commands, high-risk areas, and human authority, but may not redefine gate semantics or bypass a failed gate. The Agent records signals for the current action; subject risk only routes context. The built-in taxonomy may raise, never lower, the declared action risk and adds its evidence, approval, testing, and review checks. A passed check needs a source reference, and Loop exit evidence must bind the current stage commit. Scope and authorization are entry checks; verification and independent review are exit checks, so a failed stage can enter Feedback without claiming completion.
+
+At the start of new Work, derive the collaboration mode from the normalized current-action Gate:
+
+- default silently to Solo when no second context or independent assurance is required;
+- recommend Copilot for peer challenge or a second context;
+- recommend Trio when testing or review must be separate from development;
+- recommend Squad for high risk or when testing and review must also be separate.
+
+Continue immediately for the Solo default. Before launching a multi-Agent mode, pause once for a human
+choice among modes that satisfy the Gate. Put each mode's reason directly in its option label and prefix
+only the recommended option with `[推荐]`; do not repeat the rationale as separate prose. Carry the
+selection through Work, Feedback, and Maintenance. Ask again only after a material scope, risk, or Gate
+requirement change, or when the user explicitly requests another mode.
+
+For an SDLC delivery, advance the Work Loop through `plan`, `design`, `build`, `test`, `deploy`,
+and `maintain`. The default path is forward, while an explicit valid `next_stage` may return to an
+earlier stage. Work advances only with an artifact for the current stage bound to a Git commit; a Build
+artifact also carries its SHA-256. Carry evidence and problem items in the Loop result; Git Checkpoints
+remain the durable audit trail. `outcome: complete` closes the current Loop step only;
+`workflow_complete: true` means no next Loop or stage remains.
+
+The Deploy stage must consume a passed `delivery --action assess` result. A blocked assessment enters
+the Feedback Loop at the issue's `return_stage`. Feedback moves problem items through `open`,
+`resolved`, and `closed`; closing requires current `verification_ref`. Only a repeated standards
+proposal enters Maintenance, and a proposal must be human-reviewed before the Agent applies it.
+
+## Build and deploy through project adapters
+
+Use `delivery --action plan` to discover project-owned command candidates and validate an explicit
+mapping for Build and development/test Deploy. Discovery is guidance, never executable authority.
+Prefer existing package, Make, `devctl`, Compose, or project scripts; do not create wrapper scripts
+when a stable command is sufficient.
+
+The Agent executes confirmed commands directly through the Host. ZipZap does not execute commands
+from a delivery input. Use `delivery --action assess` to require artifact, command, target, readiness,
+Smoke, rollback availability, and authorization evidence as applicable. Production deployment is
+outside this contract. Read `references/delivery.md` before planning or assessing these stages.
 
 ## Consolidate feedback
 
-Call user-facing review defects “问题项”; use `issues` in machine fields. Group equivalent observations by stable fingerprint. Two independent Git Checkpoints may propose a standards improvement; a high-risk problem item may propose one on first occurrence.
+Call user-facing review defects “问题项”; use `issues` in machine fields. Group equivalent observations by stable fingerprint. Preserve `checkpoint`, `status`, `return_stage`, and closure `verification_ref` so Feedback can resume and close the issue truthfully. Two independent Git Checkpoints may propose a standards improvement; a high-risk problem item may propose one on first occurrence.
 
 Do not create a feedback database or append-only history. Do not auto-edit `AGENTS.md`. Prefer merging or revising the narrowest existing standard and suppress duplicate prose. Only a repeated bootstrap-routing gap may propose a minimal, human-reviewed `AGENTS.md` revision. A proposal is never self-approval.
 
@@ -64,7 +102,13 @@ ZipZap-Status: complete|partial|blocked
 ZipZap-Summary: <bounded summary>
 ```
 
-Add repeatable `ZipZap-Verify`, `ZipZap-Issue`, and `ZipZap-Standard` trailers as needed. Run `handoff --action prepare` before the final commit or amend. If another commit is added later, regenerate and amend the new final commit. The receiver runs `handoff --action inspect` and validates commit availability, ancestry, full changed-file range, evidence, remaining issues, and worktree state.
+Add repeatable `ZipZap-Verify`, `ZipZap-Issue`, and `ZipZap-Standard` trailers as needed. Rich
+`ZipZap-Issue` values preserve the Feedback fingerprint, status, return stage, and verification
+reference in compact versioned fields; inspection derives the checkpoint from the containing commit.
+The legacy severity/title form remains readable. Run
+`handoff --action prepare` before the final commit or amend. If another commit is added later,
+regenerate and amend the new final commit. The receiver runs `handoff --action inspect` and validates
+commit availability, ancestry, full changed-file range, evidence, remaining issues, and worktree state.
 
 ## Ask decisions through the host
 

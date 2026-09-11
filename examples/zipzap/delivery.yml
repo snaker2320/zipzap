@@ -1,0 +1,20 @@
+schema_version: 1
+project:
+  locator: .
+environment:
+  kind: development
+  target: local
+  shared: false
+commands:
+  build.execute:
+    command: npm run build
+    source: standards/engineering/node.md
+  build.verify-artifact:
+    command: npm run test:dist
+    source: standards/quality/testing.md
+  deploy.apply:
+    command: npm run install:local -- --target /tmp/zipzap-example
+    source: references/delivery.md
+  deploy.probe:
+    command: node /tmp/zipzap-example/scripts/zipzap.mjs validate --compact
+    source: references/delivery.md

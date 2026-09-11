@@ -8,10 +8,34 @@ properties:
   schema_version: { const: 1 }
   gate: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
   risk: { enum: [low, medium, high] }
+  signals:
+    type: array
+    items:
+      enum:
+        - ambiguous-material-requirements
+        - authority-or-external-communication
+        - difficult-to-reverse
+        - external-user-impact
+        - financial-impact
+        - privacy-or-regulated-data
+        - production-destructive
+        - security-critical
+        - shared-interface-or-migration
+        - unfamiliar-technology
+        - weak-or-missing-verification
+    uniqueItems: true
   mutates_files: { type: boolean }
   destructive: { type: boolean }
   external_effect: { type: boolean }
   claims_completion: { type: boolean }
+  collaboration:
+    type: object
+    additionalProperties: false
+    required: [mode, actor, evidence_ref]
+    properties:
+      mode: { enum: [solo, copilot, trio, squad] }
+      actor: { type: string, minLength: 1 }
+      evidence_ref: { type: string, minLength: 1 }
   required_checks:
     type: array
     items: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
@@ -25,4 +49,14 @@ properties:
       properties:
         id: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
         status: { enum: [passed, failed, not-run] }
-        evidence_ref: { type: string }
+        evidence_ref: { type: string, minLength: 1 }
+        commit_sha: { type: string, pattern: "^[a-f0-9]{40}$" }
+        actor: { type: string, minLength: 1 }
+        role: { enum: [developer, tester, reviewer, product, human] }
+      allOf:
+        - if:
+            properties:
+              status: { const: passed }
+            required: [status]
+          then:
+            required: [evidence_ref]

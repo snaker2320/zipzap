@@ -32,7 +32,8 @@ test("final structured commit describes the full multi-commit handoff range", (c
     base,
     status: "complete",
     summary: "Two coherent commits",
-    verification: [{ command: "npm test", status: "passed" }]
+    verification: [{ command: "npm test", status: "passed" }],
+    issues: [{ severity: "low", title: "Legacy issue" }]
   });
   fs.writeFileSync(path.join(root, "message.txt"), prepared.commit_message);
   git(root, "commit", "--amend", "-qF", "message.txt");
@@ -41,4 +42,45 @@ test("final structured commit describes the full multi-commit handoff range", (c
   assert.equal(inspected.commits.length, 2);
   assert.deepEqual(inspected.files.map((item) => item.path).sort(), ["one.txt", "two.txt"]);
   assert.equal(inspected.verification[0].status, "passed");
+  assert.deepEqual(inspected.issues, [{ severity: "low", title: "Legacy issue" }]);
+});
+
+test("structured issue trailers preserve feedback identity and closure state", (context) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-handoff-issue-"));
+  context.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  git(root, "init", "-q");
+  git(root, "config", "user.email", "zipzap@example.test");
+  git(root, "config", "user.name", "ZipZap Test");
+  fs.writeFileSync(path.join(root, "base.txt"), "base\n");
+  git(root, "add", "base.txt");
+  git(root, "commit", "-qm", "base");
+  const base = git(root, "rev-parse", "HEAD");
+  fs.writeFileSync(path.join(root, "fix.txt"), "fix\n");
+  git(root, "add", "fix.txt");
+  git(root, "commit", "-qm", "fix: probe");
+  const issue = {
+    severity: "medium",
+    title: "Deployment probe failed",
+    fingerprint: "delivery:deploy.probe:evidence-failed",
+    checkpoint: "checkpoint-a",
+    status: "closed",
+    return_stage: "deploy",
+    verification_ref: "host:probe-rerun"
+  };
+  const prepared = prepareGitHandoff({
+    project: { locator: root },
+    base,
+    status: "complete",
+    summary: "Probe fixed and reverified",
+    issues: [issue]
+  });
+  assert.match(
+    prepared.commit_message,
+    /ZipZap-Issue: 1 \| medium \| closed \| deploy \| delivery:deploy\.probe:evidence-failed \| host:probe-rerun \| Deployment probe failed/
+  );
+  fs.writeFileSync(path.join(root, "message.txt"), prepared.commit_message);
+  git(root, "commit", "--amend", "-qF", "message.txt");
+  fs.unlinkSync(path.join(root, "message.txt"));
+  const inspected = inspectGitHandoff({ project: { locator: root } });
+  assert.deepEqual(inspected.issues, [{ ...issue, checkpoint: inspected.head }]);
 });

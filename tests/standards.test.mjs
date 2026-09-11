@@ -14,6 +14,7 @@ test("initialization previews and confirms only relevant standards assets", (con
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-standards-"));
   context.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.writeFileSync(path.join(root, "package.json"), "{}\n");
+  fs.writeFileSync(path.join(root, "Dockerfile"), "FROM scratch\n");
   fs.mkdirSync(path.join(root, ".git"));
   const input = {
     schema_version: 1,
@@ -25,6 +26,8 @@ test("initialization previews and confirms only relevant standards assets", (con
   const { preview } = planStandardsInitialization(input);
   assert.equal(preview.requires_confirmation, true);
   assert.ok(preview.operations.some((item) => item.target === "standards/engineering/node.md"));
+  assert.ok(preview.operations.some((item) => item.target === "standards/engineering/build.md"));
+  assert.ok(preview.operations.some((item) => item.target === "standards/delivery/deployment.md"));
   assert.ok(!preview.operations.some((item) => item.target === "standards/engineering/java.md"));
   assert.throws(() => applyStandardsInitialization({ ...input, action: "apply" }), /preview_fingerprint/);
   const applied = applyStandardsInitialization({
@@ -34,6 +37,8 @@ test("initialization previews and confirms only relevant standards assets", (con
   });
   assert.equal(applied.applied, true);
   assert.equal(fs.existsSync(path.join(root, "standards", "engineering", "node.md")), true);
+  assert.equal(fs.existsSync(path.join(root, "standards", "engineering", "build.md")), true);
+  assert.equal(fs.existsSync(path.join(root, "standards", "delivery", "deployment.md")), true);
   assert.equal(fs.existsSync(path.join(root, ".zipzap")), false);
 });
 

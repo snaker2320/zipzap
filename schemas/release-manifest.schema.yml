@@ -18,10 +18,11 @@ properties:
   interfaces:
     type: object
     additionalProperties: false
-    required: [workflow, handoff]
+    required: [workflow, handoff, delivery]
     properties:
       workflow: { type: integer, minimum: 1 }
       handoff: { type: integer, minimum: 1 }
+      delivery: { type: integer, minimum: 1 }
   catalogs:
     type: object
     minProperties: 1

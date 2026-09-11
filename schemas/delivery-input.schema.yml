@@ -1,0 +1,83 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://zipzap.local/schemas/delivery-input.schema.yml
+title: Project build and non-production deploy input
+type: object
+additionalProperties: false
+required: [schema_version, project, environment]
+properties:
+  schema_version: { const: 1 }
+  project:
+    type: object
+    additionalProperties: false
+    required: [locator]
+    properties:
+      locator: { type: string, minLength: 1 }
+  environment:
+    type: object
+    additionalProperties: false
+    required: [kind, target]
+    properties:
+      kind: { enum: [development, test] }
+      target: { type: string, minLength: 1 }
+      shared: { type: boolean }
+  commands:
+    type: object
+    additionalProperties: false
+    properties:
+      build.execute: { $ref: "#/$defs/command" }
+      build.verify-artifact: { $ref: "#/$defs/command" }
+      deploy.precheck: { $ref: "#/$defs/command" }
+      deploy.apply: { $ref: "#/$defs/command" }
+      deploy.probe: { $ref: "#/$defs/command" }
+      deploy.smoke: { $ref: "#/$defs/command" }
+      deploy.diagnose: { $ref: "#/$defs/command" }
+      deploy.rollback: { $ref: "#/$defs/command" }
+  artifact:
+    type: object
+    additionalProperties: false
+    required: [locator, commit_sha, sha256]
+    properties:
+      locator: { type: string, minLength: 1 }
+      commit_sha: { type: string, pattern: "^[a-f0-9]{40}$" }
+      sha256: { type: string, pattern: "^sha256:[a-f0-9]{64}$" }
+  evidence:
+    type: object
+    additionalProperties: false
+    properties:
+      build.execute: { $ref: "#/$defs/evidence" }
+      build.verify-artifact: { $ref: "#/$defs/evidence" }
+      deploy.precheck: { $ref: "#/$defs/evidence" }
+      deploy.apply: { $ref: "#/$defs/evidence" }
+      deploy.probe: { $ref: "#/$defs/evidence" }
+      deploy.smoke: { $ref: "#/$defs/evidence" }
+      deploy.diagnose: { $ref: "#/$defs/evidence" }
+      deploy.rollback: { $ref: "#/$defs/evidence" }
+  authorization:
+    type: object
+    additionalProperties: false
+    required: [status, evidence_ref]
+    properties:
+      status: { const: passed }
+      evidence_ref: { type: string, minLength: 1 }
+  checkpoint: { type: string, minLength: 1 }
+$defs:
+  command:
+    type: object
+    additionalProperties: false
+    required: [command]
+    properties:
+      command: { type: string, minLength: 1 }
+      cwd: { type: string, minLength: 1 }
+      source: { type: string, minLength: 1 }
+      timeout_seconds: { type: integer, minimum: 1 }
+      destructive: { type: boolean }
+  evidence:
+    type: object
+    additionalProperties: false
+    required: [status, command, evidence_ref, artifact_sha256]
+    properties:
+      status: { enum: [passed, failed, not-run] }
+      command: { type: string, minLength: 1 }
+      evidence_ref: { type: string, minLength: 1 }
+      artifact_sha256: { type: string, pattern: "^sha256:[a-f0-9]{64}$" }
+      target: { type: string, minLength: 1 }

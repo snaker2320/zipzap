@@ -1,6 +1,7 @@
 schema_version: 1
 signals:
   ambiguous-material-requirements:
+    risk: medium
     effects:
       persistence_required: false
       required_evidence:
@@ -13,6 +14,7 @@ signals:
     summary: Material behavior or acceptance criteria remain ambiguous and different interpretations
       have meaningful consequences.
   authority-or-external-communication:
+    risk: medium
     effects:
       persistence_required: true
       required_evidence:
@@ -25,6 +27,7 @@ signals:
     summary: The work sends external communication or requires credentials, authority, risk acceptance,
       or a binding human decision.
   difficult-to-reverse:
+    risk: high
     effects:
       persistence_required: true
       required_evidence:
@@ -35,6 +38,7 @@ signals:
         - difficult-to-reverse
     summary: Recovery is costly, uncertain, slow, or requires coordinated migration or repair.
   external-user-impact:
+    risk: medium
     effects:
       persistence_required: true
       required_evidence:
@@ -46,6 +50,7 @@ signals:
       risk_flags: []
     summary: The work changes externally visible behavior or can materially affect users.
   financial-impact:
+    risk: high
     effects:
       persistence_required: true
       required_evidence:
@@ -61,6 +66,7 @@ signals:
     summary: The work can change monetary values, settlement, billing, limits, accounting, or financial
       decisions.
   privacy-or-regulated-data:
+    risk: high
     effects:
       persistence_required: true
       required_evidence:
@@ -73,6 +79,7 @@ signals:
         - regulated-data
     summary: The work accesses, changes, exposes, or governs personal, confidential, or regulated data.
   production-destructive:
+    risk: high
     effects:
       persistence_required: true
       required_evidence:
@@ -85,6 +92,7 @@ signals:
         - production-destructive
     summary: The requested action can delete, overwrite, corrupt, or irreversibly mutate production state.
   security-critical:
+    risk: high
     effects:
       persistence_required: true
       required_evidence:
@@ -98,6 +106,7 @@ signals:
     summary: The work affects authentication, authorization, secrets, trust boundaries, or exploitable
       security behavior.
   shared-interface-or-migration:
+    risk: high
     effects:
       persistence_required: true
       required_evidence:
@@ -109,6 +118,7 @@ signals:
         - difficult-to-reverse
     summary: The work changes a shared contract, schema, protocol, migration, or broad dependency surface.
   unfamiliar-technology:
+    risk: medium
     effects:
       persistence_required: false
       required_evidence:
@@ -120,6 +130,7 @@ signals:
       risk_flags: []
     summary: The active executor lacks reliable experience or project evidence for the affected technology.
   weak-or-missing-verification:
+    risk: medium
     effects:
       persistence_required: false
       required_evidence:

@@ -5,7 +5,7 @@ type: object
 additionalProperties: false
 required: [schema_version, loop, loop_id, project, gate]
 properties:
-  schema_version: { const: 1 }
+  schema_version: { const: 2 }
   loop: { enum: [work, feedback, maintenance] }
   loop_id: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
   project:
@@ -16,6 +16,73 @@ properties:
       locator: { type: string, minLength: 1 }
   attempt: { type: integer, minimum: 0 }
   event: { enum: [evaluate, model-correction, deterministic-rerun] }
+  rerun:
+    type: object
+    additionalProperties: false
+    required: [check_id, input_sha256, previous_input_sha256]
+    properties:
+      check_id: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+      input_sha256: { type: string, pattern: "^sha256:[a-f0-9]{64}$" }
+      previous_input_sha256: { type: string, pattern: "^sha256:[a-f0-9]{64}$" }
   persist: { type: boolean }
   cache_root: { type: string, minLength: 1 }
   gate: { $ref: ./gate-input.schema.yml }
+  stage: { enum: [plan, design, build, test, deploy, maintain] }
+  next_stage: { enum: [plan, design, build, test, deploy, maintain] }
+  artifacts:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [stage, locator, commit_sha]
+      properties:
+        stage: { enum: [plan, design, build, test, deploy, maintain] }
+        locator: { type: string, minLength: 1 }
+        commit_sha: { type: string, pattern: "^[a-f0-9]{40}$" }
+        sha256: { type: string, pattern: "^sha256:[a-f0-9]{64}$" }
+        evidence_ref: { type: string, minLength: 1 }
+      allOf:
+        - if:
+            properties:
+              stage: { const: build }
+            required: [stage]
+          then:
+            required: [sha256]
+  delivery: { $ref: ./delivery-output.schema.yml }
+  issues:
+    type: array
+    items: { $ref: ./issues-input.schema.yml#/$defs/issue }
+  proposals:
+    type: array
+    items: { $ref: ./issues-input.schema.yml#/$defs/proposal }
+allOf:
+  - if:
+      properties:
+        event: { const: deterministic-rerun }
+      required: [event]
+    then:
+      required: [rerun]
+  - if:
+      properties:
+        loop: { const: work }
+      required: [loop]
+    then:
+      required: [stage, artifacts]
+      properties:
+        artifacts: { minItems: 1 }
+  - if:
+      properties:
+        loop: { const: feedback }
+      required: [loop]
+    then:
+      required: [issues]
+      properties:
+        issues: { minItems: 1 }
+  - if:
+      properties:
+        loop: { const: maintenance }
+      required: [loop]
+    then:
+      required: [proposals]
+      properties:
+        proposals: { minItems: 1 }

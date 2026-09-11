@@ -13,8 +13,25 @@ gates:
   built_in:
     - scope-understood
     - human-authorized
+    - collaboration-mode-selected
     - verification-passed
     - independent-review-passed
+  entry_checks: [scope-understood, human-authorized, collaboration-mode-selected]
+  exit_checks: [verification-passed, independent-review-passed]
+  risk_policy: declared-risk-may-only-be-raised-by-signals
+  risk_signal_scope: current-action
+  passed_evidence_requires: evidence-ref
+  loop_exit_evidence_binding: current-stage-commit
+collaboration:
+  solo_default: true
+  multi_agent_selection: human-required
+  recommendation:
+    second_context: copilot
+    developer_assurance_separation: trio
+    high_risk_or_full_separation: squad
+  option_reason: inline-label
+  recommended_prefix: "[推荐]"
+  reuse_until: scope-risk-or-gate-change
 loops:
   types:
     - work
@@ -23,19 +40,64 @@ loops:
   model_correction_limit: 1
   high_risk_failure: stop-immediately
   deterministic_script_rerun: does-not-consume-model-correction
+  deterministic_rerun_requires: same-input-sha256
+sdlc:
+  stages:
+    - plan
+    - design
+    - build
+    - test
+    - deploy
+    - maintain
+  default_forward:
+    plan: design
+    design: build
+    build: test
+    test: deploy
+    deploy: maintain
+  allowed_returns:
+    design: [plan]
+    build: [design]
+    test: [design, build]
+    deploy: [build, test]
+    maintain: [plan, design, build]
+  delivery_assessment_stage: deploy
+  stage_artifact_required: true
+  artifact_commit_binding_required: true
+  build_digest_required: true
+  failure_loop: feedback
+  repeated_standard_problem_loop: maintenance
+  durable_trace: git-checkpoint
+delivery:
+  environments:
+    - development
+    - test
+  machine_operation: plan-and-assess
+  project_command_execution: host-direct
+  failure_output: issues
 feedback:
   user_label: 问题项
   machine_field: issues
+  lifecycle: [open, resolved, closed]
+  closure_requires: verification_ref
+  resume_by: return_stage
   promote_after_independent_checkpoints: 2
   high_risk_may_promote_on_first_occurrence: true
   database: forbidden
   agents_md_auto_edit: forbidden
   update_strategy: merge-or-revise-existing-rule
+maintenance:
+  input: feedback-standard-proposals
+  lifecycle: [proposed, approved, applied, closed]
+  approval: human-reviewed
+  closure_requires: evidence_ref
 handoff:
   source: git-checkpoint
   effective_commit: head
   range: base..HEAD
   structured_trailer: ZipZap-Handoff
+  issue_trailer: ZipZap-Issue
+  rich_issue_encoding: versioned-fields
 cache:
   root: user-cache
   isolation: repository-and-worktree-fingerprint

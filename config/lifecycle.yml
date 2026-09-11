@@ -18,11 +18,14 @@ package:
     - agents/openai.yaml
     - scripts/zipzap.mjs
     - config/compatibility.yml
+    - config/delivery.yml
     - config/lifecycle.yml
     - config/workflow.yml
     - schemas/standards-initialization-input.schema.yml
     - schemas/standards-route-input.schema.yml
     - schemas/gate-input.schema.yml
+    - schemas/delivery-input.schema.yml
+    - schemas/delivery-output.schema.yml
     - schemas/loop-input.schema.yml
     - schemas/issues-input.schema.yml
     - schemas/handoff-input.schema.yml
@@ -30,6 +33,7 @@ package:
     - schemas/legacy-cleanup-input.schema.yml
     - schemas/release-manifest.schema.yml
     - schemas/lifecycle-input.schema.yml
+    - references/delivery.md
 runtime_dependencies: []
 release_gates:
   - catalog-valid

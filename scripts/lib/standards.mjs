@@ -84,11 +84,23 @@ function slug(locator) {
 
 function existingSignals(projectRoot) {
   const has = (locator) => fs.existsSync(path.join(projectRoot, locator));
+  const hasNamedDeliveryScript = ["scripts", "bin", "ops"].some((directory) => {
+    const absolute = path.join(projectRoot, directory);
+    return fs.existsSync(absolute) && fs.statSync(absolute).isDirectory() &&
+      fs.readdirSync(absolute).some((name) => /(?:deploy|start|probe|health|smoke|rollback|stop)/i.test(name));
+  });
+  const java = has("pom.xml") || has("build.gradle") || has("build.gradle.kts");
+  const node = has("package.json") || has("tsconfig.json");
+  const python = has("pyproject.toml") || has("requirements.txt");
   return {
     git: has(".git"),
-    java: has("pom.xml") || has("build.gradle") || has("build.gradle.kts"),
-    node: has("package.json") || has("tsconfig.json"),
-    python: has("pyproject.toml") || has("requirements.txt"),
+    java,
+    node,
+    python,
+    build: java || node || python || has("Makefile"),
+    delivery: has("devctl") || has("Dockerfile") || has("compose.yml") ||
+      has("compose.yaml") || has("docker-compose.yml") || has("docker-compose.yaml") ||
+      hasNamedDeliveryScript,
     tests: ["tests", "test", "src/test"].some(has)
   };
 }
@@ -104,8 +116,10 @@ function starterAssets(projectRoot) {
   if (signals.java) assets.push({ locator: "standards/engineering/java.md", content: "# Java engineering standard\n\nRecord the supported Java version, build commands, module boundaries, and compatibility rules here.\n" });
   if (signals.node) assets.push({ locator: "standards/engineering/node.md", content: "# Node engineering standard\n\nRecord the package manager, runtime version, build commands, and module conventions here.\n" });
   if (signals.python) assets.push({ locator: "standards/engineering/python.md", content: "# Python engineering standard\n\nRecord the Python version, environment, build commands, and module conventions here.\n" });
+  if (signals.build) assets.push({ locator: "standards/engineering/build.md", content: "# Build standard\n\nMap `build.execute` and `build.verify-artifact` to existing project-owned commands. Record the working directory, timeout, artifact locator, commit binding, SHA-256 verification, and known limitations. Do not rebuild during Deploy.\n" });
   if (signals.tests) assets.push({ locator: "standards/quality/testing.md", content: "# Testing standard\n\nRecord focused checks, full acceptance commands, evidence requirements, and known limitations here.\n" });
   if (signals.git) assets.push({ locator: "standards/delivery/git.md", content: "# Git delivery standard\n\nRecord branch, commit, verification, and publication rules here. ZipZap Handoff metadata belongs to the final effective commit.\n" });
+  if (signals.delivery) assets.push({ locator: "standards/delivery/deployment.md", content: "# Development and test deployment standard\n\nMap `deploy.precheck`, `deploy.apply`, `deploy.probe`, `deploy.smoke`, `deploy.diagnose`, and `deploy.rollback` to existing project-owned commands. Identify every target explicitly, keep production out of scope, require readiness separately from command success, and record authorization boundaries for shared or destructive environments.\n" });
   return assets;
 }
 

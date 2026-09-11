@@ -1,0 +1,74 @@
+schema_version: 1
+environments:
+  development:
+    required_mappings:
+      - build.execute
+      - build.verify-artifact
+      - deploy.apply
+      - deploy.probe
+    required_evidence:
+      - build.execute
+      - build.verify-artifact
+      - deploy.apply
+      - deploy.probe
+    recommended_slots:
+      - deploy.precheck
+      - deploy.smoke
+      - deploy.diagnose
+      - deploy.rollback
+  test:
+    required_mappings:
+      - build.execute
+      - build.verify-artifact
+      - deploy.precheck
+      - deploy.apply
+      - deploy.probe
+      - deploy.smoke
+      - deploy.rollback
+    required_evidence:
+      - build.execute
+      - build.verify-artifact
+      - deploy.precheck
+      - deploy.apply
+      - deploy.probe
+      - deploy.smoke
+    recommended_slots:
+      - deploy.diagnose
+slots:
+  build.execute:
+    phase: build
+    purpose: Produce the deployable project artifact.
+  build.verify-artifact:
+    phase: build
+    purpose: Verify artifact identity, structure, version, and digest.
+  deploy.precheck:
+    phase: deploy
+    purpose: Check the explicit target, dependencies, permissions, and configuration before mutation.
+  deploy.apply:
+    phase: deploy
+    purpose: Install or start the exact verified artifact in the selected environment.
+  deploy.probe:
+    phase: deploy
+    purpose: Prove readiness and the deployed artifact identity after the deploy command returns.
+  deploy.smoke:
+    phase: deploy
+    purpose: Exercise the smallest meaningful environment behavior after readiness.
+  deploy.diagnose:
+    phase: deploy
+    purpose: Collect bounded logs and status needed to classify a failure.
+  deploy.rollback:
+    phase: deploy
+    purpose: Restore or stop the environment through a project-owned recovery path.
+policies:
+  production_forbidden: true
+  explicit_target_required: true
+  existing_project_commands_preferred: true
+  discovered_commands_require_confirmation: true
+  skill_executes_project_commands: false
+  deploy_success_requires_probe: true
+  test_success_requires_smoke: true
+  exact_artifact_binding_required: true
+  shared_or_destructive_requires_authorization: true
+  shared_environment_requires_rollback: true
+  missing_simple_capability_may_use_documented_command: true
+  missing_complex_capability_requires_project_work: true

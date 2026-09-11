@@ -8,14 +8,49 @@ properties:
   schema_version: { const: 1 }
   issues:
     type: array
-    items:
-      type: object
-      additionalProperties: false
-      required: [fingerprint, checkpoint, title, severity]
-      properties:
-        fingerprint: { type: string, minLength: 1 }
-        checkpoint: { type: string, minLength: 1 }
-        title: { type: string, minLength: 1 }
-        severity: { enum: [low, medium, high] }
-        bootstrap_gap: { type: boolean }
-        standard_target: { type: string, pattern: "^standards/(foundation|engineering|quality|delivery|governance)/.+\\.md$" }
+    items: { $ref: "#/$defs/issue" }
+$defs:
+  issue:
+    type: object
+    additionalProperties: false
+    required: [fingerprint, checkpoint, title, severity]
+    properties:
+      fingerprint: { type: string, minLength: 1 }
+      checkpoint: { type: string, minLength: 1 }
+      title: { type: string, minLength: 1 }
+      severity: { enum: [low, medium, high] }
+      status: { enum: [open, resolved, closed] }
+      return_stage: { enum: [plan, design, build, test, deploy, maintain] }
+      verification_ref: { type: string, minLength: 1 }
+      bootstrap_gap: { type: boolean }
+      standard_target: { type: string, pattern: "^standards/(foundation|engineering|quality|delivery|governance)/.+\\.md$" }
+    allOf:
+      - if:
+          properties:
+            status: { const: closed }
+          required: [status]
+        then:
+          required: [verification_ref]
+  proposal:
+    type: object
+    additionalProperties: false
+    required: [fingerprint, action, status]
+    properties:
+      fingerprint: { type: string, minLength: 1 }
+      target:
+        anyOf:
+          - { type: string, pattern: "^(AGENTS\\.md|standards/(foundation|engineering|quality|delivery|governance)/.+\\.md)$" }
+          - { type: "null" }
+      action: { enum: [merge, decide-target, propose-revision] }
+      status: { enum: [proposed, approved, applied, closed] }
+      evidence_ref: { type: string, minLength: 1 }
+      instruction: { type: string, minLength: 1 }
+      auto_apply: { type: boolean }
+      agents_md_allowed: { type: boolean }
+    allOf:
+      - if:
+          properties:
+            status: { enum: [approved, applied, closed] }
+          required: [status]
+        then:
+          required: [evidence_ref]

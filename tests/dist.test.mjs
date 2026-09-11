@@ -16,4 +16,13 @@ test("dist Skill is self-contained and has one workflow CLI", async () => {
   );
   assert.equal(validation.valid, true);
   assert.equal(fs.existsSync(path.join(artifact, "config", "workflow.yml")), true);
+  assert.equal(fs.existsSync(path.join(artifact, "config", "delivery.yml")), true);
+  const plan = JSON.parse(
+    execFileSync(
+      process.execPath,
+      [path.join(artifact, "scripts", "zipzap.mjs"), "delivery", "--action", "plan", "--input", path.resolve("examples", "zipzap", "delivery.yml"), "--compact"],
+      { encoding: "utf8" }
+    )
+  );
+  assert.equal(plan.allowed, true);
 });
