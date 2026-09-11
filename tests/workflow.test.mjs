@@ -3,10 +3,31 @@ import path from "node:path";
 import test from "node:test";
 
 import { readData } from "../scripts/lib/data-files.mjs";
-import { advanceLoop, consolidateIssues, evaluateGate } from "../scripts/lib/workflow.mjs";
+import {
+  advanceLoop as advanceLoopWithPolicy,
+  consolidateIssues,
+  evaluateGate as evaluateGateWithPolicy
+} from "../scripts/lib/workflow.mjs";
 import { validateSchemaFile } from "../scripts/lib/schema-registry.mjs";
 
 const riskTaxonomy = readData(path.resolve("config/risk-taxonomy.yml"));
+const workflow = readData(path.resolve("config/workflow.yml"));
+const teams = readData(path.resolve("config/teams.yml"));
+const collaborationContext = {
+  collaborationPolicy: workflow.collaboration,
+  teamOrder: teams.order
+};
+
+function evaluateGate(input, taxonomy = null, context = {}) {
+  return evaluateGateWithPolicy(input, taxonomy, {
+    ...context,
+    ...collaborationContext
+  });
+}
+
+function advanceLoop(input, taxonomy = null) {
+  return advanceLoopWithPolicy(input, taxonomy, collaborationContext);
+}
 
 const scopeEvidence = {
   id: "scope-understood",
@@ -105,6 +126,23 @@ test("multi-Agent recommendations pause with inline option reasons", () => {
   );
 });
 
+test("collaboration recommendations come from workflow configuration", () => {
+  const policy = structuredClone(workflow.collaboration);
+  policy.recommendation.second_context = "trio";
+  const result = evaluateGateWithPolicy({
+    schema_version: 1,
+    risk: "medium",
+    required_checks: ["peer-challenge"],
+    mutates_files: false,
+    claims_completion: false,
+    evidence: []
+  }, null, {
+    collaborationPolicy: policy,
+    teamOrder: teams.order
+  });
+  assert.equal(result.collaboration.recommended_mode, "trio");
+});
+
 test("a compatible human selection is reused and weaker modes stay blocked", () => {
   const selected = evaluateGate({
     schema_version: 1,
@@ -176,6 +214,85 @@ test("a multi-Agent recommendation pauses Work without consuming a correction", 
   assert.equal(result.next_action, "select-collaboration-mode");
   assert.equal(result.escalation_required, false);
   assert.equal(result.reason, null);
+});
+
+test("a human-selected mode continues across Work without another prompt", () => {
+  const collaboration = {
+    mode: "trio",
+    actor: "user",
+    evidence_ref: "conversation:team-choice"
+  };
+  const gateFor = (commitSha, selected = null) => ({
+    schema_version: 1,
+    risk: "medium",
+    signals: ["weak-or-missing-verification"],
+    ...(selected ? { collaboration: selected } : {}),
+    mutates_files: false,
+    claims_completion: false,
+    evidence: selected ? [
+      {
+        id: "proportionate-test-plan",
+        status: "passed",
+        evidence_ref: "plan:test",
+        commit_sha: commitSha
+      },
+      {
+        id: "independent-testing-from-developer",
+        status: "passed",
+        evidence_ref: "test:result",
+        commit_sha: commitSha,
+        actor: "tester-agent",
+        role: "tester"
+      },
+      {
+        id: "independent-review-from-developer",
+        status: "passed",
+        evidence_ref: "review:result",
+        commit_sha: commitSha,
+        actor: "reviewer-agent",
+        role: "reviewer"
+      }
+    ] : []
+  });
+  const pending = advanceLoop({
+    schema_version: 2,
+    loop: "work",
+    stage: "plan",
+    attempt: 0,
+    event: "evaluate",
+    gate: gateFor("a".repeat(40)),
+    artifacts: [{ stage: "plan", locator: "docs/intent.md", commit_sha: "a".repeat(40) }]
+  }, riskTaxonomy);
+  assert.equal(pending.gate.collaboration.recommended_mode, "trio");
+  assert.equal(pending.next_action, "select-collaboration-mode");
+
+  const selected = advanceLoop({
+    schema_version: 2,
+    loop: "work",
+    stage: "plan",
+    next_stage: "design",
+    attempt: 0,
+    event: "evaluate",
+    gate: gateFor("a".repeat(40), collaboration),
+    artifacts: [{ stage: "plan", locator: "docs/intent.md", commit_sha: "a".repeat(40) }]
+  }, riskTaxonomy);
+  assert.equal(selected.outcome, "complete");
+  assert.equal(selected.gate.collaboration.decision_required, false);
+
+  const continued = advanceLoop({
+    schema_version: 2,
+    loop: "work",
+    stage: "design",
+    next_stage: "build",
+    attempt: 0,
+    event: "evaluate",
+    gate: gateFor("b".repeat(40), collaboration),
+    artifacts: [{ stage: "design", locator: "docs/design.md", commit_sha: "b".repeat(40) }]
+  }, riskTaxonomy);
+  assert.equal(continued.outcome, "complete");
+  assert.equal(continued.next_stage, "build");
+  assert.equal(continued.gate.collaboration.decision_required, false);
+  assert.deepEqual(continued.gate.collaboration.decision_options, []);
 });
 
 test("risk signals can raise but never lower Gate requirements", () => {

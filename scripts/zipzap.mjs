@@ -410,7 +410,11 @@ function executeCommand(options, rootDir) {
       : routeStandards(input);
   }
   if (command === "gate") {
-    return evaluateGate(input, loadCatalogs(rootDir)["risk-taxonomy"]);
+    const catalogs = loadCatalogs(rootDir);
+    return evaluateGate(input, catalogs["risk-taxonomy"], {
+      collaborationPolicy: catalogs.workflow.collaboration,
+      teamOrder: catalogs.teams.order
+    });
   }
   if (command === "delivery") {
     const action = options.action ?? "plan";
@@ -426,7 +430,11 @@ function executeCommand(options, rootDir) {
     if (options.action === "status") {
       return readLoopState(input.project.locator, input.cache_root);
     }
-    const result = advanceLoop(input, loadCatalogs(rootDir)["risk-taxonomy"]);
+    const catalogs = loadCatalogs(rootDir);
+    const result = advanceLoop(input, catalogs["risk-taxonomy"], {
+      collaborationPolicy: catalogs.workflow.collaboration,
+      teamOrder: catalogs.teams.order
+    });
     return {
       ...result,
       cache_locator:

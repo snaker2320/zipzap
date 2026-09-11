@@ -11,7 +11,6 @@ const ENTRY_CHECKS = new Set([
   "human-authorized",
   "collaboration-mode-selected"
 ]);
-const TEAM_ORDER = ["solo", "copilot", "trio", "squad"];
 const SDLC_STAGES = new Set(["plan", "design", "build", "test", "deploy", "maintain"]);
 const ISSUE_STATUSES = new Set(["open", "resolved", "closed"]);
 const PROPOSAL_STATUSES = new Set(["proposed", "approved", "applied", "closed"]);
@@ -35,16 +34,26 @@ function isEntryCheck(id) {
   return ENTRY_CHECKS.has(id) || id.startsWith("approval-");
 }
 
-function recommendedTeam(risk, required) {
-  if (risk === "high" || required.has("reviewer-independent-from-tester")) return "squad";
-  if ([...required].some((id) => id.includes("independent-testing") || id.includes("independent-review"))) {
-    return "trio";
-  }
-  if (required.has("peer-challenge") || required.has("second-context")) return "copilot";
-  return "solo";
+function policyMode(policy, key, teamOrder) {
+  const mode = key === "default_mode" ? policy?.default_mode : policy?.recommendation?.[key];
+  if (!teamOrder.includes(mode)) throw new Error(`collaboration policy has no valid ${key} mode`);
+  return mode;
 }
 
-function decisionOptions(recommended) {
+function recommendedTeam(risk, required, policy, teamOrder) {
+  if (risk === "high" || required.has("reviewer-independent-from-tester")) {
+    return policyMode(policy, "high_risk_or_full_separation", teamOrder);
+  }
+  if ([...required].some((id) => id.includes("independent-testing") || id.includes("independent-review"))) {
+    return policyMode(policy, "developer_assurance_separation", teamOrder);
+  }
+  if (required.has("peer-challenge") || required.has("second-context")) {
+    return policyMode(policy, "second_context", teamOrder);
+  }
+  return policyMode(policy, "default_mode", teamOrder);
+}
+
+function decisionOptions(recommended, policy, teamOrder) {
   const labels = {
     copilot: {
       recommended: "Copilot 当前工作需要第二上下文质疑",
@@ -59,12 +68,12 @@ function decisionOptions(recommended) {
       stronger: "Squad 提供完整角色分离"
     }
   };
-  const options = TEAM_ORDER
-    .slice(TEAM_ORDER.indexOf(recommended))
+  const options = teamOrder
+    .slice(teamOrder.indexOf(recommended))
     .filter((mode) => mode !== "solo")
     .map((mode) => ({
       id: mode,
-      label: `${mode === recommended ? "[推荐] " : ""}${
+      label: `${mode === recommended ? `${policy.recommended_prefix} ` : ""}${
         mode === recommended ? labels[mode].recommended : labels[mode].stronger
       }`
     }));
@@ -77,16 +86,29 @@ function decisionOptions(recommended) {
   return options;
 }
 
-export function assessCollaboration(input, risk, required) {
-  const recommended = recommendedTeam(risk, required);
+export function assessCollaboration(input, risk, required, policy, teamOrder) {
+  if (!Array.isArray(teamOrder) || !teamOrder.length) {
+    throw new Error("collaboration team order is unavailable");
+  }
+  if (!policy?.recommended_prefix) {
+    throw new Error("collaboration policy is unavailable");
+  }
+  const recommended = recommendedTeam(risk, required, policy, teamOrder);
   const selection = input.collaboration ?? null;
-  const selected = selection?.mode ?? (recommended === "solo" ? "solo" : null);
-  const selectedStrength = selected ? TEAM_ORDER.indexOf(selected) : -1;
-  const requiredStrength = TEAM_ORDER.indexOf(recommended);
+  if (
+    selection &&
+    (!teamOrder.includes(selection.mode) || !selection.actor || !selection.evidence_ref)
+  ) {
+    throw new Error("collaboration selection requires a valid mode, actor, and evidence_ref");
+  }
+  const defaultMode = policyMode(policy, "default_mode", teamOrder);
+  const selected = selection?.mode ?? (recommended === defaultMode ? defaultMode : null);
+  const selectedStrength = selected ? teamOrder.indexOf(selected) : -1;
+  const requiredStrength = teamOrder.indexOf(recommended);
   const selectionSatisfied =
     selectedStrength >= requiredStrength &&
-    (selected === "solo" || (Boolean(selection?.actor) && Boolean(selection?.evidence_ref)));
-  const decisionRequired = recommended !== "solo" && !selectionSatisfied;
+    (selected === defaultMode || (Boolean(selection?.actor) && Boolean(selection?.evidence_ref)));
+  const decisionRequired = recommended !== defaultMode && !selectionSatisfied;
   return {
     recommended_mode: recommended,
     selected_mode: selectionSatisfied ? selected : null,
@@ -96,7 +118,7 @@ export function assessCollaboration(input, risk, required) {
         : "default"
       : null,
     decision_required: decisionRequired,
-    decision_options: decisionRequired ? decisionOptions(recommended) : []
+    decision_options: decisionRequired ? decisionOptions(recommended, policy, teamOrder) : []
   };
 }
 
@@ -153,7 +175,13 @@ export function evaluateGate(input, riskTaxonomy = null, context = {}) {
   }
   if (input.claims_completion !== false) required.add("verification-passed");
   if (risk === "high") required.add("independent-review-passed");
-  const collaboration = assessCollaboration(input, risk, required);
+  const collaboration = assessCollaboration(
+    input,
+    risk,
+    required,
+    context.collaborationPolicy,
+    context.teamOrder
+  );
   if (collaboration.decision_required || input.collaboration?.mode !== undefined) {
     required.add("collaboration-mode-selected");
   }
@@ -164,10 +192,10 @@ export function evaluateGate(input, riskTaxonomy = null, context = {}) {
       return {
         id,
         passed,
-        evidence_ref: passed ? input.collaboration?.evidence_ref ?? "default:solo" : null,
+        evidence_ref: passed ? input.collaboration.evidence_ref : null,
         commit_sha: null,
-        actor: passed ? input.collaboration?.actor ?? "zipzap" : null,
-        role: passed ? input.collaboration ? "human" : "developer" : null
+        actor: passed ? input.collaboration.actor : null,
+        role: passed ? "human" : null
       };
     }
     const item = evidence.get(id);
@@ -330,7 +358,7 @@ function resolveNextStage(current, requested) {
   return next;
 }
 
-export function advanceLoop(input, riskTaxonomy = null) {
+export function advanceLoop(input, riskTaxonomy = null, collaborationContext = {}) {
   if (!LOOP_TYPES.has(input.loop)) throw new Error(`unsupported loop: ${input.loop}`);
   if (input.stage && !SDLC_STAGES.has(input.stage)) throw new Error(`unsupported SDLC stage: ${input.stage}`);
   const attempt = input.attempt ?? 0;
@@ -344,7 +372,8 @@ export function advanceLoop(input, riskTaxonomy = null) {
   }
   const stageArtifact = input.artifacts?.find((artifact) => artifact.stage === input.stage);
   const gate = evaluateGate(input.gate, riskTaxonomy, {
-    commitSha: stageArtifact?.commit_sha ?? null
+    commitSha: stageArtifact?.commit_sha ?? null,
+    ...collaborationContext
   });
   const issues = normalizedIssues(input);
   const proposals = normalizedProposals(input);

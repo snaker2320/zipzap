@@ -23,15 +23,12 @@ gates:
   passed_evidence_requires: evidence-ref
   loop_exit_evidence_binding: current-stage-commit
 collaboration:
-  solo_default: true
-  multi_agent_selection: human-required
+  default_mode: solo
   recommendation:
     second_context: copilot
     developer_assurance_separation: trio
     high_risk_or_full_separation: squad
-  option_reason: inline-label
   recommended_prefix: "[推荐]"
-  reuse_until: scope-risk-or-gate-change
 loops:
   types:
     - work
