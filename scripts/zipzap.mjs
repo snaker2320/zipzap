@@ -413,7 +413,8 @@ function executeCommand(options, rootDir) {
     const catalogs = loadCatalogs(rootDir);
     return evaluateGate(input, catalogs["risk-taxonomy"], {
       collaborationPolicy: catalogs.workflow.collaboration,
-      teamOrder: catalogs.teams.order
+      teamOrder: catalogs.teams.order,
+      teamCatalog: catalogs.teams
     });
   }
   if (command === "delivery") {
@@ -433,7 +434,8 @@ function executeCommand(options, rootDir) {
     const catalogs = loadCatalogs(rootDir);
     const result = advanceLoop(input, catalogs["risk-taxonomy"], {
       collaborationPolicy: catalogs.workflow.collaboration,
-      teamOrder: catalogs.teams.order
+      teamOrder: catalogs.teams.order,
+      teamCatalog: catalogs.teams
     });
     return {
       ...result,

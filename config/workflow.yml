@@ -29,6 +29,21 @@ collaboration:
     developer_assurance_separation: trio
     high_risk_or_full_separation: squad
   recommended_prefix: "[推荐]"
+  execution:
+    activation: lazy-by-next-action
+    reuse: same-loop-and-slot
+    stage_roles:
+      plan: [product]
+      design: [developer]
+      build: [developer]
+      test: [tester]
+      deploy: [developer, tester]
+      maintain: [product]
+    action_roles:
+      resolve-issues: [developer]
+      verify-issues: [tester, reviewer]
+      apply-approved-standard-change: [developer]
+      verify-standard-change: [reviewer]
 loops:
   types:
     - work

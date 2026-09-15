@@ -38,6 +38,21 @@ Reuse the selection throughout the same Work, Feedback, and Maintenance flow. Re
 scope, normalized action risk, or Gate requirements materially change. Team presets are logical role
 topologies; the Host may schedule them sequentially, but it may not weaken required independence.
 
+An explicit weaker human choice is still a completed collaboration decision. Keep its selected mode,
+set `assurance_satisfied: false`, and report the required mode in `assurance_gap`. `execution_allowed`
+reflects entry checks only; `completion_allowed` reflects the full Gate. This lets a token-constrained
+Solo run remain governed without claiming missing peer challenge, testing, or review. Never escape the
+Skill merely because the selected topology is weaker than the recommendation.
+
+The Loop emits an `agents` projection for Host scheduling. The main Agent owns the configured
+`host_slot`; other slots use lazy `activate_or_reuse` instructions keyed by `loop_id + slot`. A completed
+sub-Agent step becomes idle, and the same thread receives later Feedback or re-verification follow-ups.
+Idle retention performs no work by itself, but a later follow-up still consumes model context. Release
+sub-Agent slots when `workflow_complete` becomes true or an external Handoff occurs. Recompose on a
+material scope or risk change; replace an affected assurance thread if it edits the artifact it must
+independently assess or if its retained context is no longer reliable. Only Git Checkpoints survive as
+durable recovery facts; do not persist Agent IDs in the project.
+
 Work, Feedback, and Maintenance Loops share this gate. Attempt `0` is the initial model result. A non-high-risk failure may produce one correction at attempt `1`; another failure stops. High-risk failure stops immediately. `deterministic-rerun` may continue without incrementing the model attempt only when the current and previous input SHA-256 values match.
 
 ## SDLC stage flow

@@ -61,6 +61,19 @@ only the recommended option with `[推荐]`; do not repeat the rationale as sepa
 selection through Work, Feedback, and Maintenance. Ask again only after a material scope, risk, or Gate
 requirement change, or when the user explicitly requests another mode.
 
+If the human explicitly chooses a weaker mode, including Solo for token control, keep the Work inside
+ZipZap. Record that choice once, expose the assurance gap, allow entry checks to govern execution, and
+block only unsupported completion or independence claims. Do not reprompt for the same choice and do
+not fall back to an ungoverned ordinary workflow.
+
+Treat Team members as lazily activated Host threads, not stage-wide permanent prompts. Follow the
+Loop result's `agents.activate_or_reuse` projection: reuse the same `loop_id + slot` thread for later
+Feedback or re-verification, leave it idle after its step, and keep activated threads until
+`workflow_complete`. Release them after workflow completion or external Handoff; recompose the team
+when scope or risk materially changes. Replace only the affected thread when independence is invalidated,
+its retained context is no longer reliable, or Host capacity requires it. Agent IDs and thread state
+remain Host-owned and must not be written into the project or Git Handoff.
+
 For an SDLC delivery, advance the Work Loop through `plan`, `design`, `build`, `test`, `deploy`,
 and `maintain`. The default path is forward, while an explicit valid `next_stage` may return to an
 earlier stage. Work advances only with an artifact for the current stage bound to a Git commit; a Build

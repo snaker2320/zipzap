@@ -19,7 +19,7 @@ test("upgrade reports exact obsolete state and cleanup requires its fingerprint"
     schema_version: 1,
     operation: "upgrade",
     installed_version: "0.1.1-beta.7",
-    target_version: "0.2.0-beta.1",
+    target_version: "0.2.0-beta.2",
     host_conformance: { compatible: true },
     project: { locator: root }
   });

@@ -4,6 +4,20 @@ order:
   - trio
   - squad
 schema_version: 1
+runtime:
+  activation: lazy
+  reuse_key: loop-id-and-slot
+  after_step: idle
+  retain: activated-slots-until-workflow-complete
+  release_on:
+    - workflow-complete
+    - external-handoff
+    - scope-or-risk-recomposed
+  replace_on:
+    - independence-invalidated
+    - context-no-longer-reliable
+    - host-capacity-required
+  durable_recovery: git-checkpoint
 teams:
   copilot:
     assurance:
@@ -20,6 +34,7 @@ teams:
       on_assurance_gap: Upgrade to Trio or Squad or add a distinct qualified human or Agent gate.
       on_member_unavailable: Disclose loss of second-context challenge.
     display_name: Copilot
+    host_slot: pilot
     members:
       - functions:
           - coordinator
@@ -58,6 +73,7 @@ teams:
       fallback: null
       on_assurance_gap: Upgrade to Trio or Squad, add a distinct human or Agent gate, or stop with the gap disclosed.
     display_name: Solo
+    host_slot: primary
     members:
       - functions:
           - coordinator
@@ -87,6 +103,7 @@ teams:
       fallback: null
       on_assurance_gap: Reassign to a distinct profile or human with provenance, otherwise stop the affected gate.
     display_name: Squad
+    host_slot: coordinator
     members:
       - functions:
           - coordinator
@@ -141,6 +158,7 @@ teams:
       fallback: null
       on_assurance_gap: Substitute another distinct profile or human, upgrade to Squad, or stop the affected gate.
     display_name: Trio
+    host_slot: coordinator
     members:
       - functions:
           - coordinator

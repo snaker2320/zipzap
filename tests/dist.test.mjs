@@ -25,4 +25,15 @@ test("dist Skill is self-contained and has one workflow CLI", async () => {
     )
   );
   assert.equal(plan.allowed, true);
+  const loop = JSON.parse(
+    execFileSync(
+      process.execPath,
+      [path.join(artifact, "scripts", "zipzap.mjs"), "loop", "--input", path.resolve("examples", "zipzap", "loop.yml"), "--compact"],
+      { encoding: "utf8" }
+    )
+  );
+  assert.equal(loop.gate.execution_allowed, true);
+  assert.equal(loop.gate.completion_allowed, false);
+  assert.equal(loop.agents.mode, "solo");
+  assert.deepEqual(loop.agents.activate_or_reuse, []);
 });

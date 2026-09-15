@@ -105,17 +105,24 @@ export function assessCollaboration(input, risk, required, policy, teamOrder) {
   const selected = selection?.mode ?? (recommended === defaultMode ? defaultMode : null);
   const selectedStrength = selected ? teamOrder.indexOf(selected) : -1;
   const requiredStrength = teamOrder.indexOf(recommended);
-  const selectionSatisfied =
-    selectedStrength >= requiredStrength &&
-    (selected === defaultMode || (Boolean(selection?.actor) && Boolean(selection?.evidence_ref)));
-  const decisionRequired = recommended !== defaultMode && !selectionSatisfied;
+  const selectionMade = selected !== null;
+  const assuranceSatisfied = selectionMade && selectedStrength >= requiredStrength;
+  const decisionRequired = recommended !== defaultMode && !selectionMade;
   return {
     recommended_mode: recommended,
-    selected_mode: selectionSatisfied ? selected : null,
-    selection_source: selectionSatisfied
+    selected_mode: selectionMade ? selected : null,
+    selection_source: selectionMade
       ? selection
         ? "human"
         : "default"
+      : null,
+    assurance_satisfied: assuranceSatisfied,
+    assurance_gap: selectionMade && !assuranceSatisfied
+      ? {
+          selected_mode: selected,
+          required_mode: recommended,
+          effect: "execution-may-continue-but-completion-requires-missing-assurance"
+        }
       : null,
     decision_required: decisionRequired,
     decision_options: decisionRequired ? decisionOptions(recommended, policy, teamOrder) : []
@@ -225,6 +232,7 @@ export function evaluateGate(input, riskTaxonomy = null, context = {}) {
     };
   });
   const failed = checks.filter((check) => !check.passed);
+  const failedEntryChecks = failed.filter((check) => isEntryCheck(check.id));
   return {
     schema_version: 1,
     gate: input.gate ?? "work-completion",
@@ -235,6 +243,8 @@ export function evaluateGate(input, riskTaxonomy = null, context = {}) {
     required_approvals: [...approvals].sort(),
     status: failed.length ? "blocked" : "passed",
     allowed: failed.length === 0,
+    execution_allowed: failedEntryChecks.length === 0,
+    completion_allowed: failed.length === 0,
     checks,
     issues: failed.map((check) => ({
       fingerprint: `gate:${check.id}`,
@@ -242,6 +252,80 @@ export function evaluateGate(input, riskTaxonomy = null, context = {}) {
       title: `门禁缺少 ${check.id}`,
       detail: `必须提供 ${check.id} 的通过证据。`
     }))
+  };
+}
+
+function executionRoles(nextAction, nextStage, gate, policy) {
+  const configured = policy?.execution;
+  if (!configured) throw new Error("collaboration execution policy is unavailable");
+  if (configured.action_roles?.[nextAction]) return configured.action_roles[nextAction];
+  if (nextAction === "satisfy-gate") {
+    const failed = gate.checks.filter((check) => !check.passed).map((check) => check.id);
+    return [
+      ...(failed.some((id) => id.includes("test") || id === "verification-passed") ? ["tester"] : []),
+      ...(failed.some((id) => id.includes("review")) ? ["reviewer"] : [])
+    ];
+  }
+  const stageAction = nextAction?.match(/^(?:advance|resume)-(.+)$/)?.[1];
+  if (stageAction && configured.stage_roles?.[stageAction]) {
+    return configured.stage_roles[stageAction];
+  }
+  if (nextAction === "enter-feedback" && nextStage) {
+    return configured.stage_roles?.[nextStage] ?? [];
+  }
+  return [];
+}
+
+function agentLifecycle(input, gate, nextAction, nextStage, workflowComplete, context) {
+  const mode = gate.collaboration.selected_mode;
+  if (!mode) {
+    return {
+      mode: null,
+      status: "awaiting-collaboration-selection",
+      activate_or_reuse: [],
+      release_slots: []
+    };
+  }
+  const catalog = context.teamCatalog;
+  const team = catalog?.teams?.[mode];
+  const runtime = catalog?.runtime;
+  if (!team || !runtime) throw new Error(`collaboration runtime is unavailable for mode: ${mode}`);
+  const hostSlot = team.host_slot;
+  const subagents = team.members.filter((member) => member.slot !== hostSlot);
+  const releaseSlots = workflowComplete ? subagents.map((member) => member.slot) : [];
+  const roles = workflowComplete
+    ? []
+    : executionRoles(nextAction, nextStage, gate, context.collaborationPolicy);
+  const requested = new Map();
+  for (const member of subagents) {
+    const assignedRoles = member.roles.filter((role) => roles.includes(role));
+    if (assignedRoles.length) requested.set(member.slot, assignedRoles);
+  }
+  if (mode === "copilot" && roles.length) {
+    for (const member of subagents.filter((item) => item.functions.includes("advisor"))) {
+      requested.set(member.slot, []);
+    }
+  }
+  return {
+    mode,
+    status: workflowComplete ? "release" : "active",
+    host_slot: hostSlot,
+    activation: runtime.activation,
+    reuse: runtime.reuse_key,
+    retain: runtime.retain,
+    after_step: runtime.after_step,
+    durable_recovery: runtime.durable_recovery,
+    activate_or_reuse: subagents
+      .filter((member) => requested.has(member.slot))
+      .map((member) => ({
+        slot: member.slot,
+        profile: member.profile,
+        roles: requested.get(member.slot),
+        reuse_key: `${input.loop_id ?? "unbound-loop"}:${member.slot}`
+      })),
+    release_slots: releaseSlots,
+    release_on: runtime.release_on,
+    replace_on: runtime.replace_on
   };
 }
 
@@ -469,6 +553,7 @@ export function advanceLoop(input, riskTaxonomy = null, collaborationContext = {
     nextLoop = nextStage ? "work" : null;
     nextAction = nextStage ? `resume-${nextStage}` : "prepare-git-handoff";
   }
+  const workflowComplete = outcome === "complete" && nextLoop === null;
   return {
     schema_version: 2,
     loop: input.loop,
@@ -483,7 +568,15 @@ export function advanceLoop(input, riskTaxonomy = null, collaborationContext = {
     artifacts: input.artifacts ?? [],
     issues,
     proposals,
-    workflow_complete: outcome === "complete" && nextLoop === null,
+    workflow_complete: workflowComplete,
+    agents: agentLifecycle(
+      input,
+      gate,
+      nextAction,
+      nextStage,
+      workflowComplete,
+      collaborationContext
+    ),
     escalation_required: escalationRequired,
     reason
   };

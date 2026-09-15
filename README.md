@@ -61,6 +61,15 @@ modes. The recommended option carries a `[推荐]` prefix and every option keeps
 label. The choice is reused across the current Work, Feedback, and Maintenance flow unless scope, risk,
 or Gate requirements materially change.
 
+If a human chooses a weaker mode to control token cost, the decision remains valid but its assurance
+gap remains visible: entry checks may allow execution while the full Gate still blocks unsupported
+completion claims. The workflow does not fall back outside ZipZap or repeatedly ask for the same mode.
+
+Loop output includes an `agents` scheduling projection. The Host lazily starts only the slots needed by
+the next action, reuses the same `loop_id + slot` for Feedback and re-verification, leaves completed
+threads idle, and releases sub-Agent slots when the workflow completes. Agent/thread identity is never
+stored in the repository; Git Checkpoints remain the durable recovery source.
+
 ## Initialization
 
 Initialization is preview-first and confirmation-bound. `configure` creates only relevant starter assets, `reorganize` classifies an existing `conventions/` or `docs/standards/` tree, and `rebuild` creates a new signal-based structure with recoverable backups for overwritten standards. If `standards/` already exists, default configuration skips restructuring.

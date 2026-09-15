@@ -15,7 +15,8 @@ const workflow = readData(path.resolve("config/workflow.yml"));
 const teams = readData(path.resolve("config/teams.yml"));
 const collaborationContext = {
   collaborationPolicy: workflow.collaboration,
-  teamOrder: teams.order
+  teamOrder: teams.order,
+  teamCatalog: teams
 };
 
 function evaluateGate(input, taxonomy = null, context = {}) {
@@ -83,6 +84,8 @@ test("Solo is the silent default when the Gate needs no second context", () => {
     recommended_mode: "solo",
     selected_mode: "solo",
     selection_source: "default",
+    assurance_satisfied: true,
+    assurance_gap: null,
     decision_required: false,
     decision_options: []
   });
@@ -143,7 +146,7 @@ test("collaboration recommendations come from workflow configuration", () => {
   assert.equal(result.collaboration.recommended_mode, "trio");
 });
 
-test("a compatible human selection is reused and weaker modes stay blocked", () => {
+test("a compatible human selection is reused and weaker modes expose their assurance gap", () => {
   const selected = evaluateGate({
     schema_version: 1,
     risk: "medium",
@@ -180,15 +183,63 @@ test("a compatible human selection is reused and weaker modes stay blocked", () 
     claims_completion: false,
     evidence: []
   });
-  assert.equal(tooWeak.collaboration.selected_mode, null);
-  assert.equal(tooWeak.collaboration.decision_required, true);
-  assert.deepEqual(
-    tooWeak.collaboration.decision_options.map((option) => option.label),
-    [
-      "[推荐] Squad 当前工作需要完整角色分离",
-      "暂不执行 当前风险未满足前保持停止"
-    ]
-  );
+  assert.equal(tooWeak.collaboration.selected_mode, "trio");
+  assert.equal(tooWeak.collaboration.decision_required, false);
+  assert.equal(tooWeak.collaboration.assurance_satisfied, false);
+  assert.equal(tooWeak.collaboration.assurance_gap.required_mode, "squad");
+  assert.equal(tooWeak.execution_allowed, true);
+  assert.equal(tooWeak.completion_allowed, false);
+});
+
+test("an explicit Solo budget constraint stays inside ZipZap without reprompting", () => {
+  const result = evaluateGate({
+    schema_version: 1,
+    risk: "medium",
+    required_checks: ["peer-challenge"],
+    collaboration: {
+      mode: "solo",
+      actor: "user",
+      evidence_ref: "conversation:solo-only"
+    },
+    mutates_files: false,
+    claims_completion: false,
+    evidence: []
+  });
+  assert.equal(result.collaboration.selected_mode, "solo");
+  assert.equal(result.collaboration.decision_required, false);
+  assert.equal(result.collaboration.assurance_satisfied, false);
+  assert.equal(result.execution_allowed, true);
+  assert.equal(result.completion_allowed, false);
+});
+
+test("an explicit Solo choice advances to the missing Gate instead of team selection", () => {
+  const result = advanceLoop({
+    schema_version: 2,
+    loop: "work",
+    loop_id: "solo-budget",
+    stage: "plan",
+    attempt: 0,
+    event: "evaluate",
+    gate: {
+      schema_version: 1,
+      risk: "medium",
+      required_checks: ["peer-challenge"],
+      collaboration: {
+        mode: "solo",
+        actor: "user",
+        evidence_ref: "conversation:solo-only"
+      },
+      mutates_files: false,
+      claims_completion: false,
+      evidence: []
+    },
+    artifacts: [{ stage: "plan", locator: "docs/intent.md", commit_sha: "a".repeat(40) }]
+  });
+  assert.equal(result.next_action, "satisfy-gate");
+  assert.equal(result.gate.execution_allowed, true);
+  assert.equal(result.gate.completion_allowed, false);
+  assert.equal(result.agents.mode, "solo");
+  assert.deepEqual(result.agents.activate_or_reuse, []);
 });
 
 test("a multi-Agent recommendation pauses Work without consuming a correction", () => {
@@ -293,6 +344,85 @@ test("a human-selected mode continues across Work without another prompt", () =>
   assert.equal(continued.next_stage, "build");
   assert.equal(continued.gate.collaboration.decision_required, false);
   assert.deepEqual(continued.gate.collaboration.decision_options, []);
+});
+
+test("Trio lazily reuses Builder and Assurance slots across Work and Feedback", () => {
+  const collaboration = {
+    mode: "trio",
+    actor: "user",
+    evidence_ref: "conversation:team-choice"
+  };
+  const gate = {
+    ...passingGate,
+    collaboration
+  };
+  const build = advanceLoop({
+    schema_version: 2,
+    loop: "work",
+    loop_id: "trio-work",
+    stage: "design",
+    next_stage: "build",
+    attempt: 0,
+    event: "evaluate",
+    gate,
+    artifacts: [{ stage: "design", locator: "docs/design.md", commit_sha: "a".repeat(40) }]
+  });
+  assert.deepEqual(build.agents.activate_or_reuse, [{
+    slot: "builder",
+    profile: "wolf",
+    roles: ["developer"],
+    reuse_key: "trio-work:builder"
+  }]);
+  assert.deepEqual(build.agents.release_slots, []);
+
+  const verify = advanceLoop({
+    schema_version: 2,
+    loop: "feedback",
+    loop_id: "trio-work",
+    stage: "build",
+    attempt: 0,
+    event: "evaluate",
+    gate,
+    issues: [{
+      fingerprint: "same",
+      checkpoint: "checkpoint-a",
+      title: "Smoke failed",
+      severity: "medium",
+      status: "resolved",
+      return_stage: "build"
+    }]
+  });
+  assert.equal(verify.next_action, "verify-issues");
+  assert.deepEqual(verify.agents.activate_or_reuse, [{
+    slot: "assurance",
+    profile: "eagle",
+    roles: ["tester", "reviewer"],
+    reuse_key: "trio-work:assurance"
+  }]);
+});
+
+test("workflow completion releases every subagent slot", () => {
+  const result = advanceLoop({
+    schema_version: 2,
+    loop: "work",
+    loop_id: "trio-work",
+    stage: "maintain",
+    attempt: 0,
+    event: "evaluate",
+    gate: {
+      ...passingGate,
+      collaboration: {
+        mode: "trio",
+        actor: "user",
+        evidence_ref: "conversation:team-choice"
+      }
+    },
+    artifacts: [{ stage: "maintain", locator: "evidence/maintenance.md", commit_sha: "a".repeat(40) }]
+  });
+  assert.equal(result.workflow_complete, true);
+  assert.equal(result.agents.status, "release");
+  assert.deepEqual(result.agents.release_slots, ["builder", "assurance"]);
+  assert.deepEqual(result.agents.activate_or_reuse, []);
 });
 
 test("risk signals can raise but never lower Gate requirements", () => {
