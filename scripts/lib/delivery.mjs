@@ -199,8 +199,8 @@ function standardTarget(input, slot) {
 
 function issueFor(input, slot, reason, severity = "medium") {
   const target = standardTarget(input, slot);
-  const returnStage = slot.startsWith("build.") || slot === "deploy.smoke"
-    ? "build"
+  const returnTo = slot.startsWith("build.") || slot === "deploy.smoke"
+    ? "implement"
     : "deploy";
   return {
     fingerprint: `delivery:${slot}:${reason}`,
@@ -208,7 +208,7 @@ function issueFor(input, slot, reason, severity = "medium") {
     title: `${slot} ${reason.replaceAll("-", " ")}`,
     severity,
     status: "open",
-    return_stage: returnStage,
+    return_to: returnTo,
     ...(target ? { standard_target: target } : {})
   };
 }

@@ -5,7 +5,7 @@ type: object
 additionalProperties: false
 required: [schema_version, issues]
 properties:
-  schema_version: { const: 1 }
+  schema_version: { const: 2 }
   issues:
     type: array
     items: { $ref: "#/$defs/issue" }
@@ -13,14 +13,14 @@ $defs:
   issue:
     type: object
     additionalProperties: false
-    required: [fingerprint, checkpoint, title, severity]
+    required: [fingerprint, checkpoint, title, severity, return_to]
     properties:
       fingerprint: { type: string, minLength: 1 }
       checkpoint: { type: string, minLength: 1 }
       title: { type: string, minLength: 1 }
       severity: { enum: [low, medium, high] }
       status: { enum: [open, resolved, closed] }
-      return_stage: { enum: [plan, design, build, test, deploy, maintain] }
+      return_to: { enum: [direct, plan, design, implement, verify, deploy, maintain] }
       verification_ref: { type: string, minLength: 1 }
       bootstrap_gap: { type: boolean }
       standard_target: { type: string, pattern: "^standards/(foundation|engineering|quality|delivery|governance)/.+\\.md$" }

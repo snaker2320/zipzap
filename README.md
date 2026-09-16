@@ -1,25 +1,19 @@
 # ZipZap
 
-ZipZap is a Git-native collaboration Skill for AI-assisted development. It routes project standards, applies risk-proportionate gates, runs bounded feedback loops, and transfers multi-commit work through structured Git checkpoints. It does not maintain Tasks or committed project runtime state.
+ZipZap is a Git-native collaboration Skill for AI-assisted development. It routes project standards, applies risk-proportionate Gates, runs bounded feedback loops, and transfers multi-commit work through structured Git checkpoints. It does not maintain Tasks or committed runtime state.
 
 ## Model
 
 ```text
-AGENTS.md bootstrap
-        ↓
-standards/ whole-file routing
-        ↓
-Work | Feedback | Maintenance Loop
-        ↓
-Plan → Design → Build → Test → Deploy → Maintain
-        ↖             feedback             ↙
-        ↓
-built-in Gate
-        ↓
-Git Checkpoint (base..HEAD + trailers)
+AGENTS.md → standards routing → direct Work or bounded staged Work
+                                      ↓
+                      Plan → Design → Implement → Verify → Deploy → Maintain
+                         explicit start and completion nodes; no implicit advance
+                                      ↓
+                           Gate → Feedback → Git Checkpoint
 ```
 
-Project standards use five fixed categories: `foundation`, `engineering`, `quality`, `delivery`, and `governance`. Normal paths need no configuration. Exceptional selection uses YAML frontmatter. Gate and loop algorithms remain inside the installed Skill.
+Direct Work has `result_ref` and no SDLC stage. Staged Work declares `stage` and `completion_stage`, so a Plan-and-Design request ends at Design. Pure questions that need no controlled delivery stay outside the Loop.
 
 ## Commands
 
@@ -35,65 +29,25 @@ node scripts/zipzap.mjs issues --input examples/zipzap/issues.yml --compact
 node scripts/zipzap.mjs handoff --action prepare --input examples/zipzap/handoff.yml --compact
 ```
 
-CLI inputs may be JSON or YML. Machine output remains JSON.
+CLI input may be JSON or YML. Machine output is JSON.
+
+## Roles and acceptance
+
+ZipZap schedules `product`, `developer`, `tester`, and `reviewer` as logical responsibilities. It has no Solo/Copilot/Trio/Squad modes and never asks the user to choose a collaboration topology. Loop output lazily activates only the next action's roles and reuses them by `loop_id + role`; role count does not imply Agent count.
+
+An optional reusable acceptance contract covers positive, negative, boundary, and regression scenarios plus constraints. Each item has a stable ID, applicability, and expected behavior. Verification evidence maps to those IDs.
+
+Internal edit/Build/test/fix iteration does not spend the bounded governance correction, but it cannot bypass entry Gates, open high-risk problem items, or unreviewed standards proposals. `evaluate` is observational; the single automatic correction applies only after a submitted exit Gate failure or failed Feedback re-verification.
 
 ## Project Build and Deploy
 
-`delivery plan` discovers candidate project commands but requires an explicit mapping before work can
-proceed. `delivery assess` validates evidence after the Agent executes those commands through the Host.
-ZipZap never executes command text from the input.
+Delivery planning discovers candidate project commands but requires explicit mapping. Assessment validates evidence after the Agent executes confirmed commands through the Host. ZipZap never executes command text from input. Command slots such as `build.execute` are distinct from the workflow stage `implement`.
 
-The fixed semantic slots cover Build, artifact verification, precheck, non-production deployment,
-readiness probe, Smoke, diagnosis, and rollback. Projects keep their actual commands and scripts as the
-source of truth under project standards. Existing commands are preferred; add a script only for
-multi-step, repeated, safety-critical, polling, or rollback behavior. Production deployment is not
-supported by this contract.
-
-The Work Loop carries the current SDLC stage and next stage. Deploy consumes the existing delivery
-assessment rather than creating a parallel workflow. Failed checks enter Feedback at an explicit
-return stage; correction, re-verification, and closure return to Work. Repeated standards problems may
-enter Maintenance only after the underlying problem item is closed and the proposal is human-reviewed.
-Each Work stage advances with a Git-bound artifact; Build additionally binds its artifact SHA-256.
-
-Work starts in Solo without prompting when the Gate needs no second context or independent assurance.
-If the Gate requires Copilot, Trio, or Squad, ZipZap pauses once for a human choice among compatible
-modes. The recommended option carries a `[推荐]` prefix and every option keeps its reason in the same
-label. The choice is reused across the current Work, Feedback, and Maintenance flow unless scope, risk,
-or Gate requirements materially change.
-
-If a human chooses a weaker mode to control token cost, the decision remains valid but its assurance
-gap remains visible: entry checks may allow execution while the full Gate still blocks unsupported
-completion claims. The workflow does not fall back outside ZipZap or repeatedly ask for the same mode.
-
-Loop output includes an `agents` scheduling projection. The Host lazily starts only the slots needed by
-the next action, reuses the same `loop_id + slot` for Feedback and re-verification, leaves completed
-threads idle, and releases sub-Agent slots when the workflow completes. Agent/thread identity is never
-stored in the repository; Git Checkpoints remain the durable recovery source.
-
-## Initialization
-
-Initialization is preview-first and confirmation-bound. `configure` creates only relevant starter assets, `reorganize` classifies an existing `conventions/` or `docs/standards/` tree, and `rebuild` creates a new signal-based structure with recoverable backups for overwritten standards. If `standards/` already exists, default configuration skips restructuring.
-
-No `zipzap.yml` or `.zipzap/project.json` is generated. Ephemeral loop state is stored under the user cache with repository/worktree isolation. `.zipzap/` is obsolete and ignored.
+Deploy consumes the delivery assessment. Failed checks create problem items with `return_to`; Build and Smoke failures return to Implement, while deploy failures return to Deploy. Production is outside this contract.
 
 ## Handoff
 
-The final effective commit carries:
-
-```text
-ZipZap-Handoff: 1
-ZipZap-Base: <full commit SHA>
-ZipZap-Status: complete
-ZipZap-Summary: <summary>
-ZipZap-Verify: npm test => passed
-ZipZap-Issue: medium | <remaining problem>
-ZipZap-Standard: standards/delivery/git.md
-```
-
-Rich problem items use compact versioned fields in the same `ZipZap-Issue` trailer. Their fingerprint,
-lifecycle state, return stage, and re-verification evidence survive handoff; checkpoint is derived from
-the containing commit SHA. The legacy severity/title form remains supported. The receiver reconstructs all commits and changed files from
-`base..HEAD`. If later commits are added, regenerate and amend the final commit metadata.
+The final effective commit carries a non-empty bounded `base..HEAD` range, status, summary, verification, issues, and standards. Structured `ZipZap-Issue` version 2 preserves the issue fingerprint, lifecycle state, `return_to` target, and verification evidence. Direct Work uses `return_to: direct`; legacy severity/title issues remain readable.
 
 ## Development and release
 
@@ -105,4 +59,4 @@ npm run test:dist
 git diff --check
 ```
 
-Only `dist/skill` is installable. The bundle contains one CLI and a bundled YAML parser; it requires no runtime package installation. `npm run release:bundle` prepares deterministic GitHub Release assets from a clean, tagged revision and does not push or publish.
+Only `dist/skill` is installable. The bundle is self-contained. `npm run release:bundle` prepares deterministic assets from a clean tagged revision and does not push or publish.

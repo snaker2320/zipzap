@@ -28,14 +28,6 @@ properties:
   destructive: { type: boolean }
   external_effect: { type: boolean }
   claims_completion: { type: boolean }
-  collaboration:
-    type: object
-    additionalProperties: false
-    required: [mode, actor, evidence_ref]
-    properties:
-      mode: { enum: [solo, copilot, trio, squad] }
-      actor: { type: string, minLength: 1 }
-      evidence_ref: { type: string, minLength: 1 }
   required_checks:
     type: array
     items: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }

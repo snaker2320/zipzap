@@ -5,7 +5,7 @@ type: object
 additionalProperties: false
 required: [schema_version, loop, loop_id, project, gate]
 properties:
-  schema_version: { const: 2 }
+  schema_version: { const: 3 }
   loop: { enum: [work, feedback, maintenance] }
   loop_id: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
   project:
@@ -15,7 +15,7 @@ properties:
     properties:
       locator: { type: string, minLength: 1 }
   attempt: { type: integer, minimum: 0 }
-  event: { enum: [evaluate, model-correction, deterministic-rerun] }
+  event: { enum: [evaluate, submitted-result, internal-iteration, feedback-verification-failed, deterministic-rerun] }
   rerun:
     type: object
     additionalProperties: false
@@ -27,27 +27,124 @@ properties:
   persist: { type: boolean }
   cache_root: { type: string, minLength: 1 }
   gate: { $ref: ./gate-input.schema.yml }
-  stage: { enum: [plan, design, build, test, deploy, maintain] }
-  next_stage: { enum: [plan, design, build, test, deploy, maintain] }
+  stage: { enum: [plan, design, implement, verify, deploy, maintain] }
+  completion_stage: { enum: [plan, design, implement, verify, deploy, maintain] }
+  next_stage: { enum: [plan, design, implement, verify, deploy, maintain] }
+  result_ref: { type: string, minLength: 1 }
+  required_roles:
+    type: array
+    items: { enum: [developer, tester, reviewer, product] }
+    uniqueItems: true
+  active_roles:
+    type: array
+    items: { enum: [developer, tester, reviewer, product] }
+    uniqueItems: true
   artifacts:
     type: array
+    allOf:
+      - contains:
+          properties: { stage: { const: plan } }
+          required: [stage]
+        minContains: 0
+        maxContains: 1
+      - contains:
+          properties: { stage: { const: design } }
+          required: [stage]
+        minContains: 0
+        maxContains: 1
+      - contains:
+          properties: { stage: { const: implement } }
+          required: [stage]
+        minContains: 0
+        maxContains: 1
+      - contains:
+          properties: { stage: { const: verify } }
+          required: [stage]
+        minContains: 0
+        maxContains: 1
+      - contains:
+          properties: { stage: { const: deploy } }
+          required: [stage]
+        minContains: 0
+        maxContains: 1
+      - contains:
+          properties: { stage: { const: maintain } }
+          required: [stage]
+        minContains: 0
+        maxContains: 1
     items:
       type: object
       additionalProperties: false
       required: [stage, locator, commit_sha]
       properties:
-        stage: { enum: [plan, design, build, test, deploy, maintain] }
+        stage: { enum: [plan, design, implement, verify, deploy, maintain] }
         locator: { type: string, minLength: 1 }
         commit_sha: { type: string, pattern: "^[a-f0-9]{40}$" }
         sha256: { type: string, pattern: "^sha256:[a-f0-9]{64}$" }
         evidence_ref: { type: string, minLength: 1 }
+  acceptance:
+    type: object
+    additionalProperties: false
+    required: [scenarios, constraints]
+    properties:
+      scenarios:
+        type: array
+        minItems: 4
+        items:
+          type: object
+          additionalProperties: false
+          required: [id, type, applicability, condition, action, expected]
+          properties:
+            id: { type: string, pattern: "^[A-Z][A-Z0-9_-]*$" }
+            type: { enum: [positive, negative, boundary, regression] }
+            applicability: { enum: [applicable, not-applicable] }
+            rationale: { type: string, minLength: 1 }
+            condition: { type: string, minLength: 1 }
+            action: { type: string, minLength: 1 }
+            expected: { type: string, minLength: 1 }
+          allOf:
+            - if:
+                properties:
+                  applicability: { const: not-applicable }
+                required: [applicability]
+              then:
+                required: [rationale]
+      constraints:
+        type: array
+        minItems: 1
+        items:
+          type: object
+          additionalProperties: false
+          required: [id, applicability, statement]
+          properties:
+            id: { type: string, pattern: "^[A-Z][A-Z0-9_-]*$" }
+            applicability: { enum: [applicable, not-applicable] }
+            rationale: { type: string, minLength: 1 }
+            statement: { type: string, minLength: 1 }
+          allOf:
+            - if:
+                properties:
+                  applicability: { const: not-applicable }
+                required: [applicability]
+              then:
+                required: [rationale]
+  acceptance_evidence:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [acceptance_id, status]
+      properties:
+        acceptance_id: { type: string, pattern: "^[A-Z][A-Z0-9_-]*$" }
+        status: { enum: [passed, failed, not-run, not-applicable] }
+        evidence_ref: { type: string, minLength: 1 }
       allOf:
         - if:
             properties:
-              stage: { const: build }
-            required: [stage]
+              status: { enum: [passed, failed] }
+            required: [status]
           then:
-            required: [sha256]
+            required: [evidence_ref]
   delivery: { $ref: ./delivery-output.schema.yml }
   issues:
     type: array
@@ -67,9 +164,19 @@ allOf:
         loop: { const: work }
       required: [loop]
     then:
-      required: [stage, artifacts]
-      properties:
-        artifacts: { minItems: 1 }
+      oneOf:
+        - required: [result_ref]
+          not:
+            anyOf:
+              - required: [stage]
+              - required: [completion_stage]
+              - required: [artifacts]
+              - required: [delivery]
+        - required: [stage, completion_stage, artifacts]
+          properties:
+            artifacts: { minItems: 1 }
+          not:
+            required: [result_ref]
   - if:
       properties:
         loop: { const: feedback }
@@ -78,6 +185,17 @@ allOf:
       required: [issues]
       properties:
         issues: { minItems: 1 }
+  - if:
+      properties:
+        loop: { const: feedback }
+        issues:
+          contains:
+            properties:
+              return_to: { enum: [plan, design, implement, verify, deploy, maintain] }
+            required: [return_to]
+      required: [loop, issues]
+    then:
+      required: [completion_stage]
   - if:
       properties:
         loop: { const: maintenance }

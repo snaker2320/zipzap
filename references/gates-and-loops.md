@@ -1,4 +1,6 @@
-# Gates, loops, and problem items
+# Gates, loops, roles, and acceptance
+
+## Gate
 
 The shared Gate derives requirements from effect and risk:
 
@@ -7,77 +9,36 @@ The shared Gate derives requirements from effect and risk:
 - completion claims require `verification-passed`;
 - high risk requires `independent-review-passed`.
 
-The Agent supplies observed current-action `signals`, not the final policy. Subject risk selects
-context but does not impose action effects. `risk-taxonomy.yml` may raise the declared action risk and
-contributes its required evidence, named approvals, testing, and review checks. It can never lower
-risk. `status: passed` is accepted only with a non-empty `evidence_ref`; within Work, exit evidence must
-also bind the current stage `commit_sha`. Independent review/testing checks record the responsible
-reviewer/tester identity without introducing a separate role database.
+Signals describe the current action. The risk taxonomy may raise but never lower risk and may add evidence, approvals, testing, or review requirements. Passing evidence needs a non-empty `evidence_ref`; staged exit evidence also binds the current stage commit. Independent testing and review record the responsible role and actor.
 
-Evaluate scope and human authorization before acting. After execution, route an actual stage failure
-to Feedback before evaluating completion claims. Only a successful stage with verification and any
-required independent assurance may advance. This keeps one Gate engine while preventing a failed
-Deploy from getting stuck behind its expected missing completion evidence.
+Entry Gate failures block without consuming the correction allowance or activating execution roles. Internal Agent iteration is not submitted governance output and does not increment `attempt`, but it cannot bypass an entry failure, an open high-risk problem item, or an unreviewed standards proposal. A resolved high-risk item may proceed to verification. `event: evaluate` observes a failed exit Gate without consuming a correction; only `event: submitted-result` may spend the one automatic correction. A second submitted failure stops. High-risk submitted failure stops immediately. Identical-input deterministic reruns do not consume the correction.
 
-## Collaboration mode at Work entry
+## Direct and staged Work
 
-Use Gate requirements as the only collaboration threshold:
+Choose based on real handoffs, not business classification:
 
-- no second-context or independence requirement: Solo, selected silently;
-- `peer-challenge` or `second-context`: Copilot or stronger, with Copilot recommended;
-- testing or review independent from development: Trio or Squad, with Trio recommended;
-- high risk or review independent from testing: Squad.
+- direct Work: `result_ref`, no stage;
+- staged Work: `stage`, `completion_stage`, and exactly one Git artifact for each represented stage;
+- no Loop: a pure request with no controlled delivery.
 
-When Solo is sufficient, continue without a decision. Otherwise stop at the entry check
-`collaboration-mode-selected` and ask the human once before launching multiple Agent contexts. Show
-only Gate-compatible modes. Put the reason in each option label, prefix the recommendation with
-`[推荐]`, and do not add a separate rationale paragraph. If only Squad is compatible, pair it with a
-`暂不执行` option. A selected multi-Agent mode requires the human actor and selection evidence.
+Stages are `plan`, `design`, `implement`, `verify`, `deploy`, and `maintain`. `next_stage` is always explicit. A successful non-terminal stage without `next_stage` stops at `await-explicit-next-stage`; it never assumes the whole lifecycle. Reaching `completion_stage` completes Work.
 
-Reuse the selection throughout the same Work, Feedback, and Maintenance flow. Re-evaluate only when
-scope, normalized action risk, or Gate requirements materially change. Team presets are logical role
-topologies; the Host may schedule them sequentially, but it may not weaken required independence.
+Deploy requires a passed delivery assessment. Delivery command slots retain names such as `build.execute`; they are not workflow stages.
 
-An explicit weaker human choice is still a completed collaboration decision. Keep its selected mode,
-set `assurance_satisfied: false`, and report the required mode in `assurance_gap`. `execution_allowed`
-reflects entry checks only; `completion_allowed` reflects the full Gate. This lets a token-constrained
-Solo run remain governed without claiming missing peer challenge, testing, or review. Never escape the
-Skill merely because the selected topology is weaker than the recommendation.
+## Acceptance contract
 
-The Loop emits an `agents` projection for Host scheduling. The main Agent owns the configured
-`host_slot`; other slots use lazy `activate_or_reuse` instructions keyed by `loop_id + slot`. A completed
-sub-Agent step becomes idle, and the same thread receives later Feedback or re-verification follow-ups.
-Idle retention performs no work by itself, but a later follow-up still consumes model context. Release
-sub-Agent slots when `workflow_complete` becomes true or an external Handoff occurs. Recompose on a
-material scope or risk change; replace an affected assurance thread if it edits the artifact it must
-independently assess or if its retained context is no longer reliable. Only Git Checkpoints survive as
-durable recovery facts; do not persist Agent IDs in the project.
+Use stable IDs. Address positive, negative, boundary, and regression scenarios. Each records applicability, condition, action, and expected result. A non-applicable item includes a rationale. Record applicable constraints or invariants in the same contract. Completion evidence maps to each applicable acceptance ID; missing or failed evidence creates a problem item.
 
-Work, Feedback, and Maintenance Loops share this gate. Attempt `0` is the initial model result. A non-high-risk failure may produce one correction at attempt `1`; another failure stops. High-risk failure stops immediately. `deterministic-rerun` may continue without incrementing the model attempt only when the current and previous input SHA-256 values match.
+This contract guides test design, including Playwright work. A clear request can begin Design with `required_roles: [tester]`; Product is unnecessary unless intent, scope, or acceptance needs product judgment.
 
-## SDLC stage flow
+## Role scheduling
 
-Work carries one current stage: `plan`, `design`, `build`, `test`, `deploy`, or `maintain`. The default
-forward path follows that order. `next_stage` supports a bounded non-linear return, for example Test to
-Build or Deploy to Test. A successful step returns `outcome: complete` with the next Work stage;
-`workflow_complete` becomes true only when neither a next Loop nor a next stage remains.
+Roles are responsibilities, not Agents. There is no collaboration-mode selection. `required_roles` describes the current or next action; Gate-required Tester or Reviewer roles are additive. The configured stage defaults are deliberately small, and Product is never activated merely because the current stage is Plan.
 
-Carry stage artifacts in `artifacts`. The current stage cannot advance until its artifact has a
-`commit_sha`; Build also requires the immutable artifact `sha256`. Loop state in the user cache supports
-continuation but is not the audit source; use the Git Checkpoint chain for durable reconstruction.
-Deploy must receive the output of `delivery --action assess`. Missing or blocked assessment produces
-problem items and routes Work to Feedback instead of advancing to Maintain.
+The Loop projects `activate_or_reuse` entries keyed by `loop_id + role`. Reuse a Tester from Design later in Verify or Feedback. It may stay idle between those actions. Independence depends on behavior, not identity: a Tester that edits the artifact under test cannot keep claiming independent verification without a new valid assurance pass. `active_roles` lets a completion result release retained assignments.
 
 ## Feedback and Maintenance
 
-Feedback input contains problem items from explicit Git Checkpoints. `open` means it still needs a
-correction, `resolved` means the correction awaits re-verification, and `closed` requires a
-`verification_ref`. `return_stage` tells Work where to resume after closure. High-risk problem items
-stop for human handling; other problems retain the one-model-correction limit.
+Problem states are `open`, `resolved`, and `closed`; closure requires `verification_ref`. An open issue enters correction without consuming an attempt. `resolved` awaits verification. `event: feedback-verification-failed` reopens resolved items and is the only Feedback event that consumes the one correction allowance.
 
-A fingerprint appearing in two distinct checkpoints produces a standards proposal; high severity may
-produce one immediately. Active product or implementation problems stay in Feedback. Once they are
-closed, a resulting standards proposal may enter Maintenance. Proposal state progresses through
-`proposed`, `approved`, `applied`, and `closed`; `proposed` stops for human review, and `closed`
-requires verification evidence. Proposals never write standards or `AGENTS.md` themselves.
-Human-reviewed resolution merges or revises existing rules where possible.
+`return_to` is either `direct` or a named stage. Staged Feedback also carries the original `completion_stage`, preserving the Work boundary while it resumes the explicit stage. Closure resumes the same direct Work or that stage. Repeated fingerprints across independent checkpoints may produce a standards proposal. Proposals require human review before application and never edit standards by themselves.

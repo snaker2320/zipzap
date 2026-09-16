@@ -15,120 +15,82 @@ For project work, inspect `AGENTS.md` and route project standards with:
 node scripts/zipzap.mjs standards --action route --input <request.yml> --compact
 ```
 
-Load each selected file in full. Standard locations under `standards/` need no routing configuration. YAML frontmatter is only for exceptional applicability, priority, risk, or authority metadata. If no rule matches, load `standards/foundation/project.md` when present and ask only for the missing decision.
+Load every selected standard in full. Normal paths under `standards/` need no routing configuration. YAML frontmatter is only for exceptional applicability, priority, risk, or authority metadata. If routing remains uncertain, load `standards/foundation/project.md` and ask only for the missing decision.
 
-Read only the ZipZap reference needed for the active operation:
+Read only the reference needed for the active operation:
 
 - initialization or restructuring: `references/standards.md`;
-- work, review, verification, or feedback: `references/gates-and-loops.md`;
+- Work, Gate, acceptance, Feedback, or role scheduling: `references/gates-and-loops.md`;
 - project Build or development/test Deploy: `references/delivery.md`;
 - Git transfer or recovery: `references/git-handoff.md`;
 - user decisions and native forms: `references/decision-forms.md`;
-- package install, upgrade, rollback, or release: `references/lifecycle.md`.
+- install, upgrade, rollback, or release: `references/lifecycle.md`.
 
 ## Initialize standards
 
-Initialization is preview-first. If a valid `standards/` structure exists, default `configure` resolves to `keep` and skips restructuring. Otherwise guide the user among:
+Initialization is preview-first. If valid standards already exist, default `configure` resolves to `keep`. Otherwise guide the user among `configure`, `reorganize`, and `rebuild`. Create only relevant assets, show exact operations and the fingerprint before applying, and never overwrite `AGENTS.md` automatically.
 
-- `configure`: create only project-relevant starter assets;
-- `reorganize`: classify existing `conventions/` or `docs/standards/` documents into the five standard categories;
-- `rebuild`: generate a fresh relevant structure, backing up overwritten standards in the user cache.
+## Choose the smallest Work contract
 
-The categories are `foundation`, `engineering`, `quality`, `delivery`, and `governance`. Do not mechanically create every possible file. Show the preview, unresolved collisions, exact writes/moves, and fingerprint before applying it. Never overwrite an existing `AGENTS.md` automatically.
+Do not classify requests as business or non-business. Decide whether controlled stage handoffs are useful.
 
-## Run the bounded loop
+- Use direct Work for a bounded result that does not need staged delivery. Supply `result_ref`; omit `stage`, `completion_stage`, and `artifacts`.
+- Use staged Work when artifacts must cross controlled stage boundaries. Declare the current `stage`, the explicit ending node `completion_stage`, and exactly one Git-bound artifact for each represented stage.
+- Keep pure questions, conversation, and requests that need no governed delivery outside the Loop.
 
-Use one of three built-in loops:
+The stage vocabulary is `plan`, `design`, `implement`, `verify`, `deploy`, and `maintain`. A stage never advances implicitly. Supply `next_stage` only for an intentional transition. Reaching `completion_stage` completes Work, so a design-only request can end at Design without entering Implement or Verify.
 
-- Work Loop for framing, producing, verifying, reviewing, and completing a delivery;
-- Feedback Loop for turning observed problem items into bounded corrections or standards proposals;
-- Maintenance Loop for checking and repairing standards quality.
+## Run bounded Gates and loops
 
-All loops use the same Gate and Git Checkpoint rules. Token efficiency is the first optimization boundary: allow the initial attempt plus at most one automatic model correction. If the second model result fails, stop with evidence and escalate. A high-risk gate failure stops immediately. Cheap deterministic checks may rerun without spending the model-correction allowance.
+Use Work for delivery, Feedback for observed problem items, and Maintenance for reviewed standards improvements. The Gate derives requirements from current-action effects and risk. Project standards may define applicability, commands, high-risk areas, and authority, but may not redefine Gate semantics or bypass a failed Gate.
 
-Gate types and algorithms are built in. Project standards may define applicability, verification commands, high-risk areas, and human authority, but may not redefine gate semantics or bypass a failed gate. The Agent records signals for the current action; subject risk only routes context. The built-in taxonomy may raise, never lower, the declared action risk and adds its evidence, approval, testing, and review checks. A passed check needs a source reference, and Loop exit evidence must bind the current stage commit. Scope and authorization are entry checks; verification and independent review are exit checks, so a failed stage can enter Feedback without claiming completion.
+Scope and authorization are entry checks. Verification and independent review are exit checks. A passed check needs a source reference; staged exit evidence binds the current stage commit. Risk signals may raise but never lower declared risk.
 
-At the start of new Work, derive the collaboration mode from the normalized current-action Gate:
+Internal Agent iteration such as edit, Build, test, and fix stays inside the active action. It neither creates Feedback nor spends the governance correction allowance, but it cannot bypass an entry failure, an open high-risk problem item, or an unreviewed standards proposal. A resolved high-risk item may proceed to verification. `evaluate` observes without spending the allowance. After a submitted result fails an exit Gate, or a Feedback correction fails re-verification, allow one automatic model correction. Re-verification failure reopens resolved items. A second failure stops with evidence. High-risk submitted failure stops immediately. A deterministic rerun with identical input SHA-256 does not consume the allowance.
 
-- default silently to Solo when no second context or independent assurance is required;
-- recommend Copilot for peer challenge or a second context;
-- recommend Trio when testing or review must be separate from development;
-- recommend Squad for high risk or when testing and review must also be separate.
+## Guide acceptance without overfitting
 
-Continue immediately for the Solo default. Before launching a multi-Agent mode, pause once for a human
-choice among modes that satisfy the Gate. Put each mode's reason directly in its option label and prefix
-only the recommended option with `[推荐]`; do not repeat the rationale as separate prose. Carry the
-selection through Work, Feedback, and Maintenance. Ask again only after a material scope, risk, or Gate
-requirement change, or when the user explicitly requests another mode.
+When acceptance needs to be explicit, record a reusable contract with stable IDs:
 
-If the human explicitly chooses a weaker mode, including Solo for token control, keep the Work inside
-ZipZap. Record that choice once, expose the assurance gap, allow entry checks to govern execution, and
-block only unsupported completion or independence claims. Do not reprompt for the same choice and do
-not fall back to an ungoverned ordinary workflow.
+- positive, negative, boundary, and regression scenarios;
+- each scenario's applicability, condition, action, and expected result;
+- constraints or invariants and their applicability;
+- verification evidence mapped back to acceptance IDs.
 
-Treat Team members as lazily activated Host threads, not stage-wide permanent prompts. Follow the
-Loop result's `agents.activate_or_reuse` projection: reuse the same `loop_id + slot` thread for later
-Feedback or re-verification, leave it idle after its step, and keep activated threads until
-`workflow_complete`. Release them after workflow completion or external Handoff; recompose the team
-when scope or risk materially changes. Replace only the affected thread when independence is invalidated,
-its retained context is no longer reliable, or Host capacity requires it. Agent IDs and thread state
-remain Host-owned and must not be written into the project or Git Handoff.
+Every scenario type must be addressed, but `not-applicable` with a reason is valid. This is a design aid and exit-evidence contract, not a requirement to execute irrelevant tests. Applicable items need passing evidence before completion.
 
-For an SDLC delivery, advance the Work Loop through `plan`, `design`, `build`, `test`, `deploy`,
-and `maintain`. The default path is forward, while an explicit valid `next_stage` may return to an
-earlier stage. Work advances only with an artifact for the current stage bound to a Git commit; a Build
-artifact also carries its SHA-256. Carry evidence and problem items in the Loop result; Git Checkpoints
-remain the durable audit trail. `outcome: complete` closes the current Loop step only;
-`workflow_complete: true` means no next Loop or stage remains.
+## Schedule roles, not team modes
 
-The Deploy stage must consume a passed `delivery --action assess` result. A blocked assessment enters
-the Feedback Loop at the issue's `return_stage`. Feedback moves problem items through `open`,
-`resolved`, and `closed`; closing requires current `verification_ref`. Only a repeated standards
-proposal enters Maintenance, and a proposal must be human-reviewed before the Agent applies it.
+There are no Solo, Copilot, Trio, Squad, team presets, or collaboration-selection prompts. Roles are logical responsibilities, not Agent counts. Multiple roles may be performed sequentially, by one context where independence is not required, or by distinct contexts when a Gate requires independence.
+
+Follow `agents.activate_or_reuse`. Activate no execution roles while the entry Gate is blocked. Otherwise activate only roles needed for the next action and reuse by `loop_id + role`. `required_roles` expresses action-specific judgment: Design may request a developer for technical design or a tester for test design. Activate Product only when intent, scope, acceptance, or a product trade-off is ambiguous or explicitly assigned.
+
+Reuse the same Tester assignment after test design for later Verify or Feedback work. Leaving a role idle does no work. Tester independence remains valid while it does not edit the artifact under test; if it does, re-establish valid verification. Pass `active_roles` when the Host needs the completion result to release every retained role. Agent IDs and thread state remain Host-owned and never enter project state or Git Handoff.
+
+## Feedback and Maintenance
+
+Call user-facing defects “问题项”; use `issues` in machine fields. Preserve stable `fingerprint`, `checkpoint`, `status`, `return_to`, and closure `verification_ref`. Staged Feedback also carries the original `completion_stage`. A staged issue returns to its named stage without losing the end node; a direct issue uses `return_to: direct` and resumes the same direct Work.
+
+Group equivalent observations by fingerprint. Two independent Git Checkpoints may propose a standards improvement; high severity may propose one immediately. Do not create a feedback database, auto-edit `AGENTS.md`, or self-approve a proposal. Prefer merging or revising the narrowest existing standard.
 
 ## Build and deploy through project adapters
 
-Use `delivery --action plan` to discover project-owned command candidates and validate an explicit
-mapping for Build and development/test Deploy. Discovery is guidance, never executable authority.
-Prefer existing package, Make, `devctl`, Compose, or project scripts; do not create wrapper scripts
-when a stable command is sufficient.
+Use `delivery --action plan` to discover project-owned command candidates and validate an explicit mapping for Build and development/test Deploy. Discovery is guidance, never executable authority. The Agent executes confirmed commands through the Host; ZipZap does not execute command text from input.
 
-The Agent executes confirmed commands directly through the Host. ZipZap does not execute commands
-from a delivery input. Use `delivery --action assess` to require artifact, command, target, readiness,
-Smoke, rollback availability, and authorization evidence as applicable. Production deployment is
-outside this contract. Read `references/delivery.md` before planning or assessing these stages.
-
-## Consolidate feedback
-
-Call user-facing review defects “问题项”; use `issues` in machine fields. Group equivalent observations by stable fingerprint. Preserve `checkpoint`, `status`, `return_stage`, and closure `verification_ref` so Feedback can resume and close the issue truthfully. Two independent Git Checkpoints may propose a standards improvement; a high-risk problem item may propose one on first occurrence.
-
-Do not create a feedback database or append-only history. Do not auto-edit `AGENTS.md`. Prefer merging or revising the narrowest existing standard and suppress duplicate prose. Only a repeated bootstrap-routing gap may propose a minimal, human-reviewed `AGENTS.md` revision. A proposal is never self-approval.
+Use `delivery --action assess` to validate artifact, command, target, readiness, Smoke, rollback, and authorization evidence. Delivery slots such as `build.execute` remain semantic commands, not workflow stages. Build or Smoke failures return to workflow stage `implement`; other deploy failures return to `deploy`. Production deployment is outside this contract.
 
 ## Handoff through Git
 
-Use `base..HEAD` as the complete multi-commit delivery range. The final effective commit must contain exactly one each of:
+Use `base..HEAD` as the complete, non-empty multi-commit range. The final effective commit contains exactly one `ZipZap-Handoff`, `ZipZap-Base`, `ZipZap-Status`, and `ZipZap-Summary` trailer, plus repeatable verification, issue, and standard trailers as needed. Structured issue trailer version 2 preserves `return_to`, including `direct`; the legacy severity/title form remains readable.
 
-```text
-ZipZap-Handoff: 1
-ZipZap-Base: <full-commit-sha>
-ZipZap-Status: complete|partial|blocked
-ZipZap-Summary: <bounded summary>
-```
-
-Add repeatable `ZipZap-Verify`, `ZipZap-Issue`, and `ZipZap-Standard` trailers as needed. Rich
-`ZipZap-Issue` values preserve the Feedback fingerprint, status, return stage, and verification
-reference in compact versioned fields; inspection derives the checkpoint from the containing commit.
-The legacy severity/title form remains readable. Run
-`handoff --action prepare` before the final commit or amend. If another commit is added later,
-regenerate and amend the new final commit. The receiver runs `handoff --action inspect` and validates
-commit availability, ancestry, full changed-file range, evidence, remaining issues, and worktree state.
+Run `handoff --action prepare` before the final commit or amend. If another commit is added, regenerate and amend the new final commit. The receiver inspects commit availability, ancestry, changed files, evidence, remaining issues, and worktree state.
 
 ## Ask decisions through the host
 
-First detect whether `request_user_input` is callable in the current host and mode. When callable, use the native form in pages of two or three questions, never more than three. Preserve one atomic decision bundle: collect every page before mutating state. When the tool is unavailable, use the projected stepwise text fallback. Tool availability is host- and mode-specific; do not claim native form support from catalog metadata alone.
+Use native input forms only for real unresolved user decisions, in pages of at most three questions. Preserve one atomic decision bundle and do not mutate state from partial answers. When unavailable, use stepwise text. Role scheduling and stage transitions are Agent responsibilities and do not create topology-choice prompts.
 
 ## Lifecycle
 
-Installed artifacts are bundled and must not run `npm install`. Upgrading from the Task-based release is destructive: first preview every obsolete `.zipzap/` file, count, and byte size; show that the deletion is unrecoverable; require the exact current fingerprint; then delete it. Initialize `standards/` separately after package installation.
+Installed artifacts are bundled and must not run `npm install`. Upgrading from Task-based releases remains preview-first and fingerprint-confirmed before deleting obsolete `.zipzap/` state. Initialize project standards separately from package installation.
 
 Never claim tests, review, acceptance, release readiness, push, or publication without recorded evidence.

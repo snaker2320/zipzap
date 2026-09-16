@@ -1,10 +1,12 @@
-schema_version: 2
+schema_version: 3
 loop: work
 loop_id: example-work
 project:
   locator: .
 stage: plan
+completion_stage: design
 next_stage: design
+required_roles: [tester]
 artifacts:
   - stage: plan
     locator: docs/intent.md
@@ -21,3 +23,7 @@ gate:
     - id: scope-understood
       status: passed
       evidence_ref: standards route
+    - id: verification-passed
+      status: passed
+      evidence_ref: review:plan
+      commit_sha: "0000000000000000000000000000000000000000"

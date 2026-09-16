@@ -11,8 +11,8 @@ assurance_claims:
 invariants:
   - id: role-profile-separation
     rule: Keep accountable roles separate from named Agent Profiles.
-  - id: topology-concurrency-separation
-    rule: Keep logical Team Presets separate from host concurrency.
+  - id: role-agent-separation
+    rule: Treat roles as logical responsibilities; never infer Agent count or topology from role count.
   - id: personalization-governance-boundary
     rule: Do not let personalization change authority, rules, gates, evidence, or independence.
   - id: project-rule-single-source
@@ -23,6 +23,8 @@ invariants:
     rule: Do not label self-review, peer challenge, or co-authored work as independent review.
   - id: evidence-backed-completion
     rule: Support completion claims with applicable evidence and gate state.
+  - id: explicit-work-boundary
+    rule: Direct Work has no SDLC stage; staged Work declares its completion stage and advances only explicitly.
   - id: minimal-runtime-context
     rule: Inject the smallest sufficient runtime projection and recompose it when governing inputs
       change.

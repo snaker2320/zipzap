@@ -113,6 +113,7 @@ test("delivery assessment requires bound readiness evidence", (context) => {
   }, catalog);
   assert.equal(result.status, "blocked");
   assert.ok(result.issues.some((item) => item.fingerprint === "delivery:deploy.probe:evidence-failed"));
+  assert.equal(result.issues.find((item) => item.fingerprint === "delivery:deploy.probe:evidence-failed").return_to, "deploy");
   assert.ok(result.next_actions.some((item) => item.includes("readiness")));
 });
 
@@ -222,6 +223,7 @@ test("repeated delivery failures can feed a bounded standards proposal", (contex
   const second = assessDelivery({ ...input, artifact, evidence: failing, checkpoint: "checkpoint-b" }, catalog);
   const fingerprint = "delivery:deploy.probe:evidence-failed";
   const result = consolidateIssues({
+    schema_version: 2,
     issues: [
       first.issues.find((item) => item.fingerprint === fingerprint),
       second.issues.find((item) => item.fingerprint === fingerprint)

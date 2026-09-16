@@ -3,673 +3,402 @@ import path from "node:path";
 import test from "node:test";
 
 import { readData } from "../scripts/lib/data-files.mjs";
-import {
-  advanceLoop as advanceLoopWithPolicy,
-  consolidateIssues,
-  evaluateGate as evaluateGateWithPolicy
-} from "../scripts/lib/workflow.mjs";
 import { validateSchemaFile } from "../scripts/lib/schema-registry.mjs";
+import { advanceLoop, consolidateIssues, evaluateGate } from "../scripts/lib/workflow.mjs";
 
-const riskTaxonomy = readData(path.resolve("config/risk-taxonomy.yml"));
+const root = path.resolve(".");
+const taxonomy = readData(path.resolve("config/risk-taxonomy.yml"));
 const workflow = readData(path.resolve("config/workflow.yml"));
-const teams = readData(path.resolve("config/teams.yml"));
-const collaborationContext = {
-  collaborationPolicy: workflow.collaboration,
-  teamOrder: teams.order,
-  teamCatalog: teams
-};
+const sha = "a".repeat(40);
 
-function evaluateGate(input, taxonomy = null, context = {}) {
-  return evaluateGateWithPolicy(input, taxonomy, {
-    ...context,
-    ...collaborationContext
-  });
-}
-
-function advanceLoop(input, taxonomy = null) {
-  return advanceLoopWithPolicy(input, taxonomy, collaborationContext);
-}
-
-const scopeEvidence = {
-  id: "scope-understood",
-  status: "passed",
-  evidence_ref: "standards route"
-};
-
-const passingGate = {
-  schema_version: 1,
-  risk: "medium",
-  mutates_files: true,
-  claims_completion: true,
-  evidence: [
-    scopeEvidence,
-    {
-      id: "verification-passed",
-      status: "passed",
-      evidence_ref: "host:test",
-      commit_sha: "a".repeat(40)
-    }
-  ]
-};
-
-test("gate derives required evidence and high risk review", () => {
-  const result = evaluateGate({
-    schema_version: 1,
-    risk: "high",
-    mutates_files: true,
-    claims_completion: true,
-    evidence: [scopeEvidence]
-  });
-  assert.equal(result.allowed, false);
-  assert.deepEqual(
-    result.issues.map((item) => item.fingerprint),
-    [
-      "gate:collaboration-mode-selected",
-      "gate:independent-review-passed",
-      "gate:verification-passed"
-    ]
-  );
-});
-
-test("Solo is the silent default when the Gate needs no second context", () => {
-  const result = evaluateGate({
+function passingGate(commitSha = null) {
+  return {
     schema_version: 1,
     risk: "medium",
     mutates_files: false,
-    claims_completion: false,
-    evidence: []
-  });
+    claims_completion: true,
+    evidence: [{
+      id: "verification-passed",
+      status: "passed",
+      evidence_ref: "host:test",
+      ...(commitSha ? { commit_sha: commitSha } : {})
+    }]
+  };
+}
+
+function direct(overrides = {}) {
+  return {
+    schema_version: 3,
+    loop: "work",
+    loop_id: "direct-work",
+    project: { locator: "." },
+    result_ref: "conversation:result",
+    attempt: 0,
+    event: "evaluate",
+    gate: passingGate(),
+    ...overrides
+  };
+}
+
+function staged(stage, completionStage, overrides = {}) {
+  return {
+    schema_version: 3,
+    loop: "work",
+    loop_id: "staged-work",
+    project: { locator: "." },
+    stage,
+    completion_stage: completionStage,
+    artifacts: [{ stage, locator: `evidence/${stage}.md`, commit_sha: sha }],
+    attempt: 0,
+    event: "evaluate",
+    gate: passingGate(sha),
+    ...overrides
+  };
+}
+
+function issue(returnTo, status = "open", extra = {}) {
+  return {
+    fingerprint: "same-problem",
+    checkpoint: "checkpoint-a",
+    title: "Observed failure",
+    severity: "medium",
+    status,
+    return_to: returnTo,
+    ...extra
+  };
+}
+
+function acceptance() {
+  return {
+    scenarios: [
+      { id: "AC_POS", type: "positive", applicability: "applicable", condition: "valid state", action: "run", expected: "succeeds" },
+      { id: "AC_NEG", type: "negative", applicability: "applicable", condition: "invalid state", action: "run", expected: "is rejected" },
+      { id: "AC_BOUND", type: "boundary", applicability: "applicable", condition: "limit value", action: "run", expected: "is handled" },
+      { id: "AC_REG", type: "regression", applicability: "not-applicable", rationale: "new isolated behavior", condition: "prior behavior", action: "compare", expected: "unchanged" }
+    ],
+    constraints: [
+      { id: "INV_AUTH", applicability: "applicable", statement: "authorization is preserved" }
+    ]
+  };
+}
+
+test("Gate has no collaboration selection or output", () => {
+  const result = evaluateGate(passingGate(), taxonomy);
   assert.equal(result.allowed, true);
-  assert.deepEqual(result.collaboration, {
-    recommended_mode: "solo",
-    selected_mode: "solo",
-    selection_source: "default",
-    assurance_satisfied: true,
-    assurance_gap: null,
-    decision_required: false,
-    decision_options: []
-  });
+  assert.equal(Object.hasOwn(result, "collaboration"), false);
   assert.equal(result.checks.some((check) => check.id === "collaboration-mode-selected"), false);
 });
 
-test("multi-Agent recommendations pause with inline option reasons", () => {
-  const copilot = evaluateGate({
-    schema_version: 1,
-    risk: "medium",
-    required_checks: ["peer-challenge"],
-    mutates_files: false,
-    claims_completion: false,
-    evidence: []
+test("old collaboration input fails clearly under the strict schema", () => {
+  const result = validateSchemaFile(root, "schemas/gate-input.schema.yml", {
+    ...passingGate(),
+    collaboration: { mode: "solo", actor: "user", evidence_ref: "conversation:choice" }
   });
-  assert.equal(copilot.collaboration.recommended_mode, "copilot");
-  assert.equal(copilot.collaboration.decision_required, true);
-  assert.deepEqual(
-    copilot.collaboration.decision_options.map((option) => option.label),
-    [
-      "[推荐] Copilot 当前工作需要第二上下文质疑",
-      "Trio 提供更强的开发与验证分离",
-      "Squad 提供完整角色分离"
-    ]
-  );
-
-  const trio = evaluateGate({
-    schema_version: 1,
-    risk: "medium",
-    required_checks: ["independent-testing-from-developer"],
-    mutates_files: false,
-    claims_completion: false,
-    evidence: []
-  });
-  assert.deepEqual(
-    trio.collaboration.decision_options.map((option) => option.label),
-    [
-      "[推荐] Trio 当前变更需要开发与验证分离",
-      "Squad 提供完整角色分离"
-    ]
-  );
+  assert.equal(result.valid, false);
+  assert.match(JSON.stringify(result.errors), /additionalProperties|collaboration/);
 });
 
-test("collaboration recommendations come from workflow configuration", () => {
-  const policy = structuredClone(workflow.collaboration);
-  policy.recommendation.second_context = "trio";
-  const result = evaluateGateWithPolicy({
-    schema_version: 1,
-    risk: "medium",
-    required_checks: ["peer-challenge"],
-    mutates_files: false,
-    claims_completion: false,
-    evidence: []
-  }, null, {
-    collaborationPolicy: policy,
-    teamOrder: teams.order
-  });
-  assert.equal(result.collaboration.recommended_mode, "trio");
+test("direct Work completes without SDLC stages", () => {
+  const result = advanceLoop(direct(), taxonomy, workflow);
+  assert.equal(result.schema_version, 3);
+  assert.equal(result.work_kind, "direct");
+  assert.equal(result.workflow_complete, true);
+  assert.equal(result.next_action, "prepare-git-handoff");
 });
 
-test("a compatible human selection is reused and weaker modes expose their assurance gap", () => {
-  const selected = evaluateGate({
-    schema_version: 1,
-    risk: "medium",
-    required_checks: ["independent-testing-from-developer"],
-    collaboration: {
-      mode: "trio",
-      actor: "user",
-      evidence_ref: "conversation:team-choice"
-    },
-    mutates_files: false,
-    claims_completion: false,
-    evidence: [{
-      id: "independent-testing-from-developer",
-      status: "passed",
-      evidence_ref: "test:result",
-      actor: "tester-agent",
-      role: "tester"
-    }]
-  });
-  assert.equal(selected.collaboration.selected_mode, "trio");
-  assert.equal(selected.collaboration.selection_source, "human");
-  assert.equal(selected.collaboration.decision_required, false);
-  assert.equal(selected.allowed, true);
-
-  const tooWeak = evaluateGate({
-    schema_version: 1,
-    risk: "high",
-    collaboration: {
-      mode: "trio",
-      actor: "user",
-      evidence_ref: "conversation:team-choice"
-    },
-    mutates_files: false,
-    claims_completion: false,
-    evidence: []
-  });
-  assert.equal(tooWeak.collaboration.selected_mode, "trio");
-  assert.equal(tooWeak.collaboration.decision_required, false);
-  assert.equal(tooWeak.collaboration.assurance_satisfied, false);
-  assert.equal(tooWeak.collaboration.assurance_gap.required_mode, "squad");
-  assert.equal(tooWeak.execution_allowed, true);
-  assert.equal(tooWeak.completion_allowed, false);
-});
-
-test("an explicit Solo budget constraint stays inside ZipZap without reprompting", () => {
-  const result = evaluateGate({
-    schema_version: 1,
-    risk: "medium",
-    required_checks: ["peer-challenge"],
-    collaboration: {
-      mode: "solo",
-      actor: "user",
-      evidence_ref: "conversation:solo-only"
-    },
-    mutates_files: false,
-    claims_completion: false,
-    evidence: []
-  });
-  assert.equal(result.collaboration.selected_mode, "solo");
-  assert.equal(result.collaboration.decision_required, false);
-  assert.equal(result.collaboration.assurance_satisfied, false);
-  assert.equal(result.execution_allowed, true);
-  assert.equal(result.completion_allowed, false);
-});
-
-test("an explicit Solo choice advances to the missing Gate instead of team selection", () => {
-  const result = advanceLoop({
-    schema_version: 2,
+test("Work schema requires exactly one direct or staged contract", () => {
+  const missing = validateSchemaFile(root, "schemas/loop-input.schema.yml", {
+    schema_version: 3,
     loop: "work",
-    loop_id: "solo-budget",
-    stage: "plan",
-    attempt: 0,
-    event: "evaluate",
-    gate: {
-      schema_version: 1,
-      risk: "medium",
-      required_checks: ["peer-challenge"],
-      collaboration: {
-        mode: "solo",
-        actor: "user",
-        evidence_ref: "conversation:solo-only"
-      },
-      mutates_files: false,
-      claims_completion: false,
-      evidence: []
-    },
-    artifacts: [{ stage: "plan", locator: "docs/intent.md", commit_sha: "a".repeat(40) }]
+    loop_id: "missing-contract",
+    project: { locator: "." },
+    gate: passingGate()
   });
-  assert.equal(result.next_action, "satisfy-gate");
-  assert.equal(result.gate.execution_allowed, true);
-  assert.equal(result.gate.completion_allowed, false);
-  assert.equal(result.agents.mode, "solo");
-  assert.deepEqual(result.agents.activate_or_reuse, []);
+  assert.equal(missing.valid, false);
+  const noEnd = validateSchemaFile(root, "schemas/loop-input.schema.yml", {
+    schema_version: 3,
+    loop: "work",
+    loop_id: "missing-end",
+    project: { locator: "." },
+    stage: "design",
+    artifacts: [{ stage: "design", locator: "design.md", commit_sha: sha }],
+    gate: passingGate(sha)
+  });
+  assert.equal(noEnd.valid, false);
 });
 
-test("a multi-Agent recommendation pauses Work without consuming a correction", () => {
-  const result = advanceLoop({
-    schema_version: 2,
-    loop: "work",
-    stage: "plan",
-    attempt: 0,
-    event: "evaluate",
-    gate: {
-      schema_version: 1,
-      risk: "medium",
-      required_checks: ["peer-challenge"],
-      mutates_files: false,
-      claims_completion: false,
-      evidence: []
-    },
-    artifacts: [{ stage: "plan", locator: "docs/intent.md", commit_sha: "a".repeat(40) }]
+test("staged Work rejects duplicate artifacts for the same stage", () => {
+  const input = staged("plan", "design", {
+    next_stage: "design",
+    artifacts: [
+      { stage: "plan", locator: "evidence/old.md", commit_sha: sha },
+      { stage: "plan", locator: "evidence/new.md", commit_sha: "b".repeat(40) }
+    ]
   });
+  assert.equal(validateSchemaFile(root, "schemas/loop-input.schema.yml", input).valid, false);
+  assert.throws(() => advanceLoop(input, taxonomy, workflow), /duplicate stage artifact: plan/);
+});
+
+test("completion_stage ends Design without implicit implementation", () => {
+  const result = advanceLoop(staged("design", "design"), taxonomy, workflow);
+  assert.equal(result.workflow_complete, true);
+  assert.equal(result.next_stage, null);
+  assert.equal(result.next_action, "prepare-git-handoff");
+});
+
+test("a non-terminal stage never advances implicitly", () => {
+  const result = advanceLoop(staged("plan", "design"), taxonomy, workflow);
+  assert.equal(result.outcome, "stop");
+  assert.equal(result.next_stage, null);
+  assert.equal(result.next_action, "await-explicit-next-stage");
+});
+
+test("an explicit next stage advances and activates only required roles", () => {
+  const result = advanceLoop(staged("plan", "design", {
+    next_stage: "design",
+    required_roles: ["tester"]
+  }), taxonomy, workflow);
+  assert.equal(result.outcome, "continue");
+  assert.equal(result.next_stage, "design");
+  assert.deepEqual(result.agents.activate_or_reuse, [{ role: "tester", reuse_key: "staged-work:tester" }]);
+});
+
+test("the same tester assignment is reused from test design to Verify", () => {
+  const designed = advanceLoop(staged("design", "verify", {
+    next_stage: "verify",
+    required_roles: ["tester"]
+  }), taxonomy, workflow);
+  const verifying = advanceLoop(staged("verify", "verify", {
+    loop_id: "staged-work",
+    required_roles: ["tester"],
+    active_roles: ["tester"]
+  }), taxonomy, workflow);
+  assert.equal(designed.agents.activate_or_reuse[0].reuse_key, "staged-work:tester");
+  assert.deepEqual(verifying.agents.release_roles, ["tester"]);
+});
+
+test("product is activated only when the action explicitly requires it", () => {
+  const ordinary = advanceLoop(staged("plan", "plan"), taxonomy, workflow);
+  const ambiguous = advanceLoop(staged("plan", "plan", { required_roles: ["product"] }), taxonomy, workflow);
+  assert.deepEqual(ordinary.agents.release_roles, []);
+  assert.deepEqual(ambiguous.agents.release_roles, ["product"]);
+});
+
+test("workflow completion releases all known active roles", () => {
+  const result = advanceLoop(direct({ active_roles: ["developer", "tester"] }), taxonomy, workflow);
+  assert.deepEqual(result.agents.release_roles, ["developer", "tester"]);
+});
+
+test("internal edit-build-test-fix iteration does not consume governance correction", () => {
+  const result = advanceLoop(direct({
+    event: "internal-iteration",
+    gate: { schema_version: 1, mutates_files: false, claims_completion: true, evidence: [] }
+  }), taxonomy, workflow);
+  assert.equal(result.attempt, 0);
+  assert.equal(result.model_corrections_remaining, 1);
+  assert.equal(result.next_action, "continue-internal-iteration");
+});
+
+test("internal iteration cannot bypass the scope entry Gate", () => {
+  const result = advanceLoop(direct({
+    event: "internal-iteration",
+    gate: { schema_version: 1, mutates_files: true, claims_completion: false, evidence: [] }
+  }), taxonomy, workflow);
   assert.equal(result.outcome, "stop");
   assert.equal(result.attempt, 0);
   assert.equal(result.model_corrections_remaining, 1);
-  assert.equal(result.next_action, "select-collaboration-mode");
-  assert.equal(result.escalation_required, false);
-  assert.equal(result.reason, null);
+  assert.equal(result.gate.execution_allowed, false);
+  assert.equal(result.next_action, "satisfy-entry-gate");
 });
 
-test("a human-selected mode continues across Work without another prompt", () => {
-  const collaboration = {
-    mode: "trio",
-    actor: "user",
-    evidence_ref: "conversation:team-choice"
-  };
-  const gateFor = (commitSha, selected = null) => ({
-    schema_version: 1,
-    risk: "medium",
-    signals: ["weak-or-missing-verification"],
-    ...(selected ? { collaboration: selected } : {}),
-    mutates_files: false,
-    claims_completion: false,
-    evidence: selected ? [
-      {
-        id: "proportionate-test-plan",
-        status: "passed",
-        evidence_ref: "plan:test",
-        commit_sha: commitSha
-      },
-      {
-        id: "independent-testing-from-developer",
-        status: "passed",
-        evidence_ref: "test:result",
-        commit_sha: commitSha,
-        actor: "tester-agent",
-        role: "tester"
-      },
-      {
-        id: "independent-review-from-developer",
-        status: "passed",
-        evidence_ref: "review:result",
-        commit_sha: commitSha,
-        actor: "reviewer-agent",
-        role: "reviewer"
-      }
-    ] : []
-  });
-  const pending = advanceLoop({
-    schema_version: 2,
-    loop: "work",
-    stage: "plan",
-    attempt: 0,
-    event: "evaluate",
-    gate: gateFor("a".repeat(40)),
-    artifacts: [{ stage: "plan", locator: "docs/intent.md", commit_sha: "a".repeat(40) }]
-  }, riskTaxonomy);
-  assert.equal(pending.gate.collaboration.recommended_mode, "trio");
-  assert.equal(pending.next_action, "select-collaboration-mode");
-
-  const selected = advanceLoop({
-    schema_version: 2,
-    loop: "work",
-    stage: "plan",
-    next_stage: "design",
-    attempt: 0,
-    event: "evaluate",
-    gate: gateFor("a".repeat(40), collaboration),
-    artifacts: [{ stage: "plan", locator: "docs/intent.md", commit_sha: "a".repeat(40) }]
-  }, riskTaxonomy);
-  assert.equal(selected.outcome, "complete");
-  assert.equal(selected.gate.collaboration.decision_required, false);
-
-  const continued = advanceLoop({
-    schema_version: 2,
-    loop: "work",
-    stage: "design",
-    next_stage: "build",
-    attempt: 0,
-    event: "evaluate",
-    gate: gateFor("b".repeat(40), collaboration),
-    artifacts: [{ stage: "design", locator: "docs/design.md", commit_sha: "b".repeat(40) }]
-  }, riskTaxonomy);
-  assert.equal(continued.outcome, "complete");
-  assert.equal(continued.next_stage, "build");
-  assert.equal(continued.gate.collaboration.decision_required, false);
-  assert.deepEqual(continued.gate.collaboration.decision_options, []);
-});
-
-test("Trio lazily reuses Builder and Assurance slots across Work and Feedback", () => {
-  const collaboration = {
-    mode: "trio",
-    actor: "user",
-    evidence_ref: "conversation:team-choice"
-  };
-  const gate = {
-    ...passingGate,
-    collaboration
-  };
-  const build = advanceLoop({
-    schema_version: 2,
-    loop: "work",
-    loop_id: "trio-work",
-    stage: "design",
-    next_stage: "build",
-    attempt: 0,
-    event: "evaluate",
-    gate,
-    artifacts: [{ stage: "design", locator: "docs/design.md", commit_sha: "a".repeat(40) }]
-  });
-  assert.deepEqual(build.agents.activate_or_reuse, [{
-    slot: "builder",
-    profile: "wolf",
-    roles: ["developer"],
-    reuse_key: "trio-work:builder"
-  }]);
-  assert.deepEqual(build.agents.release_slots, []);
-
-  const verify = advanceLoop({
-    schema_version: 2,
-    loop: "feedback",
-    loop_id: "trio-work",
-    stage: "build",
-    attempt: 0,
-    event: "evaluate",
-    gate,
-    issues: [{
-      fingerprint: "same",
-      checkpoint: "checkpoint-a",
-      title: "Smoke failed",
-      severity: "medium",
-      status: "resolved",
-      return_stage: "build"
-    }]
-  });
-  assert.equal(verify.next_action, "verify-issues");
-  assert.deepEqual(verify.agents.activate_or_reuse, [{
-    slot: "assurance",
-    profile: "eagle",
-    roles: ["tester", "reviewer"],
-    reuse_key: "trio-work:assurance"
-  }]);
-});
-
-test("workflow completion releases every subagent slot", () => {
-  const result = advanceLoop({
-    schema_version: 2,
-    loop: "work",
-    loop_id: "trio-work",
-    stage: "maintain",
-    attempt: 0,
-    event: "evaluate",
+test("internal iteration cannot bypass the human authorization entry Gate", () => {
+  const result = advanceLoop(direct({
+    event: "internal-iteration",
     gate: {
-      ...passingGate,
-      collaboration: {
-        mode: "trio",
-        actor: "user",
-        evidence_ref: "conversation:team-choice"
-      }
-    },
-    artifacts: [{ stage: "maintain", locator: "evidence/maintenance.md", commit_sha: "a".repeat(40) }]
-  });
-  assert.equal(result.workflow_complete, true);
-  assert.equal(result.agents.status, "release");
-  assert.deepEqual(result.agents.release_slots, ["builder", "assurance"]);
-  assert.deepEqual(result.agents.activate_or_reuse, []);
+      schema_version: 1,
+      mutates_files: true,
+      external_effect: true,
+      claims_completion: false,
+      evidence: [{ id: "scope-understood", status: "passed", evidence_ref: "standards route" }]
+    }
+  }), taxonomy, workflow);
+  assert.equal(result.outcome, "stop");
+  assert.equal(result.attempt, 0);
+  assert.equal(result.model_corrections_remaining, 1);
+  assert.equal(result.gate.execution_allowed, false);
+  assert.equal(result.gate.checks.find((check) => check.id === "human-authorized").passed, false);
+  assert.equal(result.next_action, "satisfy-entry-gate");
 });
 
-test("risk signals can raise but never lower Gate requirements", () => {
-  const result = evaluateGate({
-    schema_version: 1,
-    risk: "low",
-    signals: ["financial-impact"],
-    mutates_files: false,
-    claims_completion: false,
-    evidence: []
-  }, riskTaxonomy);
-  assert.equal(result.declared_risk, "low");
-  assert.equal(result.risk, "high");
-  assert.deepEqual(result.required_approvals, ["business-or-financial-owner"]);
-  assert.ok(result.checks.some((check) => check.id === "financial-calculation-tests"));
-  assert.ok(result.checks.some((check) => check.id === "human-authorized"));
-  assert.ok(result.checks.some((check) => check.id === "approval-business-or-financial-owner"));
-  assert.ok(result.checks.some((check) => check.id === "independent-review-passed"));
+test("internal iteration cannot bypass a high-risk problem item", () => {
+  const result = advanceLoop(direct({
+    event: "internal-iteration",
+    issues: [issue("direct", "open", { severity: "high" })]
+  }), taxonomy, workflow);
+  assert.equal(result.outcome, "stop");
+  assert.equal(result.escalation_required, true);
+  assert.equal(result.next_loop, "feedback");
+  assert.equal(result.next_action, "escalate");
 });
 
-test("passed Gate evidence requires a source and current stage commit", () => {
-  const missingSource = evaluateGate({
-    schema_version: 1,
-    mutates_files: false,
-    claims_completion: true,
-    evidence: [{ id: "verification-passed", status: "passed" }]
-  });
-  assert.equal(missingSource.allowed, false);
-  const staleCommit = evaluateGate({
-    schema_version: 1,
-    mutates_files: false,
-    claims_completion: true,
-    evidence: [{
-      id: "verification-passed",
-      status: "passed",
-      evidence_ref: "host:test",
-      commit_sha: "b".repeat(40)
-    }]
-  }, null, { commitSha: "a".repeat(40) });
-  assert.equal(staleCommit.allowed, false);
+test("a resolved high-risk problem item can proceed to verification", () => {
+  const result = advanceLoop({
+    schema_version: 3,
+    loop: "feedback",
+    loop_id: "high-risk-verification",
+    project: { locator: "." },
+    event: "evaluate",
+    gate: { schema_version: 1, mutates_files: false, claims_completion: false },
+    issues: [issue("direct", "resolved", { severity: "high" })]
+  }, taxonomy, workflow);
+  assert.equal(result.outcome, "continue");
+  assert.equal(result.escalation_required, false);
+  assert.equal(result.next_action, "verify-issues");
 });
 
-test("independent assurance records the responsible role", () => {
-  const unbound = evaluateGate({
-    schema_version: 1,
-    risk: "high",
-    mutates_files: false,
-    claims_completion: false,
-    evidence: [{
-      id: "independent-review-passed",
-      status: "passed",
-      evidence_ref: "review:result"
+test("internal iteration cannot bypass human review of a standards proposal", () => {
+  const result = advanceLoop({
+    schema_version: 3,
+    loop: "maintenance",
+    loop_id: "proposal-review",
+    project: { locator: "." },
+    event: "internal-iteration",
+    gate: { schema_version: 1, mutates_files: false, claims_completion: false },
+    proposals: [{
+      fingerprint: "same-problem",
+      target: "standards/quality/testing.md",
+      action: "merge",
+      status: "proposed"
     }]
-  });
-  assert.equal(unbound.allowed, false);
-  const bound = evaluateGate({
-    schema_version: 1,
-    risk: "high",
-    collaboration: {
-      mode: "squad",
-      actor: "user",
-      evidence_ref: "conversation:team-choice"
-    },
-    mutates_files: false,
-    claims_completion: false,
-    evidence: [{
-      id: "independent-review-passed",
-      status: "passed",
-      evidence_ref: "review:result",
-      actor: "reviewer-agent",
-      role: "reviewer"
-    }]
-  });
-  assert.equal(bound.allowed, true);
+  }, taxonomy, workflow);
+  assert.equal(result.outcome, "stop");
+  assert.equal(result.escalation_required, true);
+  assert.equal(result.next_action, "obtain-human-review");
 });
 
-test("human authorization cannot be passed without a human actor", () => {
-  const unbound = evaluateGate({
-    schema_version: 1,
-    mutates_files: false,
-    external_effect: true,
-    claims_completion: false,
-    evidence: [{
-      id: "human-authorized",
-      status: "passed",
-      evidence_ref: "approval:record"
-    }]
-  });
-  assert.equal(unbound.allowed, false);
-  const bound = evaluateGate({
-    schema_version: 1,
-    mutates_files: false,
-    external_effect: true,
-    claims_completion: false,
-    evidence: [{
-      id: "human-authorized",
-      status: "passed",
-      evidence_ref: "approval:record",
-      actor: "user",
-      role: "human"
-    }]
-  });
-  assert.equal(bound.allowed, true);
-});
-
-test("loop permits one model correction, then stops with evidence", () => {
-  const gate = {
-    schema_version: 1,
-    risk: "medium",
-    mutates_files: true,
-    claims_completion: true,
-    evidence: [scopeEvidence]
-  };
-  const first = advanceLoop({ loop: "work", attempt: 0, event: "evaluate", gate });
+test("a submitted exit Gate failure gets one automatic correction", () => {
+  const failed = { schema_version: 1, mutates_files: false, claims_completion: true, evidence: [] };
+  const first = advanceLoop(direct({ event: "submitted-result", gate: failed }), taxonomy, workflow);
   assert.equal(first.outcome, "correct");
   assert.equal(first.attempt, 1);
-  const second = advanceLoop({ loop: "work", attempt: 1, event: "evaluate", gate });
+  const second = advanceLoop(direct({ event: "submitted-result", attempt: 1, gate: failed }), taxonomy, workflow);
   assert.equal(second.outcome, "stop");
   assert.equal(second.escalation_required, true);
 });
 
-test("work advances through the existing SDLC stages", () => {
-  const result = advanceLoop({
-    schema_version: 2,
-    loop: "work",
-    stage: "plan",
-    next_stage: "design",
-    attempt: 0,
+test("evaluating an exit Gate failure does not consume a correction", () => {
+  const result = advanceLoop(direct({
     event: "evaluate",
-    gate: passingGate,
-    artifacts: [{ stage: "plan", locator: "docs/intent.md", commit_sha: "a".repeat(40) }]
-  });
-  assert.equal(result.outcome, "complete");
-  assert.equal(result.next_loop, "work");
-  assert.equal(result.next_stage, "design");
-  assert.equal(result.workflow_complete, false);
-  assert.equal(result.artifacts[0].locator, "docs/intent.md");
-});
-
-test("deploy cannot advance without the existing delivery assessment", () => {
-  const result = advanceLoop({
-    schema_version: 2,
-    loop: "work",
-    stage: "deploy",
-    attempt: 0,
-    event: "evaluate",
-    gate: passingGate,
-    artifacts: [{ stage: "deploy", locator: "evidence/deploy.json", commit_sha: "a".repeat(40) }]
-  });
-  assert.equal(result.outcome, "continue");
-  assert.equal(result.next_loop, "feedback");
-  assert.equal(result.next_stage, "deploy");
-  assert.equal(result.next_action, "enter-feedback");
-  assert.equal(result.issues[0].fingerprint, "sdlc:deploy:assessment-required");
-});
-
-test("deterministic reruns require the same bound input", () => {
-  assert.throws(() => advanceLoop({
-    schema_version: 2,
-    loop: "feedback",
-    stage: "build",
-    attempt: 0,
-    event: "deterministic-rerun",
-    rerun: {
-      check_id: "smoke",
-      input_sha256: `sha256:${"a".repeat(64)}`,
-      previous_input_sha256: `sha256:${"b".repeat(64)}`
-    },
-    gate: passingGate,
-    issues: [{
-      fingerprint: "same",
-      checkpoint: "checkpoint-a",
-      title: "Smoke failed",
-      severity: "medium",
-      status: "open",
-      return_stage: "build"
-    }]
-  }), /same current and previous input_sha256/);
-});
-
-test("a failed delivery assessment returns Work to Feedback at the issue stage", () => {
-  const result = advanceLoop({
-    schema_version: 2,
-    loop: "work",
-    stage: "deploy",
-    attempt: 0,
-    event: "evaluate",
-    gate: { ...passingGate, evidence: [scopeEvidence] },
-    artifacts: [{ stage: "deploy", locator: "evidence/deploy.json", commit_sha: "a".repeat(40) }],
-    delivery: {
-      schema_version: 1,
-      operation: "assess",
-      status: "blocked",
-      allowed: false,
-      environment: { kind: "test", target: "shared-test", shared: false },
-      checks: [],
-      issues: [{
-        fingerprint: "delivery:deploy.smoke:evidence-failed",
-        checkpoint: "checkpoint-a",
-        title: "Smoke failed",
-        severity: "medium",
-        status: "open",
-        return_stage: "build"
-      }],
-      next_actions: []
-    }
-  });
-  assert.equal(result.next_loop, "feedback");
-  assert.equal(result.next_stage, "build");
+    gate: { schema_version: 1, mutates_files: false, claims_completion: true, evidence: [] }
+  }), taxonomy, workflow);
+  assert.equal(result.outcome, "stop");
   assert.equal(result.attempt, 0);
+  assert.equal(result.model_corrections_remaining, 1);
+  assert.equal(result.next_action, "satisfy-gate");
 });
 
-test("a passed delivery assessment advances Deploy to Maintain", () => {
+test("entry Gate failure blocks without consuming correction", () => {
+  const result = advanceLoop(direct({
+    required_roles: ["developer"],
+    gate: { schema_version: 1, mutates_files: true, claims_completion: false, evidence: [] }
+  }), taxonomy, workflow);
+  assert.equal(result.outcome, "stop");
+  assert.equal(result.attempt, 0);
+  assert.equal(result.next_action, "satisfy-entry-gate");
+  assert.equal(result.agents.status, "idle");
+  assert.deepEqual(result.agents.activate_or_reuse, []);
+});
+
+test("Feedback returns to the same direct Work", () => {
   const result = advanceLoop({
-    schema_version: 2,
-    loop: "work",
-    stage: "deploy",
-    attempt: 0,
-    event: "evaluate",
-    gate: passingGate,
-    artifacts: [{ stage: "deploy", locator: "evidence/deploy.json", commit_sha: "a".repeat(40) }],
+    schema_version: 3,
+    loop: "feedback",
+    loop_id: "direct-feedback",
+    project: { locator: "." },
+    gate: passingGate(),
+    issues: [issue("direct", "closed", { verification_ref: "test:recheck" })]
+  }, taxonomy, workflow);
+  assert.equal(result.next_loop, "work");
+  assert.equal(result.next_stage, null);
+  assert.equal(result.next_action, "resume-direct-work");
+});
+
+test("Feedback returns staged Work to its explicit stage", () => {
+  const result = advanceLoop({
+    schema_version: 3,
+    loop: "feedback",
+    loop_id: "staged-feedback",
+    project: { locator: "." },
+    completion_stage: "verify",
+    gate: passingGate(),
+    issues: [issue("implement", "closed", { verification_ref: "test:recheck" })]
+  }, taxonomy, workflow);
+  assert.equal(result.next_stage, "implement");
+  assert.equal(result.completion_stage, "verify");
+  assert.equal(result.next_action, "resume-implement");
+});
+
+test("only a failed Feedback verification consumes its correction", () => {
+  const base = {
+    schema_version: 3,
+    loop: "feedback",
+    loop_id: "feedback-limit",
+    project: { locator: "." },
+    gate: { schema_version: 1, mutates_files: false, claims_completion: false },
+    issues: [issue("direct", "resolved")]
+  };
+  const resolving = advanceLoop({ ...base, event: "evaluate" }, taxonomy, workflow);
+  assert.equal(resolving.attempt, 0);
+  const failed = advanceLoop({ ...base, event: "feedback-verification-failed" }, taxonomy, workflow);
+  assert.equal(failed.attempt, 1);
+  assert.equal(failed.outcome, "correct");
+  assert.equal(failed.next_action, "resolve-issues");
+  assert.equal(failed.issues[0].status, "open");
+});
+
+test("acceptance contract covers scenarios, constraints, and evidence IDs", () => {
+  const input = direct({
+    acceptance: acceptance(),
+    acceptance_evidence: [
+      { acceptance_id: "AC_POS", status: "passed", evidence_ref: "test:positive" },
+      { acceptance_id: "AC_NEG", status: "passed", evidence_ref: "test:negative" },
+      { acceptance_id: "AC_BOUND", status: "passed", evidence_ref: "test:boundary" },
+      { acceptance_id: "INV_AUTH", status: "passed", evidence_ref: "review:constraint" }
+    ]
+  });
+  assert.equal(validateSchemaFile(root, "schemas/loop-input.schema.yml", input).valid, true);
+  assert.equal(advanceLoop(input, taxonomy, workflow).workflow_complete, true);
+  assert.throws(
+    () => advanceLoop({ ...input, acceptance_evidence: [{ acceptance_id: "UNKNOWN", status: "not-run" }] }, taxonomy, workflow),
+    /unknown acceptance id/
+  );
+});
+
+test("missing applicable acceptance evidence enters Feedback", () => {
+  const result = advanceLoop(direct({ acceptance: acceptance(), acceptance_evidence: [] }), taxonomy, workflow);
+  assert.equal(result.next_loop, "feedback");
+  assert.ok(result.issues.some((item) => item.fingerprint === "acceptance:AC_NEG"));
+});
+
+test("Deploy still requires a passed delivery assessment", () => {
+  const blocked = advanceLoop(staged("deploy", "deploy"), taxonomy, workflow);
+  assert.equal(blocked.next_loop, "feedback");
+  assert.ok(blocked.issues.some((item) => item.fingerprint === "sdlc:deploy:assessment-required"));
+  const passed = advanceLoop(staged("deploy", "deploy", {
     delivery: {
       schema_version: 1,
       operation: "assess",
       status: "passed",
       allowed: true,
       environment: { kind: "development", target: "local", shared: false },
-      checks: [],
-      issues: [],
-      next_actions: []
+      checks: [], issues: [], next_actions: []
     }
-  });
-  assert.equal(result.outcome, "complete");
-  assert.equal(result.next_loop, "work");
-  assert.equal(result.next_stage, "maintain");
-  assert.equal(result.next_action, "advance-maintain");
+  }), taxonomy, workflow);
+  assert.equal(passed.workflow_complete, true);
 });
 
-test("a blocked delivery assessment cannot advance without detailed issues", () => {
-  const result = advanceLoop({
-    schema_version: 2,
-    loop: "work",
-    stage: "deploy",
-    attempt: 0,
-    event: "evaluate",
-    gate: passingGate,
-    artifacts: [{ stage: "deploy", locator: "evidence/deploy.json", commit_sha: "a".repeat(40) }],
+test("delivery build issues return to Implement", () => {
+  const result = advanceLoop(staged("deploy", "deploy", {
     delivery: {
       schema_version: 1,
       operation: "assess",
@@ -677,225 +406,52 @@ test("a blocked delivery assessment cannot advance without detailed issues", () 
       allowed: false,
       environment: { kind: "development", target: "local", shared: false },
       checks: [],
-      issues: [],
+      issues: [{
+        fingerprint: "delivery:build.execute:evidence-failed",
+        checkpoint: "checkpoint-a",
+        title: "Build failed",
+        severity: "medium",
+        status: "open",
+        return_to: "implement"
+      }],
       next_actions: []
     }
-  });
-  assert.equal(result.next_loop, "feedback");
-  assert.ok(result.issues.some((issue) => issue.fingerprint === "sdlc:deploy:assessment-blocked"));
+  }), taxonomy, workflow);
+  assert.equal(result.next_stage, "implement");
 });
 
-test("Maintain closes the delivery or explicitly starts a new Plan", () => {
-  const complete = advanceLoop({
-    schema_version: 2,
-    loop: "work",
-    stage: "maintain",
-    attempt: 0,
-    event: "evaluate",
-    gate: passingGate,
-    artifacts: [{ stage: "maintain", locator: "evidence/maintenance.md", commit_sha: "a".repeat(40) }]
-  });
-  assert.equal(complete.workflow_complete, true);
-  assert.equal(complete.next_action, "prepare-git-handoff");
-  const restart = advanceLoop({
-    schema_version: 2,
-    loop: "work",
-    stage: "maintain",
-    next_stage: "plan",
-    attempt: 0,
-    event: "evaluate",
-    gate: passingGate,
-    artifacts: [{ stage: "maintain", locator: "evidence/maintenance.md", commit_sha: "a".repeat(40) }]
-  });
-  assert.equal(restart.workflow_complete, false);
-  assert.equal(restart.next_stage, "plan");
-});
-
-test("feedback resolves, reverifies, closes, and resumes Work", () => {
-  const base = {
-    schema_version: 2,
-    loop: "feedback",
-    stage: "build",
-    attempt: 0,
-    event: "evaluate",
-    gate: passingGate
-  };
-  const issue = {
-    fingerprint: "same",
-    checkpoint: "checkpoint-a",
-    title: "Smoke failed",
-    severity: "medium",
-    return_stage: "build"
-  };
-  const open = advanceLoop({ ...base, issues: [{ ...issue, status: "open" }] });
-  assert.equal(open.outcome, "correct");
-  assert.equal(open.next_action, "resolve-issues");
-  const resolved = advanceLoop({ ...base, issues: [{ ...issue, status: "resolved" }] });
-  assert.equal(resolved.outcome, "continue");
-  assert.equal(resolved.next_action, "verify-issues");
-  const closed = advanceLoop({
-    ...base,
-    issues: [{ ...issue, status: "closed", verification_ref: "host:smoke-rerun" }]
-  });
-  assert.equal(closed.outcome, "complete");
-  assert.equal(closed.next_loop, "work");
-  assert.equal(closed.next_stage, "build");
-  assert.equal(closed.next_action, "resume-build");
-});
-
-test("maintenance consumes only reviewed feedback proposals", () => {
-  const base = {
-    schema_version: 2,
+test("applying an approved standards proposal does not consume a correction", () => {
+  const result = advanceLoop({
+    schema_version: 3,
     loop: "maintenance",
+    loop_id: "standard-maintenance",
+    project: { locator: "." },
     attempt: 0,
     event: "evaluate",
-    gate: passingGate
-  };
-  const proposal = {
-    fingerprint: "same",
-    target: "standards/quality/testing.md",
-    action: "merge"
-  };
-  const proposed = advanceLoop({ ...base, proposals: [{ ...proposal, status: "proposed" }] });
-  assert.equal(proposed.outcome, "stop");
-  assert.equal(proposed.next_action, "obtain-human-review");
-  const approved = advanceLoop({
-    ...base,
-    proposals: [{ ...proposal, status: "approved", evidence_ref: "human:review-approved" }]
-  });
-  assert.equal(approved.outcome, "correct");
-  assert.equal(approved.next_action, "apply-approved-standard-change");
-  const applied = advanceLoop({
-    ...base,
-    proposals: [{ ...proposal, status: "applied", evidence_ref: "git:standard-change" }]
-  });
-  assert.equal(applied.outcome, "continue");
-  assert.equal(applied.next_action, "verify-standard-change");
-  const closed = advanceLoop({
-    ...base,
-    proposals: [{ ...proposal, status: "closed", evidence_ref: "review:standard-change" }]
-  });
-  assert.equal(closed.workflow_complete, true);
-});
-
-test("loop schema requires stage-specific inputs and closure evidence", () => {
-  const root = path.resolve(".");
-  const passedWithoutSource = validateSchemaFile(root, "schemas/gate-input.schema.yml", {
-    schema_version: 1,
-    mutates_files: false,
-    claims_completion: true,
-    evidence: [{ id: "verification-passed", status: "passed" }]
-  });
-  assert.equal(passedWithoutSource.valid, false);
-  const unboundCollaboration = validateSchemaFile(root, "schemas/gate-input.schema.yml", {
-    schema_version: 1,
-    collaboration: { mode: "trio" },
-    mutates_files: false,
-    claims_completion: false
-  });
-  assert.equal(unboundCollaboration.valid, false);
-  const missingStage = validateSchemaFile(root, "schemas/loop-input.schema.yml", {
-    schema_version: 2,
-    loop: "work",
-    loop_id: "missing-stage",
-    project: { locator: "." },
-    gate: passingGate
-  });
-  assert.equal(missingStage.valid, false);
-  const missingArtifact = validateSchemaFile(root, "schemas/loop-input.schema.yml", {
-    schema_version: 2,
-    loop: "work",
-    loop_id: "missing-artifact",
-    project: { locator: "." },
-    stage: "plan",
-    gate: passingGate
-  });
-  assert.equal(missingArtifact.valid, false);
-  const unboundRerun = validateSchemaFile(root, "schemas/loop-input.schema.yml", {
-    schema_version: 2,
-    loop: "feedback",
-    loop_id: "unbound-rerun",
-    project: { locator: "." },
-    stage: "build",
-    event: "deterministic-rerun",
-    gate: passingGate,
-    issues: [{
-      fingerprint: "same",
-      checkpoint: "checkpoint-a",
-      title: "Smoke failed",
-      severity: "medium",
-      status: "open",
-      return_stage: "build"
-    }]
-  });
-  assert.equal(unboundRerun.valid, false);
-  const unverifiedClosure = validateSchemaFile(root, "schemas/loop-input.schema.yml", {
-    schema_version: 2,
-    loop: "feedback",
-    loop_id: "unverified-closure",
-    project: { locator: "." },
-    gate: passingGate,
-    issues: [{
-      fingerprint: "same",
-      checkpoint: "checkpoint-a",
-      title: "Smoke failed",
-      severity: "medium",
-      status: "closed",
-      return_stage: "build"
-    }]
-  });
-  assert.equal(unverifiedClosure.valid, false);
-  const unapprovedMaintenance = validateSchemaFile(root, "schemas/loop-input.schema.yml", {
-    schema_version: 2,
-    loop: "maintenance",
-    loop_id: "unapproved-maintenance",
-    project: { locator: "." },
-    gate: passingGate,
+    gate: { schema_version: 1, mutates_files: false, claims_completion: false },
     proposals: [{
-      fingerprint: "same",
+      fingerprint: "same-problem",
       target: "standards/quality/testing.md",
       action: "merge",
-      status: "approved"
+      status: "approved",
+      evidence_ref: "human:approved"
     }]
-  });
-  assert.equal(unapprovedMaintenance.valid, false);
+  }, taxonomy, workflow);
+  assert.equal(result.outcome, "continue");
+  assert.equal(result.attempt, 0);
+  assert.equal(result.next_action, "apply-approved-standard-change");
 });
 
-test("feedback deduplicates and proposes merge after two checkpoints", () => {
+test("issue consolidation preserves return targets and bounded proposals", () => {
   const result = consolidateIssues({
+    schema_version: 2,
     issues: [
-      { fingerprint: "same", checkpoint: "a", title: "Missing contract", severity: "medium", standard_target: "standards/engineering/api.md" },
-      { fingerprint: "same", checkpoint: "b", title: "Missing contract", severity: "medium", standard_target: "standards/engineering/api.md" }
+      issue("design", "open", { checkpoint: "a", standard_target: "standards/engineering/api.md" }),
+      issue("design", "resolved", { checkpoint: "b", standard_target: "standards/engineering/api.md" })
     ]
   });
-  assert.equal(result.label, "问题项");
+  assert.equal(result.schema_version, 2);
+  assert.equal(result.issues[0].return_to, "design");
   assert.equal(result.proposals[0].action, "merge");
-  assert.equal(result.proposals[0].status, "proposed");
-  assert.equal(result.proposals[0].auto_apply, false);
-  assert.equal(result.next_loop, "feedback");
-  assert.equal(result.history_database_created, false);
-});
-
-test("closed repeated feedback moves to Maintenance with verification evidence", () => {
-  const result = consolidateIssues({
-    issues: [
-      { fingerprint: "same", checkpoint: "a", title: "Missing contract", severity: "medium", status: "open", standard_target: "standards/engineering/api.md" },
-      { fingerprint: "same", checkpoint: "b", title: "Missing contract", severity: "medium", status: "closed", verification_ref: "host:contract-check", standard_target: "standards/engineering/api.md" }
-    ]
-  });
-  assert.equal(result.issues[0].status, "closed");
-  assert.equal(result.next_loop, "maintenance");
-  assert.equal(result.next_action, "review-standard-proposals");
-});
-
-test("repeated bootstrap gaps may propose but never apply an AGENTS revision", () => {
-  const result = consolidateIssues({
-    issues: [
-      { fingerprint: "route-gap", checkpoint: "a", title: "Route missing", severity: "medium", bootstrap_gap: true },
-      { fingerprint: "route-gap", checkpoint: "b", title: "Route missing", severity: "medium", bootstrap_gap: true }
-    ]
-  });
-  assert.equal(result.proposals[0].target, "AGENTS.md");
-  assert.equal(result.proposals[0].action, "propose-revision");
   assert.equal(result.proposals[0].auto_apply, false);
 });

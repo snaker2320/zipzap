@@ -1,89 +1,75 @@
-schema_version: 1
+schema_version: 2
 standards:
   root: standards/
-  categories:
-    - foundation
-    - engineering
-    - quality
-    - delivery
-    - governance
+  categories: [foundation, engineering, quality, delivery, governance]
   routing: standard-paths-with-optional-yaml-frontmatter
   loading: whole-file
 gates:
-  built_in:
-    - scope-understood
-    - human-authorized
-    - collaboration-mode-selected
-    - verification-passed
-    - independent-review-passed
-  entry_checks: [scope-understood, human-authorized, collaboration-mode-selected]
+  built_in: [scope-understood, human-authorized, verification-passed, independent-review-passed]
+  entry_checks: [scope-understood, human-authorized]
   exit_checks: [verification-passed, independent-review-passed]
   risk_policy: declared-risk-may-only-be-raised-by-signals
   risk_signal_scope: current-action
   passed_evidence_requires: evidence-ref
   loop_exit_evidence_binding: current-stage-commit
-collaboration:
-  default_mode: solo
-  recommendation:
-    second_context: copilot
-    developer_assurance_separation: trio
-    high_risk_or_full_separation: squad
-  recommended_prefix: "[推荐]"
-  execution:
-    activation: lazy-by-next-action
-    reuse: same-loop-and-slot
-    stage_roles:
-      plan: [product]
-      design: [developer]
-      build: [developer]
-      test: [tester]
-      deploy: [developer, tester]
-      maintain: [product]
-    action_roles:
-      resolve-issues: [developer]
-      verify-issues: [tester, reviewer]
-      apply-approved-standard-change: [developer]
-      verify-standard-change: [reviewer]
+roles:
+  activation: lazy-by-next-action
+  reuse: same-loop-and-role
+  unit: logical-responsibility-not-agent-count
+  blocked_entry_activation: none
+  stage:
+    plan: []
+    design: []
+    implement: [developer]
+    verify: [tester]
+    deploy: [developer, tester]
+    maintain: []
+  action:
+    resolve-issues: [developer]
+    verify-issues: [tester]
+    apply-approved-standard-change: [developer]
+    verify-standard-change: [reviewer]
+  product_rule: activate-only-for-ambiguous-intent-or-explicit-product-decision
 loops:
-  types:
-    - work
-    - feedback
-    - maintenance
+  types: [work, feedback, maintenance]
   model_correction_limit: 1
+  correction_trigger: submitted-exit-gate-or-feedback-verification-failure
+  evaluate: observe-without-consuming-model-correction
+  internal_iteration: outside-governance-correction-counter-after-hard-blockers
+  hard_blockers: [entry-gate-failure, open-high-risk-issue, unreviewed-standard-proposal]
   high_risk_failure: stop-immediately
   deterministic_script_rerun: does-not-consume-model-correction
   deterministic_rerun_requires: same-input-sha256
+work:
+  direct:
+    stage_required: false
+    result_ref_required: true
+  staged:
+    completion_stage_required: true
+    next_stage: explicit-only
+    current_stage_artifact_required: true
+    artifact_per_stage: exactly-one
 sdlc:
-  stages:
-    - plan
-    - design
-    - build
-    - test
-    - deploy
-    - maintain
-  default_forward:
-    plan: design
-    design: build
-    build: test
-    test: deploy
-    deploy: maintain
-  allowed_returns:
-    design: [plan]
-    build: [design]
-    test: [design, build]
-    deploy: [build, test]
-    maintain: [plan, design, build]
+  stages: [plan, design, implement, verify, deploy, maintain]
+  allowed_transitions:
+    plan: [design]
+    design: [plan, implement, verify]
+    implement: [design, verify]
+    verify: [design, implement, deploy]
+    deploy: [implement, verify, maintain]
+    maintain: [plan, design, implement]
   delivery_assessment_stage: deploy
-  stage_artifact_required: true
   artifact_commit_binding_required: true
-  build_digest_required: true
   failure_loop: feedback
   repeated_standard_problem_loop: maintenance
   durable_trace: git-checkpoint
+acceptance:
+  scenario_types: [positive, negative, boundary, regression]
+  scenario_fields: [id, applicability, condition, action, expected]
+  constraints_required: true
+  evidence_trace: acceptance-id
 delivery:
-  environments:
-    - development
-    - test
+  environments: [development, test]
   machine_operation: plan-and-assess
   project_command_execution: host-direct
   failure_output: issues
@@ -92,7 +78,9 @@ feedback:
   machine_field: issues
   lifecycle: [open, resolved, closed]
   closure_requires: verification_ref
-  resume_by: return_stage
+  failed_reverification: reopen-and-consume-model-correction
+  resume_by: return_to
+  direct_return_target: direct
   promote_after_independent_checkpoints: 2
   high_risk_may_promote_on_first_occurrence: true
   database: forbidden
@@ -107,6 +95,7 @@ handoff:
   source: git-checkpoint
   effective_commit: head
   range: base..HEAD
+  nonempty_range_required: true
   structured_trailer: ZipZap-Handoff
   issue_trailer: ZipZap-Issue
   rich_issue_encoding: versioned-fields

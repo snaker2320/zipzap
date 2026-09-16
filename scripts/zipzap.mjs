@@ -411,11 +411,7 @@ function executeCommand(options, rootDir) {
   }
   if (command === "gate") {
     const catalogs = loadCatalogs(rootDir);
-    return evaluateGate(input, catalogs["risk-taxonomy"], {
-      collaborationPolicy: catalogs.workflow.collaboration,
-      teamOrder: catalogs.teams.order,
-      teamCatalog: catalogs.teams
-    });
+    return evaluateGate(input, catalogs["risk-taxonomy"]);
   }
   if (command === "delivery") {
     const action = options.action ?? "plan";
@@ -432,11 +428,7 @@ function executeCommand(options, rootDir) {
       return readLoopState(input.project.locator, input.cache_root);
     }
     const catalogs = loadCatalogs(rootDir);
-    const result = advanceLoop(input, catalogs["risk-taxonomy"], {
-      collaborationPolicy: catalogs.workflow.collaboration,
-      teamOrder: catalogs.teams.order,
-      teamCatalog: catalogs.teams
-    });
+    const result = advanceLoop(input, catalogs["risk-taxonomy"], catalogs.workflow);
     return {
       ...result,
       cache_locator:

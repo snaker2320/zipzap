@@ -4,7 +4,7 @@ import path from "node:path";
 
 const SHA_PATTERN = /^[a-f0-9]{40}$/;
 const ISSUE_STATUSES = new Set(["open", "resolved", "closed"]);
-const SDLC_STAGES = new Set(["plan", "design", "build", "test", "deploy", "maintain"]);
+const RETURN_TARGETS = new Set(["direct", "plan", "design", "implement", "verify", "deploy", "maintain"]);
 
 function git(projectRoot, args, options = {}) {
   try {
@@ -90,13 +90,14 @@ function parseIssue(value, checkpoint = null) {
   const fields = value.split(/\s+\|\s+/);
   if (fields[0] === "1") {
     if (fields.length < 7) throw new Error(`invalid structured ZipZap-Issue trailer: ${value}`);
-    const [version, severity, status, returnStage, fingerprint, verification, ...titleParts] = fields;
+    const [, severity, status, legacyStage, fingerprint, verification, ...titleParts] = fields;
+    const legacyTargets = { build: "implement", test: "verify" };
+    const returnTo = legacyTargets[legacyStage] ?? legacyStage;
     const title = titleParts.join(" | ");
     if (
-      version !== "1" ||
       !["low", "medium", "high"].includes(severity) ||
       !ISSUE_STATUSES.has(status) ||
-      !SDLC_STAGES.has(returnStage) ||
+      !RETURN_TARGETS.has(returnTo) ||
       !fingerprint ||
       fingerprint === "-" ||
       !title
@@ -113,7 +114,36 @@ function parseIssue(value, checkpoint = null) {
       fingerprint,
       ...(checkpoint ? { checkpoint } : {}),
       status,
-      return_stage: returnStage,
+      return_to: returnTo,
+      ...(verificationRef ? { verification_ref: verificationRef } : {})
+    };
+  }
+  if (fields[0] === "2") {
+    if (fields.length < 7) throw new Error(`invalid structured ZipZap-Issue trailer: ${value}`);
+    const [version, severity, status, returnTo, fingerprint, verification, ...titleParts] = fields;
+    const title = titleParts.join(" | ");
+    if (
+      version !== "2" ||
+      !["low", "medium", "high"].includes(severity) ||
+      !ISSUE_STATUSES.has(status) ||
+      !RETURN_TARGETS.has(returnTo) ||
+      !fingerprint ||
+      fingerprint === "-" ||
+      !title
+    ) {
+      throw new Error(`invalid structured ZipZap-Issue trailer: ${value}`);
+    }
+    const verificationRef = verification === "-" ? null : verification;
+    if (status === "closed" && !verificationRef) {
+      throw new Error(`closed ZipZap-Issue requires verification_ref: ${fingerprint}`);
+    }
+    return {
+      severity,
+      title,
+      fingerprint,
+      ...(checkpoint ? { checkpoint } : {}),
+      status,
+      return_to: returnTo,
       ...(verificationRef ? { verification_ref: verificationRef } : {})
     };
   }
@@ -126,12 +156,12 @@ function formatIssue(issue) {
   const richFields = [
     "fingerprint",
     "status",
-    "return_stage",
+    "return_to",
     "verification_ref"
   ];
   const structured = richFields.some((key) => issue[key] !== undefined);
   if (structured) {
-    for (const key of ["fingerprint", "status", "return_stage"]) {
+    for (const key of ["fingerprint", "status", "return_to"]) {
       if (!issue[key]) throw new Error(`structured ZipZap-Issue requires ${key}`);
     }
     for (const [key, field] of [
@@ -143,10 +173,10 @@ function formatIssue(issue) {
   }
   const value = structured
     ? [
-        "1",
+        "2",
         issue.severity,
         issue.status,
-        issue.return_stage,
+        issue.return_to,
         issue.fingerprint,
         issue.verification_ref ?? "-",
         issue.title
@@ -198,6 +228,8 @@ export function prepareGitHandoff(input) {
   const base = resolveCommit(projectRoot, input.base);
   const head = resolveCommit(projectRoot, input.head ?? "HEAD");
   assertAncestor(projectRoot, base, head);
+  const rangeCommits = commits(projectRoot, base, head);
+  if (!rangeCommits.length) throw new Error("Git Handoff range contains no commits");
   const status = input.status ?? "partial";
   if (!["complete", "partial", "blocked"].includes(status)) throw new Error(`invalid handoff status: ${status}`);
   const lines = [
@@ -221,7 +253,7 @@ export function prepareGitHandoff(input) {
     range: `${base}..${head}`,
     base,
     head,
-    commits: commits(projectRoot, base, head),
+    commits: rangeCommits,
     files: changedFiles(projectRoot, base, head),
     commit_message: `${lines.join("\n")}\n`,
     preprocessing_required: true,

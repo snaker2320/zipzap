@@ -12,6 +12,6 @@ issues:
     title: Deployment probe still needs investigation
     fingerprint: delivery:deploy.probe:evidence-failed
     status: open
-    return_stage: deploy
+    return_to: deploy
 standards:
   - standards/delivery/git.md
