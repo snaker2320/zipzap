@@ -121,7 +121,7 @@ Agent 会负责路由标准、选择 Direct 或 Staged Work、执行所需 Gate�
 
 ## CLI 使用
 
-CLI 主要供 Agent 和高级用户调用。输入支持 JSON 或 YML，机器输出为 JSON；`--compact` 可输出紧凑结果。
+CLI 主要供 Agent 和高级用户调用。`--input` 接收带 `.json`、`.yaml` 或 `.yml` 扩展名的文件路径，机器输出为 JSON；`--compact` 可输出紧凑结果。
 
 ```sh
 # 查看全部命令

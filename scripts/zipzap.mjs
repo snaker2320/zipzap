@@ -48,55 +48,55 @@ export const ZIPZAP_COMMANDS = {
   },
   initialize: {
     summary: "Preview or apply standards/ initialization.",
-    usage: "initialize --input <json-or-yml> [--compact]",
+    usage: "initialize --input <input.json|input.yaml|input.yml> [--compact]",
     schema: "schemas/standards-initialization-input.schema.yml",
     example: "examples/zipzap/initialize.yml"
   },
   standards: {
     summary: "Discover project standards with diagnostics or route them without a project manifest.",
-    usage: "standards --input <json-or-yml> [--action <discover|route>] [--compact]",
+    usage: "standards --input <input.json|input.yaml|input.yml> [--action <discover|route>] [--compact]",
     schema: "schemas/standards-route-input.schema.yml",
     example: "examples/zipzap/standards-route.yml"
   },
   gate: {
     summary: "Evaluate a built-in evidence and authority gate.",
-    usage: "gate --input <json-or-yml> [--compact]",
+    usage: "gate --input <input.json|input.yaml|input.yml> [--compact]",
     schema: "schemas/gate-input.schema.yml",
     example: "examples/zipzap/gate.yml"
   },
   loop: {
     summary: "Advance stage-aware Work, Feedback, or Maintenance with one model correction maximum.",
-    usage: "loop --input <json-or-yml> [--action <advance|status>] [--compact]",
+    usage: "loop --input <input.json|input.yaml|input.yml> [--action <advance|status>] [--compact]",
     schema: "schemas/loop-input.schema.yml",
     example: "examples/zipzap/loop.yml"
   },
   delivery: {
     summary: "Plan or assess project-owned Build and non-production Deploy commands.",
-    usage: "delivery --input <json-or-yml> [--action <plan|assess>] [--compact]",
+    usage: "delivery --input <input.json|input.yaml|input.yml> [--action <plan|assess>] [--compact]",
     schema: "schemas/delivery-input.schema.yml",
     example: "examples/zipzap/delivery.yml"
   },
   issues: {
     summary: "Track 问题项 closure, deduplicate feedback, and propose bounded standards improvements.",
-    usage: "issues --input <json-or-yml> [--compact]",
+    usage: "issues --input <input.json|input.yaml|input.yml> [--compact]",
     schema: "schemas/issues-input.schema.yml",
     example: "examples/zipzap/issues.yml"
   },
   handoff: {
     summary: "Prepare or inspect a Git Checkpoint handoff.",
-    usage: "handoff --input <json-or-yml> [--action <prepare|inspect>] [--compact]",
+    usage: "handoff --input <input.json|input.yaml|input.yml> [--action <prepare|inspect>] [--compact]",
     schema: "schemas/handoff-input.schema.yml",
     example: "examples/zipzap/handoff.yml"
   },
   "decision-pages": {
     summary: "Adapt decisions to native forms in pages of at most three questions.",
-    usage: "decision-pages --input <json-or-yml> [--compact]",
+    usage: "decision-pages --input <input.json|input.yaml|input.yml> [--compact]",
     schema: "schemas/decision-pages-input.schema.yml",
     example: "examples/zipzap/decision-pages.yml"
   },
   "legacy-cleanup": {
     summary: "Preview or confirm deletion of obsolete .zipzap Task state.",
-    usage: "legacy-cleanup --input <json-or-yml> [--action <preview|apply>] [--compact]",
+    usage: "legacy-cleanup --input <input.json|input.yaml|input.yml> [--action <preview|apply>] [--compact]",
     schema: "schemas/legacy-cleanup-input.schema.yml",
     example: "examples/zipzap/legacy-cleanup.yml"
   },
@@ -106,7 +106,7 @@ export const ZIPZAP_COMMANDS = {
   },
   lifecycle: {
     summary: "Assess build, verify, publish, install, upgrade, or rollback.",
-    usage: "lifecycle --input <json-or-yml> [--compact]",
+    usage: "lifecycle --input <input.json|input.yaml|input.yml> [--compact]",
     schema: "schemas/lifecycle-input.schema.yml",
     example: "examples/zipzap/lifecycle.yml"
   }
@@ -461,7 +461,7 @@ export function runCli(argv = process.argv.slice(2)) {
     description:
       "Git-native collaboration with project standards and bounded feedback loops.",
     optionSpecs: [
-      { flags: "--input <file>", description: "JSON or YML input file" },
+      { flags: "--input <file>", description: "path to a .json, .yaml, or .yml input file" },
       { flags: "--root <dir>", description: "Skill root" },
       { flags: "--compact", description: "compact JSON output" },
       { flags: "--action <action>", description: "command action" },

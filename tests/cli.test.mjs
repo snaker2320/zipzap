@@ -18,6 +18,8 @@ test("CLI validates YML authority and exposes no Task command", () => {
   const help = execute(["--help"]);
   assert.match(help, /Git-native collaboration/);
   assert.doesNotMatch(help, /task-prepare|task-adapt|Task CLI/);
+  const standardsHelp = execute(["standards", "--help"]);
+  assert.match(standardsHelp, /--input <input\.json\|input\.yaml\|input\.yml>/);
 });
 
 test("CLI accepts YML input and emits JSON", () => {
@@ -37,7 +39,7 @@ test("CLI exposes delivery planning without executing project commands", () => {
   assert.equal(output.environment.kind, "development");
 });
 
-test("CLI accepts contextual standards routing and explains matches", () => {
+test("CLI routes the canonical standards example without diagnostics", () => {
   const output = JSON.parse(
     execute(["standards", "--action", "route", "--input", "examples/zipzap/standards-route.yml", "--compact"])
   );
@@ -46,8 +48,7 @@ test("CLI accepts contextual standards routing and explains matches", () => {
   assert.ok(output.selected.some((item) =>
     item.matched_by.some((match) => match.dimension === "paths")
   ));
-  assert.ok(output.diagnostics.some((item) => item.code === "unmatched-domains"));
-  assert.ok(output.diagnostics.some((item) => item.code === "unmatched-artifacts"));
+  assert.deepEqual(output.diagnostics, []);
 });
 
 test("CLI preserves the existing action risk and path routing contract", (context) => {
@@ -65,4 +66,21 @@ test("CLI preserves the existing action risk and path routing contract", (contex
   assert.ok(output.selected.some((item) => item.locator === "standards/engineering/node.md"));
   assert.equal(output.diagnostics.some((item) => item.code === "unmatched-domains"), false);
   assert.equal(output.diagnostics.some((item) => item.code === "unmatched-artifacts"), false);
+});
+
+test("CLI diagnoses a route request with no routing context", (context) => {
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-empty-route-"));
+  context.after(() => fs.rmSync(temporaryRoot, { recursive: true, force: true }));
+  const input = path.join(temporaryRoot, "route.yml");
+  fs.writeFileSync(
+    input,
+    `schema_version: 1\nproject:\n  locator: ${root}\ncontext: {}\n`
+  );
+
+  const output = JSON.parse(
+    execute(["standards", "--action", "route", "--input", input, "--compact"])
+  );
+  assert.ok(output.diagnostics.some(
+    (item) => item.code === "insufficient-routing-context"
+  ));
 });

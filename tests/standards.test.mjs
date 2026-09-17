@@ -125,6 +125,28 @@ test("unscoped standards remain compatible and produce read-only diagnostics", (
   assert.ok(result.diagnostics.some((item) => item.code === "unmatched-domains"));
 });
 
+test("routing diagnoses missing context without rejecting backward-compatible input", (context) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-empty-context-"));
+  context.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, "standards", "foundation"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "standards", "foundation", "project.md"),
+    "# Project standard\n\nAlways load this project foundation before acting.\n"
+  );
+
+  const result = routeStandards({
+    project: { locator: root },
+    context: {}
+  });
+
+  assert.deepEqual(result.selected.map((item) => item.locator), [
+    "standards/foundation/project.md"
+  ]);
+  assert.ok(result.diagnostics.some(
+    (item) => item.code === "insufficient-routing-context"
+  ));
+});
+
 test("discovery diagnoses missing and example-heavy standards without editing them", (context) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-diagnose-"));
   context.after(() => fs.rmSync(root, { recursive: true, force: true }));

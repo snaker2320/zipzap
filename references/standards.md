@@ -18,6 +18,8 @@ Use minimal applicability metadata when a standard is not universal:
 
 Values within one dimension are alternatives; configured dimensions are combined. Route once from action, domain, artifact, and risk at entry, then route again with affected paths when they become known. Each selected standard reports `matched_by`. Unscoped non-foundation standards remain universally applicable for compatibility but produce a diagnostic. An explicitly requested domain or artifact with no scoped match also produces a diagnostic rather than inventing a rule.
 
+A route request with no action, domain, artifact, path, or risk produces an `insufficient-routing-context` diagnostic. Load the foundation standard, then ask only for the missing routing decision; do not treat a foundation-only result as complete routing evidence.
+
 This is an additive contract: existing `action`, `risk`, and `paths` inputs and existing unscoped behavior remain valid; `domains` and `artifacts` are optional. No project migration or committed index is required. Rolling back the extension means omitting the optional context and applicability fields; authoritative Markdown remains unchanged.
 
 Run initialization in two calls. First use `action: preview`; show every `mkdir`, `move`, `write`, `replace-tree`, `keep`, collision, and the preview fingerprint. Only run `action: apply` with the same inputs and exact fingerprint after user confirmation. Existing `standards/` defaults to `keep`. When no standard tree exists but `conventions/` or `docs/standards/` does, default configuration becomes `reorganize`; nothing moves before confirmation. A full `rebuild` backs up the old standards tree in the user cache before replacement.

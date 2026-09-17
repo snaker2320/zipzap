@@ -474,6 +474,19 @@ function contextCoverageDiagnostics(context, selected) {
   return result;
 }
 
+function routingContextDiagnostics(context) {
+  const hasRoutingContext = APPLICABILITY_DIMENSIONS.some(
+    (dimension) => contextValues(context ?? {}, dimension).length > 0
+  );
+  if (hasRoutingContext) return [];
+  return [diagnostic(
+    "insufficient-routing-context",
+    "standards/",
+    "No action, domain, artifact, path, or risk was provided for routing.",
+    "Load the foundation standard and ask only for the missing routing decision."
+  )];
+}
+
 export function routeStandards(input) {
   const standards = discoverStandards(input.project?.locator);
   const files = standards.files.flatMap((standard) => {
@@ -488,6 +501,7 @@ export function routeStandards(input) {
     selected: files,
     diagnostics: [
       ...standards.diagnostics,
+      ...routingContextDiagnostics(input.context),
       ...contextCoverageDiagnostics(input.context, files)
     ],
     fallback: files.length ? null : "Load standards/foundation/project.md when present, then ask for missing project rules."
