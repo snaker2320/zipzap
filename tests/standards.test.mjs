@@ -6,6 +6,7 @@ import test from "node:test";
 
 import {
   applyStandardsInitialization,
+  discoverStandards,
   planStandardsInitialization,
   routeStandards
 } from "../scripts/lib/standards.mjs";
@@ -42,6 +43,7 @@ test("initialization previews and confirms only relevant standards assets", (con
   assert.equal(fs.existsSync(path.join(root, ".zipzap")), false);
   const bootstrap = fs.readFileSync(path.join(root, "AGENTS.md"), "utf8");
   assert.match(bootstrap, /Use the installed ZipZap Skill/);
+  assert.match(bootstrap, /affected domains, artifacts, changed paths, and risk/);
   assert.doesNotMatch(bootstrap, /scripts\/zipzap\.mjs|\.agents\/skills\/zipzap/);
 });
 
@@ -59,6 +61,87 @@ test("routing loads matching standards as whole files", (context) => {
   });
   assert.equal(result.loading, "whole-file");
   assert.deepEqual(result.selected.map((item) => item.locator), ["standards/engineering/api.md"]);
+  assert.deepEqual(result.selected[0].matched_by, [
+    { dimension: "actions", values: ["implement"] },
+    { dimension: "paths", values: ["src/api/**"] }
+  ]);
+  assert.deepEqual(result.index, {
+    mode: "derived",
+    source: "standards/",
+    persisted: false
+  });
+});
+
+test("routing combines domain and artifact selectors without persisting an index", (context) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-context-route-"));
+  context.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, "standards", "engineering"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "standards", "engineering", "archive.md"),
+    "---\nid: domain:customer-archive\napplies_to:\n  domains: [customer-archive]\n  artifacts: [backend-api, frontend-ui]\n---\n# Customer archive\n\nChanges must preserve the physical attachment boundary.\n"
+  );
+  fs.writeFileSync(
+    path.join(root, "standards", "engineering", "funding.md"),
+    "---\napplies_to:\n  domains: [funding]\n---\n# Funding\n\nChanges must preserve ledger invariants.\n"
+  );
+
+  const result = routeStandards({
+    project: { locator: root },
+    context: {
+      action: "implement",
+      domains: ["customer-archive"],
+      artifacts: ["backend-api"]
+    }
+  });
+
+  assert.deepEqual(result.selected.map((item) => item.locator), ["standards/engineering/archive.md"]);
+  assert.deepEqual(result.selected[0].matched_by, [
+    { dimension: "domains", values: ["customer-archive"] },
+    { dimension: "artifacts", values: ["backend-api"] }
+  ]);
+  assert.equal(result.index.persisted, false);
+  assert.equal(result.diagnostics.some((item) => item.code === "unmatched-domains"), false);
+});
+
+test("unscoped standards remain compatible and produce read-only diagnostics", (context) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-unscoped-"));
+  context.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, "standards", "quality"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "standards", "quality", "legacy.md"),
+    "# Legacy quality standard\n\nAlways record focused verification evidence.\n"
+  );
+
+  const result = routeStandards({
+    project: { locator: root },
+    context: { action: "implement", domains: ["customer-archive"] }
+  });
+
+  assert.deepEqual(result.selected.map((item) => item.locator), ["standards/quality/legacy.md"]);
+  assert.deepEqual(result.selected[0].matched_by, [
+    { dimension: "default", values: ["unscoped"] }
+  ]);
+  assert.ok(result.diagnostics.some((item) => item.code === "unscoped-standard"));
+  assert.ok(result.diagnostics.some((item) => item.code === "unmatched-domains"));
+});
+
+test("discovery diagnoses missing and example-heavy standards without editing them", (context) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-diagnose-"));
+  context.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const missing = discoverStandards(root);
+  assert.equal(missing.configured, false);
+  assert.deepEqual(missing.diagnostics.map((item) => item.code), ["missing-standards"]);
+
+  fs.mkdirSync(path.join(root, "standards", "engineering"), { recursive: true });
+  const locator = path.join(root, "standards", "engineering", "examples.md");
+  const content = "# API examples\n\n## Example one\n\n```text\nGET /one\n```\n\n## Example two\n\n```text\nGET /two\n```\n\nFor example, call either endpoint.\n";
+  fs.writeFileSync(locator, content);
+  const discovered = discoverStandards(root);
+
+  assert.ok(discovered.diagnostics.some((item) => item.code === "example-heavy-standard"));
+  assert.ok(discovered.diagnostics.some((item) => item.code === "unscoped-standard"));
+  assert.equal(fs.readFileSync(locator, "utf8"), content);
 });
 
 test("default configuration reorganizes legacy conventions", (context) => {

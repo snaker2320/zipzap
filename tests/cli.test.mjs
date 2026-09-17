@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
@@ -33,4 +35,34 @@ test("CLI exposes delivery planning without executing project commands", () => {
   assert.equal(output.operation, "plan");
   assert.equal(output.allowed, true);
   assert.equal(output.environment.kind, "development");
+});
+
+test("CLI accepts contextual standards routing and explains matches", () => {
+  const output = JSON.parse(
+    execute(["standards", "--action", "route", "--input", "examples/zipzap/standards-route.yml", "--compact"])
+  );
+  assert.equal(output.index.mode, "derived");
+  assert.equal(output.index.persisted, false);
+  assert.ok(output.selected.some((item) =>
+    item.matched_by.some((match) => match.dimension === "paths")
+  ));
+  assert.ok(output.diagnostics.some((item) => item.code === "unmatched-domains"));
+  assert.ok(output.diagnostics.some((item) => item.code === "unmatched-artifacts"));
+});
+
+test("CLI preserves the existing action risk and path routing contract", (context) => {
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-legacy-route-"));
+  context.after(() => fs.rmSync(temporaryRoot, { recursive: true, force: true }));
+  const input = path.join(temporaryRoot, "route.yml");
+  fs.writeFileSync(
+    input,
+    `schema_version: 1\nproject:\n  locator: ${root}\ncontext:\n  action: implement\n  risk: medium\n  paths: [scripts/zipzap.mjs]\n`
+  );
+
+  const output = JSON.parse(
+    execute(["standards", "--action", "route", "--input", input, "--compact"])
+  );
+  assert.ok(output.selected.some((item) => item.locator === "standards/engineering/node.md"));
+  assert.equal(output.diagnostics.some((item) => item.code === "unmatched-domains"), false);
+  assert.equal(output.diagnostics.some((item) => item.code === "unmatched-artifacts"), false);
 });

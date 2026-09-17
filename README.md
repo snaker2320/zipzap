@@ -21,9 +21,11 @@ ZipZap 把这些协作约束做成一组轻量、可验证的控制能力，让 
 
 代码、提交和 Git Checkpoint 保存可交付事实。临时循环状态只存在于用户缓存，不污染项目，也不与 Git 建立平行状态机。
 
-### 只加载当前需要的标准
+### 治理并只加载当前需要的标准
 
-ZipZap 根据当前动作、改动路径和风险，从 `standards/` 中选择相关规则。Agent 只读取命中的完整文件，避免一次加载所有规范。
+ZipZap 根据当前动作、影响域、产物、改动路径和风险，从 `standards/` 中选择相关规则。索引从项目现有 Markdown 和少量适用性元数据中动态生成，不写入项目。Agent 只读取命中的完整文件，避免一次加载所有规范。
+
+发现缺少规范、重复 ID、适用范围不明、内容过薄或示例替代规则时，ZipZap 只给出治理诊断和最小修改建议。创建、拆分、合并、移动或清理规范仍需预览和人工确认，项目原始规范始终是权威来源。
 
 ### 使用最小工作契约
 
@@ -99,7 +101,7 @@ npm run install:local
 ```md
 - Use the installed ZipZap Skill for standards routing, gates, feedback, and Git Handoff.
 - Project standards under `standards/` are authoritative.
-- Route by the active action, changed paths, and risk; load every selected file in full.
+- Route by the active action, affected domains, artifacts, changed paths, and risk; load every selected file in full.
 - Do not bypass a blocking gate or claim unrecorded verification.
 ```
 
@@ -128,7 +130,13 @@ node scripts/zipzap.mjs --help
 # 检查 Skill 内置配置与 Schema
 node scripts/zipzap.mjs validate --compact
 
-# 按动作、路径和风险选择项目标准
+# 发现项目规范并查看只读治理诊断
+node scripts/zipzap.mjs standards \
+  --action discover \
+  --input examples/zipzap/standards-route.yml \
+  --compact
+
+# 按动作、影响域、产物、路径和风险选择项目标准
 node scripts/zipzap.mjs standards \
   --action route \
   --input examples/zipzap/standards-route.yml \

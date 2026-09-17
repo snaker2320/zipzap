@@ -17,7 +17,7 @@ For project work, inspect `AGENTS.md` and route project standards with:
 node <resolved-skill-root>/scripts/zipzap.mjs standards --action route --input <request.yml> --compact
 ```
 
-Load every selected standard in full. Normal paths under `standards/` need no routing configuration. YAML frontmatter is only for exceptional applicability, priority, risk, or authority metadata. If routing remains uncertain, load `standards/foundation/project.md` and ask only for the missing decision.
+Load every selected standard in full. The index is derived on demand from project-owned Markdown and optional frontmatter; do not commit a ZipZap index. For larger standard trees, use minimal `actions`, `domains`, `artifacts`, `paths`, or `risks` applicability metadata. Route from intent and affected areas first, then reroute with changed paths when known. If routing remains uncertain, load `standards/foundation/project.md` and ask only for the missing decision.
 
 Read only the reference needed for the active operation:
 
@@ -31,6 +31,8 @@ Read only the reference needed for the active operation:
 ## Initialize standards
 
 Initialization is preview-first. If valid standards already exist, default `configure` resolves to `keep`. Otherwise guide the user among `configure`, `reorganize`, and `rebuild`. Create only relevant assets, show exact operations and the fingerprint before applying, and never overwrite `AGENTS.md` automatically.
+
+Discovery and routing are read-only. Treat missing standards, duplicate IDs, unscoped rules, thin content, unsupported selectors, example-heavy material, and unmatched domains or artifacts as diagnostics. Propose the narrowest repair through Maintenance, but never invent project decisions or automatically rewrite, split, move, or delete authoritative rules.
 
 ## Choose the smallest Work contract
 

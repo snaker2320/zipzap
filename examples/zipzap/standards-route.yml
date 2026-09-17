@@ -4,5 +4,9 @@ project:
 context:
   action: implement
   risk: medium
+  domains:
+    - standards-governance
+  artifacts:
+    - source-code
   paths:
     - scripts/zipzap.mjs

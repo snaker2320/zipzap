@@ -18,6 +18,14 @@ properties:
     properties:
       action: { type: string, minLength: 1 }
       risk: { enum: [low, medium, high] }
+      domains:
+        type: array
+        items: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        uniqueItems: true
+      artifacts:
+        type: array
+        items: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        uniqueItems: true
       paths:
         type: array
         items: { type: string, minLength: 1 }

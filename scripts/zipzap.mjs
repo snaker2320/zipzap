@@ -53,7 +53,7 @@ export const ZIPZAP_COMMANDS = {
     example: "examples/zipzap/initialize.yml"
   },
   standards: {
-    summary: "Discover or route project standards without a project manifest.",
+    summary: "Discover project standards with diagnostics or route them without a project manifest.",
     usage: "standards --input <json-or-yml> [--action <discover|route>] [--compact]",
     schema: "schemas/standards-route-input.schema.yml",
     example: "examples/zipzap/standards-route.yml"
