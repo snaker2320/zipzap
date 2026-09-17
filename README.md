@@ -103,6 +103,8 @@ npm run install:local
 - Do not bypass a blocking gate or claim unrecorded verification.
 ```
 
+CLI 入口由 `SKILL.md` 以相对路径 `scripts/zipzap.mjs` 声明，并从已安装 Skill 内解析。项目的 `AGENTS.md` 不需要、也不应硬编码 Skill 安装路径。
+
 如果项目还没有标准目录，让 Agent 使用 ZipZap 初始化即可。初始化始终先预览，再凭同一 fingerprint 确认应用；它不会自动覆盖已有的 `AGENTS.md`。
 
 ### 3. 像平常一样描述工作

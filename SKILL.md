@@ -9,10 +9,12 @@ ZipZap is a collaboration control plane, not a project tracker. Do not create a 
 
 ## Route before acting
 
+The bundled CLI entrypoint is `scripts/zipzap.mjs`, relative to this `SKILL.md`. Resolve it inside the installed Skill, invoke it with Node while keeping the target project as the working directory, and do not require project `AGENTS.md` or standards to repeat the installed Skill path.
+
 For project work, inspect `AGENTS.md` and route project standards with:
 
 ```sh
-node scripts/zipzap.mjs standards --action route --input <request.yml> --compact
+node <resolved-skill-root>/scripts/zipzap.mjs standards --action route --input <request.yml> --compact
 ```
 
 Load every selected standard in full. Normal paths under `standards/` need no routing configuration. YAML frontmatter is only for exceptional applicability, priority, risk, or authority metadata. If routing remains uncertain, load `standards/foundation/project.md` and ask only for the missing decision.

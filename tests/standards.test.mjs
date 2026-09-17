@@ -40,6 +40,9 @@ test("initialization previews and confirms only relevant standards assets", (con
   assert.equal(fs.existsSync(path.join(root, "standards", "engineering", "build.md")), true);
   assert.equal(fs.existsSync(path.join(root, "standards", "delivery", "deployment.md")), true);
   assert.equal(fs.existsSync(path.join(root, ".zipzap")), false);
+  const bootstrap = fs.readFileSync(path.join(root, "AGENTS.md"), "utf8");
+  assert.match(bootstrap, /Use the installed ZipZap Skill/);
+  assert.doesNotMatch(bootstrap, /scripts\/zipzap\.mjs|\.agents\/skills\/zipzap/);
 });
 
 test("routing loads matching standards as whole files", (context) => {

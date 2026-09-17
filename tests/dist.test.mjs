@@ -11,6 +11,9 @@ test("dist Skill is self-contained and has one workflow CLI", async () => {
   const artifact = built.artifact_root;
   assert.equal(fs.existsSync(path.join(artifact, "node_modules")), false);
   assert.deepEqual(fs.readdirSync(path.join(artifact, "scripts")), ["zipzap.mjs"]);
+  const skillInstructions = fs.readFileSync(path.join(artifact, "SKILL.md"), "utf8");
+  assert.match(skillInstructions, /`scripts\/zipzap\.mjs`, relative to this `SKILL\.md`/);
+  assert.match(skillInstructions, /do not require project `AGENTS\.md`/);
   const validation = JSON.parse(
     execFileSync(process.execPath, [path.join(artifact, "scripts", "zipzap.mjs"), "validate", "--compact"], { encoding: "utf8" })
   );
