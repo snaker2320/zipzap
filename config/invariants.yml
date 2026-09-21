@@ -9,10 +9,12 @@ assurance_claims:
   - blocked
   - completed
 invariants:
-  - id: role-profile-separation
-    rule: Keep accountable roles separate from named Agent Profiles.
-  - id: role-agent-separation
-    rule: Treat roles as logical responsibilities; never infer Agent count or topology from role count.
+  - id: execution-profile-separation
+    rule: Keep Work ownership and independent-check identity separate from named Agent Profiles.
+  - id: owner-check-independence
+    rule: Bind Owner and independent checks to Host-provided Agent identities; an Owner or artifact author cannot perform an independent check.
+  - id: host-orchestration
+    rule: Keep assignment, liveness, message delivery, handoff acceptance, and progress derivation in the Host; do not create an Orchestrator Agent.
   - id: personalization-governance-boundary
     rule: Do not let personalization change authority, rules, gates, evidence, or independence.
   - id: project-rule-single-source

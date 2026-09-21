@@ -36,6 +36,7 @@ $defs:
     additionalProperties: false
     required: [fingerprint, action, status]
     properties:
+      blocks_work: { type: boolean, default: false }
       fingerprint: { type: string, minLength: 1 }
       target:
         anyOf:

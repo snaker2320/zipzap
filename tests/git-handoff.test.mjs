@@ -48,7 +48,7 @@ test("final structured commit describes the full multi-commit handoff range", (c
   const prepared = prepareGitHandoff({
     project: { locator: root },
     base,
-    status: "complete",
+    status: "partial",
     summary: "Two coherent commits",
     verification: [{ command: "npm test", status: "passed" }],
     issues: [{ severity: "low", title: "Legacy issue" }]
@@ -90,6 +90,7 @@ test("structured issue trailers preserve feedback identity and closure state", (
     base,
     status: "complete",
     summary: "Probe fixed and reverified",
+    verification: [{ command: "probe", status: "passed" }],
     issues: [issue]
   });
   assert.match(

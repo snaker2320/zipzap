@@ -3,27 +3,19 @@ loop: work
 loop_id: example-work
 project:
   locator: .
-stage: plan
-completion_stage: design
-next_stage: design
-required_roles: [tester]
-artifacts:
-  - stage: plan
-    locator: docs/intent.md
-    commit_sha: "0000000000000000000000000000000000000000"
-attempt: 0
-event: evaluate
+result_ref: conversation:bounded-result
+execution:
+  owner:
+    agent_id: agent-owner
+    status: running
+event: internal-iteration
 persist: false
 gate:
   schema_version: 1
   risk: medium
   mutates_files: true
-  claims_completion: true
+  claims_completion: false
   evidence:
     - id: scope-understood
       status: passed
-      evidence_ref: standards route
-    - id: verification-passed
-      status: passed
-      evidence_ref: review:plan
-      commit_sha: "0000000000000000000000000000000000000000"
+      evidence_ref: host:accepted-scope

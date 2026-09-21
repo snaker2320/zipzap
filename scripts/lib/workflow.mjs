@@ -2,13 +2,14 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { evidenceDigest, evidenceReferenceExists, inspectArtifact } from "./evidence.mjs";
+import { defaultHostCapabilities, readHostCapabilities } from "./host-capabilities.mjs";
 
 const LOOP_TYPES = new Set(["work", "feedback", "maintenance"]);
 const RISK_LEVELS = new Set(["low", "medium", "high"]);
 const RISK_ORDER = new Map([["low", 0], ["medium", 1], ["high", 2]]);
 const ENTRY_CHECKS = new Set(["scope-understood", "human-authorized"]);
 const SDLC_STAGES = new Set(["plan", "design", "implement", "verify", "deploy", "maintain"]);
-const ROLES = new Set(["developer", "tester", "reviewer", "product"]);
 const ISSUE_STATUSES = new Set(["open", "resolved", "closed"]);
 const PROPOSAL_STATUSES = new Set(["proposed", "approved", "applied", "closed"]);
 const ACCEPTANCE_TYPES = new Set(["positive", "negative", "boundary", "regression"]);
@@ -81,25 +82,43 @@ export function evaluateGate(input, riskTaxonomy = null, context = {}) {
 
   const checks = [...required].sort().map((id) => {
     const item = evidence.get(id);
-    let passed = item?.status === "passed" && Boolean(item.evidence_ref?.trim());
+    const entry = isEntryCheck(id);
+    const due = entry || input.claims_completion !== false;
+    let passed = item?.status === "passed" && evidenceReferenceExists(item.evidence_ref, context.projectRoot);
     if (passed && context.commitSha && !isEntryCheck(id)) passed = item.commit_sha === context.commitSha;
-    if (passed && (id === "independent-review-passed" || id.includes("independent-review") || id.startsWith("reviewer-independent"))) {
-      passed = item.role === "reviewer" && Boolean(item.actor);
+    for (const key of ["inputs_sha256", "acceptance_sha256"]) {
+      if (passed && !entry && context[key]) passed = item[key] === context[key];
     }
-    if (passed && id.includes("independent-testing")) passed = item.role === "tester" && Boolean(item.actor);
+    const independentReview = id === "independent-review-passed" || id.includes("independent-review") || id.startsWith("review-independent");
+    const independentTest = id.includes("independent-testing");
+    if (passed && (independentReview || independentTest)) {
+      const authors = new Set([...(input.authors ?? []), ...(context.ownerAgentId ? [context.ownerAgentId] : [])]);
+      passed = authors.size > 0 && Boolean(item.actor?.trim()) && !authors.has(item.actor) && item.actor_type === "agent";
+      if (passed && independentReview && required.has("review-independent-from-testing")) {
+        const testers = [...evidence.values()].filter((entry) =>
+          entry.id.includes("independent-testing") && entry.status === "passed" && entry.actor);
+        passed = testers.length > 0 && testers.every((entry) => entry.actor !== item.actor);
+      }
+      if (passed && context.enforceCheckIdentity) {
+        passed = context.checkActors?.get(id) === item.actor;
+      }
+    }
     if (passed && (id === "human-authorized" || id.startsWith("approval-"))) {
-      passed = item.role === "human" && Boolean(item.actor);
+      passed = item.actor_type === "human" && Boolean(item.actor);
     }
     return {
       id,
       passed,
+      phase: entry ? "entry" : "exit",
+      due,
+      status: passed ? "passed" : item?.status === "passed" ? "invalid" : item?.status ?? "not-run",
       evidence_ref: item?.evidence_ref ?? null,
       commit_sha: item?.commit_sha ?? null,
       actor: item?.actor ?? null,
-      role: item?.role ?? null
+      actor_type: item?.actor_type ?? null
     };
   });
-  const failed = checks.filter((check) => !check.passed);
+  const failed = checks.filter((check) => check.due && !check.passed);
   const failedEntryChecks = failed.filter((check) => isEntryCheck(check.id));
   return {
     schema_version: 1,
@@ -108,10 +127,12 @@ export function evaluateGate(input, riskTaxonomy = null, context = {}) {
     declared_risk: declaredRisk,
     signals: input.signals ?? [],
     required_approvals: [...approvals].sort(),
-    status: failed.length ? "blocked" : "passed",
+    enforcement: "decision-only",
+    evidence_authority: "host-attested-with-local-binding-checks",
+    status: failed.length ? "blocked" : input.claims_completion === false ? "pending" : "passed",
     allowed: failed.length === 0,
     execution_allowed: failedEntryChecks.length === 0,
-    completion_allowed: failed.length === 0,
+    completion_allowed: input.claims_completion !== false && failed.length === 0,
     checks,
     issues: failed.map((check) => ({
       fingerprint: `gate:${check.id}`,
@@ -122,38 +143,140 @@ export function evaluateGate(input, riskTaxonomy = null, context = {}) {
   };
 }
 
-function gateRoles(gate) {
-  const failed = gate.checks.filter((check) => !check.passed).map((check) => check.id);
-  return [
-    ...(failed.some((id) => id.includes("test") || id === "verification-passed") ? ["tester"] : []),
-    ...(failed.some((id) => id.includes("review")) ? ["reviewer"] : [])
-  ];
+function needsIndependentActor(id) {
+  return id === "independent-review-passed" || id.includes("independent-review") ||
+    id.startsWith("review-independent") || id.includes("independent-testing");
 }
 
-function executionRoles(input, nextAction, nextStage, gate, policy) {
-  const roles = new Set(input.required_roles ?? []);
-  for (const role of gateRoles(gate)) roles.add(role);
-  for (const role of policy?.roles?.action?.[nextAction] ?? []) roles.add(role);
-  const stageAction = nextAction?.match(/^(?:advance|resume)-(.+)$/)?.[1] ?? nextStage;
-  for (const role of policy?.roles?.stage?.[stageAction] ?? []) roles.add(role);
-  for (const role of roles) if (!ROLES.has(role)) throw new Error(`unsupported role: ${role}`);
-  return [...roles];
-}
-
-function agentLifecycle(input, gate, nextAction, nextStage, workflowComplete, policy) {
-  const requested = gate.execution_allowed
-    ? executionRoles(input, nextAction, nextStage, gate, policy)
-    : [];
-  const active = new Set([...(input.active_roles ?? []), ...requested]);
-  return {
-    status: workflowComplete ? "release" : requested.length ? "active" : "idle",
-    activation: "lazy-by-next-action",
-    reuse: "same-loop-and-role",
-    activate_or_reuse: workflowComplete
-      ? []
-      : requested.map((role) => ({ role, reuse_key: `${input.loop_id ?? "unbound-loop"}:${role}` })),
-    release_roles: workflowComplete ? [...active] : []
+function executionState(input, gate, nextStage, workflowComplete, hostCapabilities) {
+  const facts = input.execution ?? {};
+  const owner = facts.owner ?? null;
+  const checks = facts.checks ?? [];
+  const handoff = facts.handoff ?? null;
+  const requiredChecks = gate.checks.filter((check) => check.due && needsIndependentActor(check.id)).map((check) => check.id);
+  const result = {
+    status: workflowComplete ? "completed" : "running",
+    owner,
+    checks,
+    handoff,
+    required_checks: requiredChecks,
+    missing_checks: [],
+    release_agents: [],
+    blockers: [],
+    next_action: null
   };
+  if (!owner) {
+    result.status = "waiting-assignment";
+    result.next_action = "assign-owner";
+    result.blockers.push("Work has no assigned owner");
+    return result;
+  }
+  if (owner.status === "blocked") {
+    result.status = "blocked";
+    result.blockers.push(`Owner ${owner.agent_id} is blocked`);
+    return result;
+  }
+  if (input.stage && owner.stage !== input.stage) {
+    result.status = "blocked";
+    result.blockers.push(`Owner stage ${owner.stage ?? "missing"} does not match ${input.stage}`);
+    return result;
+  }
+
+  const checkActors = new Map();
+  for (const check of checks) {
+    if (checkActors.has(check.id)) result.blockers.push(`Independent check ${check.id} has multiple actors`);
+    checkActors.set(check.id, check.agent_id);
+    if (!requiredChecks.includes(check.id)) result.blockers.push(`Independent check ${check.id} is not due`);
+    if (check.agent_id === owner.agent_id) result.blockers.push(`Independent check ${check.id} cannot be performed by the owner`);
+    if ((input.gate.authors ?? []).includes(check.agent_id)) result.blockers.push(`Independent check ${check.id} cannot be performed by an author`);
+  }
+  result.missing_checks = requiredChecks.filter((id) => !checkActors.has(id));
+  if (result.blockers.length) {
+    result.status = "blocked";
+    return result;
+  }
+  if (result.missing_checks.length) {
+    result.status = "waiting-assignment";
+    result.next_action = "assign-independent-checks";
+    result.blockers.push(`Independent checks need actors: ${result.missing_checks.join(", ")}`);
+    return result;
+  }
+
+  const testingActors = new Set(checks.filter((check) => check.id.includes("independent-testing")).map((check) => check.agent_id));
+  const reviewActors = checks.filter((check) => check.id === "independent-review-passed" || check.id.startsWith("review-independent"));
+  if (requiredChecks.includes("review-independent-from-testing") && reviewActors.some((check) => testingActors.has(check.agent_id))) {
+    result.status = "blocked";
+    result.blockers.push("Independent review and independent testing require different Agents");
+    return result;
+  }
+
+  const participants = new Set([owner.agent_id, ...checks.map((check) => check.agent_id), ...(handoff ? [handoff.to_agent] : [])]);
+  if (participants.size > 1) {
+    const capability = hostCapabilities?.multi_agent ?? {};
+    const allowed = facts.multi_agent ? facts.multi_agent === "allowed" : capability.default_allowed === true;
+    if (capability.available !== true || allowed !== true || capability.stable_identity !== true) {
+      result.status = "blocked";
+      result.blockers.push("Host multi-Agent execution is unavailable, forbidden, or lacks stable identity");
+      return result;
+    }
+    if (handoff && capability.handoff_acknowledgement !== true) {
+      result.status = "blocked";
+      result.blockers.push("Host cannot attest handoff acknowledgement");
+      return result;
+    }
+  }
+
+  if (handoff) {
+    const targetStage = nextStage ?? input.stage;
+    const artifact = input.artifacts?.find((item) => item.stage === input.stage);
+    const artifactRef = artifact ? `git:${artifact.commit_sha}:${artifact.locator}` : null;
+    const valid = input.loop === "work" && input.stage && nextStage && nextStage !== input.stage &&
+      handoff.from_agent === owner.agent_id && handoff.to_agent !== owner.agent_id &&
+      handoff.from_stage === input.stage && handoff.to_stage === targetStage &&
+      (!artifactRef || handoff.artifact_ref === artifactRef);
+    if (!valid) {
+      result.status = "blocked";
+      result.blockers.push("Handoff does not match the current owner, stage, target, and artifact");
+      return result;
+    }
+    if (owner.status !== "completed") {
+      result.status = "blocked";
+      result.blockers.push("Owner must complete the current boundary before handoff");
+      return result;
+    }
+    if (handoff.status !== "accepted") {
+      result.status = "waiting-handoff";
+      result.next_action = "accept-agent-handoff";
+      result.blockers.push(`Handoff to ${handoff.to_agent} has not been accepted`);
+      return result;
+    }
+  }
+
+  const advancingStagedWork = input.loop === "work" && input.stage && nextStage && nextStage !== input.stage;
+  if ((workflowComplete || advancingStagedWork) && owner.status !== "completed") {
+    result.status = "blocked";
+    result.blockers.push("Owner has not completed the current Work boundary");
+    return result;
+  }
+  if (workflowComplete) {
+    result.release_agents = [...participants];
+    return result;
+  }
+  return result;
+}
+
+function progressSnapshot(input, execution, workflowComplete, outcome, nextStage, reason) {
+  let status = workflowComplete ? "completed" : execution.status;
+  if (!workflowComplete && status === "running" && outcome === "stop") status = "blocked";
+  const transitioned = !workflowComplete && outcome === "continue" && nextStage && execution.status === "running";
+  const accepted = execution.handoff?.status === "accepted";
+  const owner = transitioned
+    ? accepted
+      ? { agent_id: execution.handoff.to_agent, status: "assigned" }
+      : execution.owner ? { agent_id: execution.owner.agent_id, status: "assigned" } : null
+    : execution.owner ? { agent_id: execution.owner.agent_id, status: execution.owner.status } : null;
+  const blocker = execution.blockers[0] ?? (status === "blocked" ? reason : null);
+  return { stage: transitioned ? nextStage : input.stage ?? "direct", status, owner, next_stage: nextStage, blocker };
 }
 
 function normalizedIssue(issue, returnTo = null) {
@@ -191,9 +314,14 @@ function acceptanceIssues(input, returnTo) {
     evidence.set(item.acceptance_id, item);
   }
   if (input.gate?.claims_completion === false) return [];
+  const digest = evidenceDigest(input.acceptance);
   return entries
     .filter((item) => item.applicability === "applicable")
-    .filter((item) => evidence.get(item.id)?.status !== "passed")
+    .filter((item) => {
+      const check = evidence.get(item.id);
+      return check?.status !== "passed" || check.acceptance_sha256 !== digest ||
+        !evidenceReferenceExists(check.evidence_ref, input.project?.locator);
+    })
     .map((item) => ({
       fingerprint: `acceptance:${item.id}`,
       checkpoint: input.loop_id ?? "unbound-work",
@@ -204,7 +332,7 @@ function acceptanceIssues(input, returnTo) {
     }));
 }
 
-function normalizedIssues(input) {
+function normalizedIssues(input, bindings) {
   const defaultReturn = input.stage ?? "direct";
   const combined = [
     ...(input.issues ?? []),
@@ -212,6 +340,23 @@ function normalizedIssues(input) {
     ...acceptanceIssues(input, defaultReturn)
   ];
   const stageArtifact = input.artifacts?.find((artifact) => artifact.stage === input.stage);
+  if (input.gate.claims_completion !== false && input.event !== "internal-iteration") {
+    const candidates = [
+      ...(stageArtifact ? [{ artifact: stageArtifact, id: `stage-${input.stage}`, bindInputs: true }] : []),
+      ...(input.inputs ?? []).map((artifact) => ({ artifact, id: artifact.id, bindInputs: false }))
+    ];
+    for (const { artifact, id, bindInputs } of candidates) {
+      const checked = inspectArtifact(input.project.locator, artifact, { current: true });
+      const accepted = !artifact.accepted_ref || evidenceReferenceExists(artifact.accepted_ref, input.project.locator);
+      const bound = !bindInputs ||
+        !bindings.inputs_sha256 || artifact.inputs_sha256 === bindings.inputs_sha256;
+      if (!checked.passed || !accepted || !bound) combined.push({
+        fingerprint: `artifact:${id}:invalid`, checkpoint: input.loop_id,
+        title: checked.reason ?? (!accepted ? "Input acceptance reference is missing" : "Artifact input bindings are stale"),
+        severity: "medium", status: "open", return_to: defaultReturn
+      });
+    }
+  }
   if (input.loop === "work" && input.stage && !stageArtifact?.commit_sha) {
     combined.push({
       fingerprint: `sdlc:${input.stage}:artifact-required`, checkpoint: input.loop_id ?? "unbound-work",
@@ -236,6 +381,13 @@ function normalizedIssues(input) {
       fingerprint: "sdlc:deploy:assessment-blocked",
       checkpoint: input.artifacts?.at(-1)?.commit_sha ?? "unbound-delivery",
       title: "Deploy delivery assessment is blocked", severity: "medium", status: "open", return_to: "deploy"
+    });
+  } else if (input.loop === "work" && input.stage === "deploy" &&
+    (input.delivery.artifact?.commit_sha !== stageArtifact?.commit_sha || !input.delivery.checks?.length || input.delivery.checks.some((check) => !check.passed))) {
+    combined.push({
+      fingerprint: "sdlc:deploy:assessment-unbound", checkpoint: input.loop_id,
+      title: "Deploy assessment must contain passing checks bound to the stage commit",
+      severity: "medium", status: "open", return_to: "deploy"
     });
   }
   const unique = new Map();
@@ -281,9 +433,14 @@ function assertStageContract(input) {
   }
 }
 
-export function advanceLoop(input, riskTaxonomy = null, workflowPolicy = {}) {
+export function advanceLoop(input, riskTaxonomy = null, workflowPolicy = {}, hostCapabilities = defaultHostCapabilities()) {
   if (!LOOP_TYPES.has(input.loop)) throw new Error(`unsupported loop: ${input.loop}`);
   assertStageContract(input);
+  if (input.loop === "work" && input.resume && (
+    input.resume.return_to !== (input.stage ?? "direct") ||
+    input.resume.completion_stage !== input.completion_stage ||
+    (!input.stage && input.resume.result_ref !== input.result_ref)
+  )) throw new Error("maintenance return boundary must preserve the current Work contract");
   const attempt = input.attempt ?? 0;
   if (!Number.isInteger(attempt) || attempt < 0) throw new Error("loop attempt must be a non-negative integer");
   const deterministicRerun = input.event === "deterministic-rerun";
@@ -291,8 +448,21 @@ export function advanceLoop(input, riskTaxonomy = null, workflowPolicy = {}) {
     throw new Error("deterministic rerun requires the same current and previous input_sha256");
   }
   const stageArtifact = input.artifacts?.find((artifact) => artifact.stage === input.stage);
-  const gate = evaluateGate(input.gate, riskTaxonomy, { commitSha: stageArtifact?.commit_sha ?? null });
-  const issues = normalizedIssues(input).map((issue) =>
+  const inputIds = (input.inputs ?? []).map((item) => item.id);
+  if (new Set(inputIds).size !== inputIds.length) throw new Error("duplicate input id");
+  const bindings = {
+    ...(input.inputs?.length ? { inputs_sha256: evidenceDigest([...input.inputs].sort((a, b) => a.id.localeCompare(b.id))) } : {}),
+    ...(input.acceptance ? { acceptance_sha256: evidenceDigest(input.acceptance) } : {})
+  };
+  const gate = evaluateGate(input.gate, riskTaxonomy, {
+    commitSha: stageArtifact?.commit_sha ?? null,
+    projectRoot: input.project.locator,
+    ownerAgentId: input.execution?.owner?.agent_id ?? null,
+    checkActors: new Map((input.execution?.checks ?? []).map((check) => [check.id, check.agent_id])),
+    enforceCheckIdentity: true,
+    ...bindings
+  });
+  const issues = normalizedIssues(input, bindings).map((issue) =>
     input.loop === "feedback" &&
     input.event === "feedback-verification-failed" &&
     issue.status === "resolved"
@@ -302,7 +472,8 @@ export function advanceLoop(input, riskTaxonomy = null, workflowPolicy = {}) {
   const proposals = normalizedProposals(input);
   const activeIssues = issues.filter((issue) => issue.status !== "closed");
   const openIssues = activeIssues.filter((issue) => issue.status === "open");
-  const activeProposals = proposals.filter((proposal) => proposal.status !== "closed");
+  const activeProposals = proposals.filter((proposal) => proposal.status !== "closed" &&
+    (input.loop === "maintenance" || proposal.blocks_work === true));
   const highRiskOpenIssues = openIssues.some((issue) => issue.severity === "high");
   const proposedStandardChange = activeProposals.some((proposal) => proposal.status === "proposed");
   let outcome = "complete";
@@ -310,7 +481,8 @@ export function advanceLoop(input, riskTaxonomy = null, workflowPolicy = {}) {
   let escalationRequired = false;
   let nextLoop = null;
   let nextStage = null;
-  let nextAction = "prepare-git-handoff";
+  const completionAction = input.handoff_required === true ? "prepare-git-handoff" : "report-result";
+  let nextAction = completionAction;
   let reason = null;
 
   const returnTarget = (items) => items.find((issue) => issue.return_to)?.return_to ?? (input.stage ?? "direct");
@@ -344,6 +516,10 @@ export function advanceLoop(input, riskTaxonomy = null, workflowPolicy = {}) {
     nextLoop = "maintenance";
     nextAction = "obtain-human-review";
     reason = "标准改进提议必须先由人审阅，不得自批准。";
+    if (input.loop !== "maintenance" && !input.resume) {
+      nextAction = "record-maintenance-return";
+      reason = "必要的标准改进阻塞当前交付；先记录原 Work 的目标、返回位置和结束节点。";
+    }
   } else if (input.event === "internal-iteration") {
     outcome = "continue";
     nextLoop = input.loop;
@@ -391,8 +567,13 @@ export function advanceLoop(input, riskTaxonomy = null, workflowPolicy = {}) {
       reason = "出口门禁尚未通过；只有 submitted-result 失败才消耗自动修正次数。";
     }
     nextStage = input.stage ?? null;
+  } else if (input.gate.claims_completion === false) {
+    outcome = "continue";
+    nextLoop = input.loop;
+    nextStage = input.stage ?? null;
+    nextAction = "continue-internal-iteration";
   } else if (input.loop === "work" && input.stage) {
-    if (input.stage === input.completion_stage) nextAction = "prepare-git-handoff";
+    if (input.stage === input.completion_stage) nextAction = completionAction;
     else if (input.next_stage) {
       outcome = "continue";
       nextLoop = "work";
@@ -410,9 +591,25 @@ export function advanceLoop(input, riskTaxonomy = null, workflowPolicy = {}) {
     nextLoop = "work";
     nextStage = target === "direct" ? null : target;
     nextAction = target === "direct" ? "resume-direct-work" : `resume-${target}`;
+  } else if (input.loop === "maintenance" && input.resume) {
+    outcome = "continue";
+    nextLoop = "work";
+    nextStage = input.resume.return_to === "direct" ? null : input.resume.return_to;
+    nextAction = nextStage ? `resume-${nextStage}` : "resume-direct-work";
   }
 
-  const workflowComplete = outcome === "complete" && nextLoop === null;
+  let workflowComplete = outcome === "complete" && nextLoop === null;
+  const completedBeforeExecutionCheck = workflowComplete;
+  const execution = executionState(input, gate, nextStage, workflowComplete, hostCapabilities);
+  if (["waiting-assignment", "waiting-handoff", "blocked"].includes(execution.status)) {
+    outcome = "stop";
+    if (completedBeforeExecutionCheck) nextLoop = input.loop;
+    nextAction = execution.next_action ?? "resolve-execution-blocker";
+    reason = execution.blockers[0] ??
+      (execution.status === "waiting-assignment" ? "等待 Host 分配真实 Agent。" : "等待显式 Agent 交接。");
+    workflowComplete = false;
+  }
+  const progress = progressSnapshot(input, execution, workflowComplete, outcome, nextStage, reason);
   return {
     schema_version: 3,
     loop: input.loop,
@@ -422,21 +619,88 @@ export function advanceLoop(input, riskTaxonomy = null, workflowPolicy = {}) {
     gate,
     work_kind: input.stage || input.completion_stage ? "staged" : "direct",
     stage: input.stage ?? null,
-    completion_stage: input.completion_stage ?? null,
+    completion_stage: input.completion_stage ?? input.resume?.completion_stage ?? null,
     next_stage: nextStage,
     next_loop: nextLoop,
     next_action: nextAction,
     result_ref: input.result_ref ?? null,
+    resume: input.resume ?? null,
+    inputs: input.inputs ?? [],
+    bindings,
+    handoff_required: input.handoff_required === true,
     artifacts: input.artifacts ?? [],
     acceptance: input.acceptance ?? null,
     acceptance_evidence: input.acceptance_evidence ?? [],
     issues,
     proposals,
     workflow_complete: workflowComplete,
-    agents: agentLifecycle(input, gate, nextAction, nextStage, workflowComplete, workflowPolicy),
+    execution,
+    progress,
     escalation_required: escalationRequired,
     reason
   };
+}
+
+export function summarizeLoop(result) {
+  const { artifacts, acceptance, acceptance_evidence, issues, proposals, inputs, gate, execution, ...summary } = result;
+  return {
+    ...summary,
+    view: "summary",
+    gate: {
+      status: gate.status, risk: gate.risk, execution_allowed: gate.execution_allowed,
+      completion_allowed: gate.completion_allowed, enforcement: gate.enforcement,
+      missing: gate.checks.filter((check) => check.due && !check.passed).map(({ id, status }) => ({ id, status }))
+    },
+    issues: issues.filter((issue) => issue.status !== "closed"),
+    proposals: proposals.filter((proposal) => proposal.status !== "closed").map(({ fingerprint, status, blocks_work }) => ({ fingerprint, status, blocks_work: blocks_work === true })),
+    artifact_refs: artifacts.map(({ stage, locator, commit_sha }) => ({ stage, locator, commit_sha })),
+    input_refs: inputs.map(({ id, locator, commit_sha }) => ({ id, locator, commit_sha }))
+  };
+}
+
+function loopStatePath(input) {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.loop_id)) throw new Error("invalid loop id");
+  return path.join(path.dirname(workflowCachePath(input.project.locator, input.cache_root)), "loops", `${input.loop_id}.json`);
+}
+
+export function advancePersistedLoop(input, riskTaxonomy, workflowPolicy, hostCapabilities = null) {
+  const capabilities = hostCapabilities ?? readHostCapabilities(input.cache_root).profile;
+  if (input.persist === false) return { ...advanceLoop(input, riskTaxonomy, workflowPolicy, capabilities), persistence: "simulation", cache_locator: null };
+  const locator = loopStatePath(input);
+  fs.mkdirSync(path.dirname(locator), { recursive: true });
+  const lock = `${locator}.lock`;
+  try { fs.mkdirSync(lock); } catch (error) {
+    if (error.code === "EEXIST") throw new Error("loop is being advanced; inspect the lock before retrying");
+    throw error;
+  }
+  try {
+    const legacy = readLoopState(input.project.locator, input.cache_root).state;
+    const previous = fs.existsSync(locator) ? JSON.parse(fs.readFileSync(locator, "utf8")) : legacy?.loop_id === input.loop_id ? legacy : null;
+    const { event, rerun, attempt, persist, cache_root, ...payload } = input;
+    const digest = evidenceDigest(payload);
+    const restored = { ...input, attempt: Math.max(input.attempt ?? 0, previous?.result.attempt ?? 0) };
+    if (input.loop === "maintenance" && previous?.result.resume && !restored.resume) restored.resume = previous.result.resume;
+    const previousAcceptance = previous?.acceptance_sha256 ?? previous?.result.bindings?.acceptance_sha256;
+    const currentAcceptance = input.acceptance ? evidenceDigest(input.acceptance) : null;
+    if (input.loop === "work" && previousAcceptance && previousAcceptance !== currentAcceptance &&
+      !evidenceReferenceExists(input.acceptance_change_ref, input.project.locator)) {
+      throw new Error("changing or removing acceptance requires acceptance_change_ref and fresh evidence");
+    }
+    if (input.event === "deterministic-rerun") {
+      if (!previous || previous.input_sha256 !== digest || input.rerun.input_sha256 !== digest ||
+        input.rerun.previous_input_sha256 !== digest) throw new Error("deterministic rerun does not match the persisted input");
+      return { ...previous.result, cache_locator: locator, deterministic_rerun: true };
+    }
+    const result = advanceLoop(restored, riskTaxonomy, workflowPolicy, capabilities);
+    const state = {
+      schema_version: 3, updated_at: new Date().toISOString(), loop_id: input.loop_id,
+      input_sha256: digest, acceptance_sha256: input.loop === "work" ? currentAcceptance : previousAcceptance ?? null, result
+    };
+    const temporary = `${locator}.${process.pid}.tmp`;
+    fs.writeFileSync(temporary, `${JSON.stringify(state)}\n`);
+    fs.renameSync(temporary, locator);
+    return { ...result, persistence: "recorded", input_sha256: digest, cache_locator: locator };
+  } finally { fs.rmdirSync(lock); }
 }
 
 export function saveLoopState(input, result) {
@@ -449,8 +713,8 @@ export function saveLoopState(input, result) {
   return locator;
 }
 
-export function readLoopState(projectRoot, cacheRoot) {
-  const locator = workflowCachePath(projectRoot, cacheRoot);
+export function readLoopState(projectRoot, cacheRoot, loopId = null) {
+  const locator = loopId ? loopStatePath({ project: { locator: projectRoot }, cache_root: cacheRoot, loop_id: loopId }) : workflowCachePath(projectRoot, cacheRoot);
   if (!fs.existsSync(locator)) return { locator, state: null };
   return { locator, state: JSON.parse(fs.readFileSync(locator, "utf8")) };
 }

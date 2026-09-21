@@ -22,11 +22,11 @@ import {
   routeStandards
 } from "./lib/standards.mjs";
 import {
-  advanceLoop,
+  advancePersistedLoop,
   consolidateIssues,
   evaluateGate,
   readLoopState,
-  saveLoopState
+  summarizeLoop
 } from "./lib/workflow.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -60,13 +60,13 @@ export const ZIPZAP_COMMANDS = {
   },
   gate: {
     summary: "Evaluate a built-in evidence and authority gate.",
-    usage: "gate --input <input.json|input.yaml|input.yml> [--compact]",
+    usage: "gate --input <input.json|input.yaml|input.yml> [--enforce] [--compact]",
     schema: "schemas/gate-input.schema.yml",
     example: "examples/zipzap/gate.yml"
   },
   loop: {
     summary: "Advance stage-aware Work, Feedback, or Maintenance with one model correction maximum.",
-    usage: "loop --input <input.json|input.yaml|input.yml> [--action <advance|status>] [--compact]",
+    usage: "loop --input <input.json|input.yaml|input.yml> [--action <advance|status>] [--brief] [--compact]",
     schema: "schemas/loop-input.schema.yml",
     example: "examples/zipzap/loop.yml"
   },
@@ -377,9 +377,8 @@ function executeCommand(options, rootDir) {
   if (command === "validate") return validateSkill(rootDir);
   if (command === "describe") return commandDescription(options.subject);
   if (command === "catalog") {
-    const catalogs = loadCatalogs(rootDir);
-    const value = catalogs[options.kind];
-    if (!value) throw new Error(`unknown catalog: ${options.kind}`);
+    if (!catalogFiles(rootDir).includes(`${options.kind}.yml`)) throw new Error(`unknown catalog: ${options.kind}`);
+    const value = readData(path.join(rootDir, "config", `${options.kind}.yml`));
     if (!options.id) return value;
     for (const child of Object.values(value)) {
       if (
@@ -410,30 +409,26 @@ function executeCommand(options, rootDir) {
       : routeStandards(input);
   }
   if (command === "gate") {
-    const catalogs = loadCatalogs(rootDir);
-    return evaluateGate(input, catalogs["risk-taxonomy"]);
+    return evaluateGate(input, readData(path.join(rootDir, "config/risk-taxonomy.yml")));
   }
   if (command === "delivery") {
     const action = options.action ?? "plan";
     if (!new Set(["plan", "assess"]).has(action)) {
       throw new Error(`unsupported delivery action: ${action}`);
     }
-    const catalog = loadCatalogs(rootDir).delivery;
+    const catalog = readData(path.join(rootDir, "config/delivery.yml"));
     return action === "assess"
       ? assessDelivery(input, catalog)
       : planDelivery(input, catalog);
   }
   if (command === "loop") {
     if (options.action === "status") {
-      return readLoopState(input.project.locator, input.cache_root);
+      return readLoopState(input.project.locator, input.cache_root, input.loop_id);
     }
-    const catalogs = loadCatalogs(rootDir);
-    const result = advanceLoop(input, catalogs["risk-taxonomy"], catalogs.workflow);
-    return {
-      ...result,
-      cache_locator:
-        input.persist === false ? null : saveLoopState(input, result)
-    };
+    const result = advancePersistedLoop(input,
+      readData(path.join(rootDir, "config/risk-taxonomy.yml")),
+      readData(path.join(rootDir, "config/workflow.yml")));
+    return options.brief ? summarizeLoop(result) : result;
   }
   if (command === "issues") return consolidateIssues(input);
   if (command === "handoff") {
@@ -464,6 +459,8 @@ export function runCli(argv = process.argv.slice(2)) {
       { flags: "--input <file>", description: "path to a .json, .yaml, or .yml input file" },
       { flags: "--root <dir>", description: "Skill root" },
       { flags: "--compact", description: "compact JSON output" },
+      { flags: "--brief", description: "return a minimal Loop decision projection" },
+      { flags: "--enforce", description: "exit 2 when a Gate blocks the requested boundary" },
       { flags: "--action <action>", description: "command action" },
       { flags: "--kind <kind>", description: "catalog kind" },
       { flags: "--id <id>", description: "catalog item id" }
@@ -474,12 +471,16 @@ export function runCli(argv = process.argv.slice(2)) {
       help: options.command ? commandHelp(options.command) : rootHelp()
     };
   }
-  return {
-    value: executeCommand(
+  if (options.enforce && options.command !== "gate") throw new Error("--enforce is only supported by gate");
+  if (options.brief && options.command !== "loop") throw new Error("--brief is only supported by loop");
+  const value = executeCommand(
       options,
       path.resolve(options.root ?? DEFAULT_ROOT)
-    ),
-    compact: options.compact === true
+    );
+  return {
+    value,
+    compact: options.compact === true,
+    exit_code: options.enforce && !value.allowed ? 2 : 0
   };
 }
 
@@ -494,6 +495,7 @@ if (
       process.stdout.write(
         `${JSON.stringify(result.value, null, result.compact ? 0 : 2)}\n`
       );
+      process.exitCode = result.exit_code;
     }
   } catch (error) {
     process.stderr.write(

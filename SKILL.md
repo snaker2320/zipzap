@@ -1,100 +1,55 @@
 ---
 name: zipzap
-description: Run Git-native AI development with routed project standards, built-in gates, bounded feedback loops, deduplicated problem items, and structured multi-commit handoffs. Use for standards initialization, governed implementation or review, recurring feedback, Git Handoff, and ZipZap lifecycle work; do not use as a project tracker.
+description: Govern bounded project delivery with routed standards, evidence gates, feedback, and Git handoffs. Use for project standards, controlled implementation or review, recurring defects, and delivery recovery; do not use as a project tracker.
 ---
 
 # ZipZap
 
-ZipZap is a collaboration control plane, not a project tracker. Do not create a ZipZap Task or project-local runtime database. Git records durable delivery and Handoff facts; ephemeral loop state belongs in the user cache, isolated by repository and worktree fingerprint.
+ZipZap decides which project rules, evidence and boundaries apply. The Host executes actions and enforces permissions. Git stores durable delivery facts; temporary Loop state stays in the user cache, isolated by repository, worktree and loop ID.
 
 ## Route before acting
 
-The bundled CLI entrypoint is `scripts/zipzap.mjs`, relative to this `SKILL.md`. Resolve it inside the installed Skill, invoke it with Node while keeping the target project as the working directory, and do not require project `AGENTS.md` or standards to repeat the installed Skill path.
+The bundled CLI entrypoint is `scripts/zipzap.mjs`, relative to this `SKILL.md`. Resolve it inside the installed Skill and keep the target project as the working directory; do not require project `AGENTS.md` to repeat its location.
 
-For project work, inspect `AGENTS.md` and route project standards with:
+Read `AGENTS.md`, then route standards:
 
 ```sh
 node <resolved-skill-root>/scripts/zipzap.mjs standards --action route --input <request.yml> --compact
 ```
 
-Load every selected standard in full. The index is derived on demand from project-owned Markdown and optional frontmatter; do not commit a ZipZap index. For larger standard trees, use minimal `actions`, `domains`, `artifacts`, `paths`, or `risks` applicability metadata. Route from intent and affected areas first, then reroute with changed paths when known. If routing remains uncertain, load `standards/foundation/project.md` and ask only for the missing decision.
+`--input` is a JSON/YAML file path. Route by the active action, affected paths and risk, adding semantic selectors when needed. Load selected standards in full on first use. In the same intact context, reuse unchanged files by their returned SHA-256; reroute when scope changes and reload changed or lost context. An uncertain route requires the foundation standard and only the missing decision, not speculative rule changes.
 
-Read only the reference needed for the active operation:
+Read the reference for the active operation only:
 
-- initialization or restructuring: `references/standards.md`;
-- Work, Gate, acceptance, Feedback, or role scheduling: `references/gates-and-loops.md`;
-- project Build or development/test Deploy: `references/delivery.md`;
-- Git transfer or recovery: `references/git-handoff.md`;
-- user decisions and native forms: `references/decision-forms.md`;
-- install, upgrade, rollback, or release: `references/lifecycle.md`.
+- Work, evidence, Owner/check execution, Feedback or Maintenance: `references/gates-and-loops.md`.
+- Build and development/test Deploy: `references/delivery.md`.
+- Git transfer, history consolidation or recovery: `references/git-handoff.md`.
+- Standards initialization or restructuring: `references/standards.md`.
+- Real unresolved user decisions: `references/decision-forms.md`.
+- Installation, upgrade, rollback or release: `references/lifecycle.md`.
 
-## Initialize standards
+## Choose the smallest delivery boundary
 
-Initialization is preview-first. If valid standards already exist, default `configure` resolves to `keep`. Otherwise guide the user among `configure`, `reorganize`, and `rebuild`. Create only relevant assets, show exact operations and the fingerprint before applying, and never overwrite `AGENTS.md` automatically.
+Pure questions need no Loop. A bounded result without a controlled stage handoff uses Direct Work (`result_ref`). Staged Work declares `stage`, `completion_stage` and a Git-bound artifact covering the governed result. It may start and end at Design. An implementation plan is an input to Implement, not a reason to restart the intent-planning stage.
 
-Discovery and routing are read-only. Treat missing standards, duplicate IDs, unscoped rules, thin content, unsupported selectors, example-heavy material, and unmatched domains or artifacts as diagnostics. Propose the narrowest repair through Maintenance, but never invent project decisions or automatically rewrite, split, move, or delete authoritative rules.
+Advance only within the user's authorized scope. The Host supplies `next_stage` when a planned transition is ready; this does not require asking the user at every stage. Use `loop --brief --compact` for normal decisions and omit `--brief` for full evidence. Set `handoff_required: true` only when a Git transfer or durable continuation is actually needed.
 
-## Choose the smallest Work contract
+## Keep execution and governance distinct
 
-Do not classify requests as business or non-business. Decide whether controlled stage handoffs are useful.
+Internal edit/build/test/fix cycles stay inside the action. Work, Feedback and Maintenance are conditional branches, not a mandatory chain. Runtime stage `maintain` handles operational work; the Maintenance Loop handles reviewed standards changes. An unrelated improvement proposal does not block delivery. A necessary proposal sets `blocks_work: true` and preserves the original Work boundary in `resume`.
 
-- Use direct Work for a bounded result that does not need staged delivery. Supply `result_ref`; omit `stage`, `completion_stage`, and `artifacts`.
-- Use staged Work when artifacts must cross controlled stage boundaries. Declare the current `stage`, the explicit ending node `completion_stage`, and exactly one Git-bound artifact for each represented stage.
-- Keep pure questions, conversation, and requests that need no governed delivery outside the Loop.
+Entry checks protect scope and authorization. Exit checks protect the submitted result; missing future evidence is pending, not proof of failure. Never claim completion while `claims_completion: false`. Use existing authorization when it covers the action. Do not bypass blocked entry checks, open high-risk issues, or review of a required standards change.
 
-The stage vocabulary is `plan`, `design`, `implement`, `verify`, `deploy`, and `maintain`. A stage never advances implicitly. Supply `next_stage` only for an intentional transition. Reaching `completion_stage` completes Work, so a design-only request can end at Design without entering Implement or Verify.
+Every Work has one `execution.owner`. Direct Work adds no execution roles. Gate-required independent checks bind only check IDs to real secondary Agent IDs; status, actor and evidence remain in the Gate. A check Agent does not become an Owner. It must differ from the Owner and artifact authors, and independent review must differ from independent testing when required.
 
-## Run bounded Gates and loops
+The Host orchestrates Agent creation, liveness and messages; do not create a manager Agent. Staged Work keeps the same Owner unless an accepted `execution.handoff` transfers ownership at an explicit stage boundary. Missing capability, identity, check binding or handoff acknowledgement blocks the boundary instead of simulating independence. Runtime `maintain` is an operational stage, not a Maintainer role.
 
-Use Work for delivery, Feedback for observed problem items, and Maintenance for reviewed standards improvements. The Gate derives requirements from current-action effects and risk. Project standards may define applicability, commands, high-risk areas, and authority, but may not redefine Gate semantics or bypass a failed Gate.
+Read Host multi-Agent capability from the profile recorded during installation or upgrade. Use `execution.multi_agent` only for a Work-specific policy override; do not probe the Host on every Loop call. Derive compact progress from Owner, checks and the current Handoff, showing only stage, status, Owner, next stage and blocker. Use the full output when execution evidence is needed; normal `--brief` output retains this progress snapshot without repeating execution details.
 
-Scope and authorization are entry checks. Verification and independent review are exit checks. A passed check needs a source reference; staged exit evidence binds the current stage commit. Risk signals may raise but never lower declared risk.
+## Preserve evidence and intent
 
-Internal Agent iteration such as edit, Build, test, and fix stays inside the active action. It neither creates Feedback nor spends the governance correction allowance, but it cannot bypass an entry failure, an open high-risk problem item, or an unreviewed standards proposal. A resolved high-risk item may proceed to verification. `evaluate` observes without spending the allowance. After a submitted result fails an exit Gate, or a Feedback correction fails re-verification, allow one automatic model correction. Re-verification failure reopens resolved items. A second failure stops with evidence. High-risk submitted failure stops immediately. A deterministic rerun with identical input SHA-256 does not consume the allowance.
+Read accepted inputs before producing their dependents. Bind declared Git inputs and acceptance expectations to fresh evidence; changing either invalidates old bindings. Do not weaken acceptance to make a check pass. Record the decision behind an acceptance change and reverify the affected behavior.
 
-## Guide acceptance without overfitting
+A Gate result is a decision, not a command interceptor. Hosts or CI can consume `gate --enforce` immediately before the guarded boundary; permissions still belong to the Host. Local Git and `file:` references are checked locally, while opaque Host references remain attestations. Never claim a command, independent review, deployment or publication happened merely because an input says `passed`.
 
-When acceptance needs to be explicit, record a reusable contract with stable IDs:
-
-- positive, negative, boundary, and regression scenarios;
-- each scenario's applicability, condition, action, and expected result;
-- constraints or invariants and their applicability;
-- verification evidence mapped back to acceptance IDs.
-
-Every scenario type must be addressed, but `not-applicable` with a reason is valid. This is a design aid and exit-evidence contract, not a requirement to execute irrelevant tests. Applicable items need passing evidence before completion.
-
-## Schedule roles, not team modes
-
-There are no Solo, Copilot, Trio, Squad, team presets, or collaboration-selection prompts. Roles are logical responsibilities, not Agent counts. Multiple roles may be performed sequentially, by one context where independence is not required, or by distinct contexts when a Gate requires independence.
-
-Follow `agents.activate_or_reuse`. Activate no execution roles while the entry Gate is blocked. Otherwise activate only roles needed for the next action and reuse by `loop_id + role`. `required_roles` expresses action-specific judgment: Design may request a developer for technical design or a tester for test design. Activate Product only when intent, scope, acceptance, or a product trade-off is ambiguous or explicitly assigned.
-
-Reuse the same Tester assignment after test design for later Verify or Feedback work. Leaving a role idle does no work. Tester independence remains valid while it does not edit the artifact under test; if it does, re-establish valid verification. Pass `active_roles` when the Host needs the completion result to release every retained role. Agent IDs and thread state remain Host-owned and never enter project state or Git Handoff.
-
-## Feedback and Maintenance
-
-Call user-facing defects “问题项”; use `issues` in machine fields. Preserve stable `fingerprint`, `checkpoint`, `status`, `return_to`, and closure `verification_ref`. Staged Feedback also carries the original `completion_stage`. A staged issue returns to its named stage without losing the end node; a direct issue uses `return_to: direct` and resumes the same direct Work.
-
-Group equivalent observations by fingerprint. Two independent Git Checkpoints may propose a standards improvement; high severity may propose one immediately. Do not create a feedback database, auto-edit `AGENTS.md`, or self-approve a proposal. Prefer merging or revising the narrowest existing standard.
-
-## Build and deploy through project adapters
-
-Use `delivery --action plan` to discover project-owned command candidates and validate an explicit mapping for Build and development/test Deploy. Discovery is guidance, never executable authority. The Agent executes confirmed commands through the Host; ZipZap does not execute command text from input.
-
-Use `delivery --action assess` to validate artifact, command, target, readiness, Smoke, rollback, and authorization evidence. Delivery slots such as `build.execute` remain semantic commands, not workflow stages. Build or Smoke failures return to workflow stage `implement`; other deploy failures return to `deploy`. Production deployment is outside this contract.
-
-## Handoff through Git
-
-Use `base..HEAD` as the complete, non-empty multi-commit range. The final effective commit contains exactly one `ZipZap-Handoff`, `ZipZap-Base`, `ZipZap-Status`, and `ZipZap-Summary` trailer, plus repeatable verification, issue, and standard trailers as needed. Structured issue trailer version 2 preserves `return_to`, including `direct`; the legacy severity/title form remains readable.
-
-Run `handoff --action prepare` before the final commit or amend. If another commit is added, regenerate and amend the new final commit. The receiver inspects commit availability, ancestry, changed files, evidence, remaining issues, and worktree state.
-
-## Ask decisions through the host
-
-Use native input forms only for real unresolved user decisions, in pages of at most three questions. Preserve one atomic decision bundle and do not mutate state from partial answers. When unavailable, use stepwise text. Role scheduling and stage transitions are Agent responsibilities and do not create topology-choice prompts.
-
-## Lifecycle
-
-Installed artifacts are bundled and must not run `npm install`. Upgrading from Task-based releases remains preview-first and fingerprint-confirmed before deleting obsolete `.zipzap/` state. Initialize project standards separately from package installation.
-
-Never claim tests, review, acceptance, release readiness, push, or publication without recorded evidence.
+Initialize standards preview-first. Discovery is read-only. Propose the narrowest reviewed revision for repeated problems; never automatically rewrite standards or `AGENTS.md`. Keep external publication and production authorization separate from local delivery.

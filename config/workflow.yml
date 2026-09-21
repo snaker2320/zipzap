@@ -11,32 +11,28 @@ gates:
   risk_policy: declared-risk-may-only-be-raised-by-signals
   risk_signal_scope: current-action
   passed_evidence_requires: evidence-ref
-  loop_exit_evidence_binding: current-stage-commit
-roles:
-  activation: lazy-by-next-action
-  reuse: same-loop-and-role
-  unit: logical-responsibility-not-agent-count
-  blocked_entry_activation: none
-  stage:
-    plan: []
-    design: []
-    implement: [developer]
-    verify: [tester]
-    deploy: [developer, tester]
-    maintain: []
-  action:
-    resolve-issues: [developer]
-    verify-issues: [tester]
-    apply-approved-standard-change: [developer]
-    verify-standard-change: [reviewer]
-  product_rule: activate-only-for-ambiguous-intent-or-explicit-product-decision
+  loop_exit_evidence_binding: current-stage-commit-and-input-digests
+  enforcement: host-or-ci
+  in_progress_exit_checks: pending
+execution:
+  owner: host
+  manager_agent: forbidden
+  roles: none
+  independent_checks: gate-derived
+  multi_agent_capability: installed-host-profile
+  runtime_policy: optional-per-work-override
+  progress: derived-from-owner-checks-and-handoff
+  statuses: [waiting-assignment, running, waiting-handoff, blocked, completed]
+  handoff: explicit-on-owner-change
+  direct: one-owner-with-optional-independent-checks
+  staged: owner-continuation-or-explicit-handoff
 loops:
   types: [work, feedback, maintenance]
   model_correction_limit: 1
   correction_trigger: submitted-exit-gate-or-feedback-verification-failure
   evaluate: observe-without-consuming-model-correction
   internal_iteration: outside-governance-correction-counter-after-hard-blockers
-  hard_blockers: [entry-gate-failure, open-high-risk-issue, unreviewed-standard-proposal]
+  hard_blockers: [entry-gate-failure, open-high-risk-issue, unreviewed-required-standard-proposal]
   high_risk_failure: stop-immediately
   deterministic_script_rerun: does-not-consume-model-correction
   deterministic_rerun_requires: same-input-sha256
@@ -44,6 +40,7 @@ work:
   direct:
     stage_required: false
     result_ref_required: true
+    default_completion_action: report-result
   staged:
     completion_stage_required: true
     next_stage: explicit-only
@@ -90,6 +87,8 @@ maintenance:
   input: feedback-standard-proposals
   lifecycle: [proposed, approved, applied, closed]
   approval: human-reviewed
+  unrelated_proposals_block_work: false
+  required_branch_return: explicit-resume-boundary
   closure_requires: evidence_ref
 handoff:
   source: git-checkpoint
@@ -98,7 +97,11 @@ handoff:
   nonempty_range_required: true
   structured_trailer: ZipZap-Handoff
   issue_trailer: ZipZap-Issue
+  work_boundary_trailer: ZipZap-Work
+  consolidation: logical-change-not-loop
   rich_issue_encoding: versioned-fields
 cache:
   root: user-cache
-  isolation: repository-and-worktree-fingerprint
+  isolation: repository-and-worktree-fingerprint-and-loop-id
+  correction_budget: persisted-monotonic
+  updates: per-loop-lock

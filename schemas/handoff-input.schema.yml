@@ -17,6 +17,7 @@ properties:
   subject: { type: string, minLength: 1 }
   status: { enum: [complete, partial, blocked] }
   summary: { type: string, minLength: 1 }
+  work: { $ref: ./work-boundary.schema.yml }
   verification:
     type: array
     items:

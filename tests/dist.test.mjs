@@ -37,6 +37,8 @@ test("dist Skill is self-contained and has one workflow CLI", async () => {
     )
   );
   assert.equal(loop.gate.execution_allowed, true);
-  assert.equal(loop.gate.completion_allowed, true);
-  assert.deepEqual(loop.agents.activate_or_reuse, [{ role: "tester", reuse_key: "example-work:tester" }]);
+  assert.equal(loop.gate.completion_allowed, false);
+  assert.equal(loop.execution.owner.agent_id, "agent-owner");
+  assert.deepEqual(loop.execution.required_checks, []);
+  assert.equal(loop.progress.status, "running");
 });

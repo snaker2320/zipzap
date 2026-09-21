@@ -1,15 +1,36 @@
 import assert from "node:assert/strict";
 import path from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
+import fs from "node:fs";
+import os from "node:os";
+import { execFileSync } from "node:child_process";
+import { evidenceDigest } from "../scripts/lib/evidence.mjs";
 
 import { readData } from "../scripts/lib/data-files.mjs";
 import { validateSchemaFile } from "../scripts/lib/schema-registry.mjs";
-import { advanceLoop, consolidateIssues, evaluateGate } from "../scripts/lib/workflow.mjs";
+import { advanceLoop as advanceLoopRaw, consolidateIssues, evaluateGate } from "../scripts/lib/workflow.mjs";
 
 const root = path.resolve(".");
 const taxonomy = readData(path.resolve("config/risk-taxonomy.yml"));
 const workflow = readData(path.resolve("config/workflow.yml"));
-const sha = "a".repeat(40);
+const hostCapabilities = {
+  multi_agent: { available: true, default_allowed: true, stable_identity: true, handoff_acknowledgement: true }
+};
+const advanceLoop = (input, riskTaxonomy, workflowPolicy) =>
+  advanceLoopRaw(input, riskTaxonomy, workflowPolicy, hostCapabilities);
+const project = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-workflow-artifacts-"));
+after(() => fs.rmSync(project, { recursive: true, force: true }));
+const git = (...args) => execFileSync("git", args, { cwd: project, encoding: "utf8" }).trim();
+git("init", "-q");
+git("config", "user.email", "zipzap@example.test");
+git("config", "user.name", "ZipZap Test");
+fs.mkdirSync(path.join(project, "evidence"));
+for (const stage of ["plan", "design", "implement", "verify", "deploy", "maintain"]) {
+  fs.writeFileSync(path.join(project, "evidence", `${stage}.md`), `${stage} artifact\n`);
+}
+git("add", ".");
+git("commit", "-qm", "test artifacts");
+const sha = git("rev-parse", "HEAD");
 
 function passingGate(commitSha = null) {
   return {
@@ -33,6 +54,7 @@ function direct(overrides = {}) {
     loop_id: "direct-work",
     project: { locator: "." },
     result_ref: "conversation:result",
+    execution: { owner: { agent_id: "agent-owner", status: "completed" } },
     attempt: 0,
     event: "evaluate",
     gate: passingGate(),
@@ -45,9 +67,10 @@ function staged(stage, completionStage, overrides = {}) {
     schema_version: 3,
     loop: "work",
     loop_id: "staged-work",
-    project: { locator: "." },
+    project: { locator: project },
     stage,
     completion_stage: completionStage,
+    execution: { owner: { agent_id: "agent-owner", stage, status: "completed" } },
     artifacts: [{ stage, locator: `evidence/${stage}.md`, commit_sha: sha }],
     attempt: 0,
     event: "evaluate",
@@ -103,7 +126,7 @@ test("direct Work completes without SDLC stages", () => {
   assert.equal(result.schema_version, 3);
   assert.equal(result.work_kind, "direct");
   assert.equal(result.workflow_complete, true);
-  assert.equal(result.next_action, "prepare-git-handoff");
+  assert.equal(result.next_action, "report-result");
 });
 
 test("Work schema requires exactly one direct or staged contract", () => {
@@ -143,7 +166,7 @@ test("completion_stage ends Design without implicit implementation", () => {
   const result = advanceLoop(staged("design", "design"), taxonomy, workflow);
   assert.equal(result.workflow_complete, true);
   assert.equal(result.next_stage, null);
-  assert.equal(result.next_action, "prepare-git-handoff");
+  assert.equal(result.next_action, "report-result");
 });
 
 test("a non-terminal stage never advances implicitly", () => {
@@ -153,40 +176,47 @@ test("a non-terminal stage never advances implicitly", () => {
   assert.equal(result.next_action, "await-explicit-next-stage");
 });
 
-test("an explicit next stage advances and activates only required roles", () => {
+test("an explicit next stage advances after an accepted ownership handoff", () => {
   const result = advanceLoop(staged("plan", "design", {
     next_stage: "design",
-    required_roles: ["tester"]
+    execution: {
+      owner: { agent_id: "agent-owner", stage: "plan", status: "completed" },
+      handoff: {
+      from_agent: "agent-owner", to_agent: "agent-next", from_stage: "plan", to_stage: "design",
+      artifact_ref: `git:${sha}:evidence/plan.md`, status: "accepted"
+      }
+    }
   }), taxonomy, workflow);
   assert.equal(result.outcome, "continue");
   assert.equal(result.next_stage, "design");
-  assert.deepEqual(result.agents.activate_or_reuse, [{ role: "tester", reuse_key: "staged-work:tester" }]);
+  assert.equal(result.execution.status, "running");
+  assert.deepEqual(result.progress, {
+    stage: "design", status: "running",
+    owner: { agent_id: "agent-next", status: "assigned" },
+    next_stage: "design", blocker: null
+  });
 });
 
-test("the same tester assignment is reused from test design to Verify", () => {
+test("the same Owner may continue across stages without a handoff", () => {
   const designed = advanceLoop(staged("design", "verify", {
-    next_stage: "verify",
-    required_roles: ["tester"]
+    next_stage: "verify"
   }), taxonomy, workflow);
   const verifying = advanceLoop(staged("verify", "verify", {
-    loop_id: "staged-work",
-    required_roles: ["tester"],
-    active_roles: ["tester"]
+    loop_id: "staged-work"
   }), taxonomy, workflow);
-  assert.equal(designed.agents.activate_or_reuse[0].reuse_key, "staged-work:tester");
-  assert.deepEqual(verifying.agents.release_roles, ["tester"]);
+  assert.equal(designed.execution.status, "running");
+  assert.deepEqual(designed.progress.owner, { agent_id: "agent-owner", status: "assigned" });
+  assert.deepEqual(verifying.execution.release_agents, ["agent-owner"]);
 });
 
-test("product is activated only when the action explicitly requires it", () => {
-  const ordinary = advanceLoop(staged("plan", "plan"), taxonomy, workflow);
-  const ambiguous = advanceLoop(staged("plan", "plan", { required_roles: ["product"] }), taxonomy, workflow);
-  assert.deepEqual(ordinary.agents.release_roles, []);
-  assert.deepEqual(ambiguous.agents.release_roles, ["product"]);
+test("role-based execution input is rejected", () => {
+  const input = staged("plan", "plan", { required_roles: ["product"] });
+  assert.equal(validateSchemaFile(root, "schemas/loop-input.schema.yml", input).valid, false);
 });
 
-test("workflow completion releases all known active roles", () => {
-  const result = advanceLoop(direct({ active_roles: ["developer", "tester"] }), taxonomy, workflow);
-  assert.deepEqual(result.agents.release_roles, ["developer", "tester"]);
+test("workflow completion releases the Owner", () => {
+  const result = advanceLoop(direct(), taxonomy, workflow);
+  assert.deepEqual(result.execution.release_agents, ["agent-owner"]);
 });
 
 test("internal edit-build-test-fix iteration does not consume governance correction", () => {
@@ -248,6 +278,7 @@ test("a resolved high-risk problem item can proceed to verification", () => {
     loop_id: "high-risk-verification",
     project: { locator: "." },
     event: "evaluate",
+    execution: { owner: { agent_id: "agent-owner", status: "running" } },
     gate: { schema_version: 1, mutates_files: false, claims_completion: false },
     issues: [issue("direct", "resolved", { severity: "high" })]
   }, taxonomy, workflow);
@@ -263,6 +294,7 @@ test("internal iteration cannot bypass human review of a standards proposal", ()
     loop_id: "proposal-review",
     project: { locator: "." },
     event: "internal-iteration",
+    execution: { owner: { agent_id: "agent-owner", status: "running" } },
     gate: { schema_version: 1, mutates_files: false, claims_completion: false },
     proposals: [{
       fingerprint: "same-problem",
@@ -299,14 +331,13 @@ test("evaluating an exit Gate failure does not consume a correction", () => {
 
 test("entry Gate failure blocks without consuming correction", () => {
   const result = advanceLoop(direct({
-    required_roles: ["developer"],
     gate: { schema_version: 1, mutates_files: true, claims_completion: false, evidence: [] }
   }), taxonomy, workflow);
   assert.equal(result.outcome, "stop");
   assert.equal(result.attempt, 0);
   assert.equal(result.next_action, "satisfy-entry-gate");
-  assert.equal(result.agents.status, "idle");
-  assert.deepEqual(result.agents.activate_or_reuse, []);
+  assert.deepEqual(result.execution.required_checks, []);
+  assert.equal(result.progress.status, "blocked");
 });
 
 test("Feedback returns to the same direct Work", () => {
@@ -315,6 +346,7 @@ test("Feedback returns to the same direct Work", () => {
     loop: "feedback",
     loop_id: "direct-feedback",
     project: { locator: "." },
+    execution: { owner: { agent_id: "agent-owner", status: "completed" } },
     gate: passingGate(),
     issues: [issue("direct", "closed", { verification_ref: "test:recheck" })]
   }, taxonomy, workflow);
@@ -330,6 +362,7 @@ test("Feedback returns staged Work to its explicit stage", () => {
     loop_id: "staged-feedback",
     project: { locator: "." },
     completion_stage: "verify",
+    execution: { owner: { agent_id: "agent-owner", stage: "implement", status: "completed" } },
     gate: passingGate(),
     issues: [issue("implement", "closed", { verification_ref: "test:recheck" })]
   }, taxonomy, workflow);
@@ -344,12 +377,16 @@ test("only a failed Feedback verification consumes its correction", () => {
     loop: "feedback",
     loop_id: "feedback-limit",
     project: { locator: "." },
+    execution: { owner: { agent_id: "agent-owner", status: "running" } },
     gate: { schema_version: 1, mutates_files: false, claims_completion: false },
     issues: [issue("direct", "resolved")]
   };
   const resolving = advanceLoop({ ...base, event: "evaluate" }, taxonomy, workflow);
   assert.equal(resolving.attempt, 0);
-  const failed = advanceLoop({ ...base, event: "feedback-verification-failed" }, taxonomy, workflow);
+  const failed = advanceLoop({
+    ...base,
+    event: "feedback-verification-failed"
+  }, taxonomy, workflow);
   assert.equal(failed.attempt, 1);
   assert.equal(failed.outcome, "correct");
   assert.equal(failed.next_action, "resolve-issues");
@@ -359,11 +396,12 @@ test("only a failed Feedback verification consumes its correction", () => {
 test("acceptance contract covers scenarios, constraints, and evidence IDs", () => {
   const input = direct({
     acceptance: acceptance(),
+    gate: { ...passingGate(), evidence: [{ ...passingGate().evidence[0], acceptance_sha256: evidenceDigest(acceptance()) }] },
     acceptance_evidence: [
-      { acceptance_id: "AC_POS", status: "passed", evidence_ref: "test:positive" },
-      { acceptance_id: "AC_NEG", status: "passed", evidence_ref: "test:negative" },
-      { acceptance_id: "AC_BOUND", status: "passed", evidence_ref: "test:boundary" },
-      { acceptance_id: "INV_AUTH", status: "passed", evidence_ref: "review:constraint" }
+      { acceptance_id: "AC_POS", status: "passed", evidence_ref: "test:positive", acceptance_sha256: evidenceDigest(acceptance()) },
+      { acceptance_id: "AC_NEG", status: "passed", evidence_ref: "test:negative", acceptance_sha256: evidenceDigest(acceptance()) },
+      { acceptance_id: "AC_BOUND", status: "passed", evidence_ref: "test:boundary", acceptance_sha256: evidenceDigest(acceptance()) },
+      { acceptance_id: "INV_AUTH", status: "passed", evidence_ref: "review:constraint", acceptance_sha256: evidenceDigest(acceptance()) }
     ]
   });
   assert.equal(validateSchemaFile(root, "schemas/loop-input.schema.yml", input).valid, true);
@@ -375,7 +413,10 @@ test("acceptance contract covers scenarios, constraints, and evidence IDs", () =
 });
 
 test("missing applicable acceptance evidence enters Feedback", () => {
-  const result = advanceLoop(direct({ acceptance: acceptance(), acceptance_evidence: [] }), taxonomy, workflow);
+  const result = advanceLoop(direct({
+    acceptance: acceptance(),
+    acceptance_evidence: []
+  }), taxonomy, workflow);
   assert.equal(result.next_loop, "feedback");
   assert.ok(result.issues.some((item) => item.fingerprint === "acceptance:AC_NEG"));
 });
@@ -391,7 +432,7 @@ test("Deploy still requires a passed delivery assessment", () => {
       status: "passed",
       allowed: true,
       environment: { kind: "development", target: "local", shared: false },
-      checks: [], issues: [], next_actions: []
+      artifact: { commit_sha: sha }, checks: [{ id: "artifact", passed: true }], issues: [], next_actions: []
     }
   }), taxonomy, workflow);
   assert.equal(passed.workflow_complete, true);
@@ -428,6 +469,7 @@ test("applying an approved standards proposal does not consume a correction", ()
     project: { locator: "." },
     attempt: 0,
     event: "evaluate",
+    execution: { owner: { agent_id: "agent-owner", status: "running" } },
     gate: { schema_version: 1, mutates_files: false, claims_completion: false },
     proposals: [{
       fingerprint: "same-problem",

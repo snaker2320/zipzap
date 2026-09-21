@@ -16,6 +16,7 @@ import {
   applyStandardsInitialization,
   planStandardsInitialization
 } from "./lib/standards.mjs";
+import { readHostCapabilities, writeHostCapabilities } from "./lib/host-capabilities.mjs";
 
 function safeTarget(target) {
   const resolved = path.resolve(target);
@@ -36,6 +37,9 @@ async function main() {
     .option("--target <dir>", "installation directory", path.join(codexRoot, "skills", "zipzap"))
     .option("--skip-build", "reuse the existing dist/skill artifact")
     .option("--artifact <dir>", "explicit prebuilt Skill artifact")
+    .option("--cache-root <dir>", "ZipZap user-cache root")
+    .option("--host-multi-agent <mode>", "Host capability: full, disabled, unavailable, or unknown")
+    .option("--host-version <version>", "Host version recorded with capability detection")
     .option("--project <dir>", "project to inspect for standards initialization")
     .option(
       "--standards <mode>",
@@ -52,6 +56,10 @@ async function main() {
     )
     .parse(process.argv);
   const options = program.opts();
+  const hostModes = new Set(["full", "disabled", "unavailable", "unknown"]);
+  if (options.hostMultiAgent && !hostModes.has(options.hostMultiAgent)) {
+    throw new Error(`unsupported Host multi-Agent mode: ${options.hostMultiAgent}`);
+  }
   const buildResult = options.artifact
     ? {
         artifact_root: path.resolve(options.artifact),
@@ -93,6 +101,13 @@ async function main() {
   } finally {
     fs.rmSync(staging, { recursive: true, force: true });
   }
+  const capabilityCacheRoot = options.cacheRoot ? path.resolve(options.cacheRoot) : null;
+  const hostCapabilities = options.hostMultiAgent
+    ? writeHostCapabilities(options.hostMultiAgent, {
+        cacheRoot: capabilityCacheRoot,
+        hostVersion: options.hostVersion ?? null
+      })
+    : readHostCapabilities(capabilityCacheRoot);
   let projectMigration = null;
   if (options.project) {
     const projectRoot = path.resolve(options.project);
@@ -146,6 +161,7 @@ async function main() {
       installed_to: target,
       backup: backupCreated ? backup : null,
       runtime_package_install_required: false,
+      host_capabilities: hostCapabilities,
       project_migration: projectMigration
     }, null, 2)}\n`
   );

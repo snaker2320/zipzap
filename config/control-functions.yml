@@ -19,21 +19,4 @@ control_functions:
         - Approve completion or claim formal independent review.
         - Gain decision authority from advisory involvement.
     purpose: Provide a distinct second-context challenge at material checkpoints.
-  coordinator:
-    checkpoints:
-      - handoff
-      - recomposition
-    overlay:
-      may:
-        - Schedule logical members.
-        - Request recomposition or escalation.
-        - Compress shared status.
-      must:
-        - Maintain current revisions and ownership.
-        - Route actionable handoffs and unresolved decisions.
-        - Expose assurance or capacity gaps.
-      must_not:
-        - Absorb accountable role decisions.
-        - Approve gates or accept risk without a separately bound role and authority.
-    purpose: Keep composition, sequencing, handoffs, dependencies, and gates coherent.
 schema_version: 1

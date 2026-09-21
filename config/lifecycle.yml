@@ -27,6 +27,7 @@ package:
     - schemas/delivery-input.schema.yml
     - schemas/delivery-output.schema.yml
     - schemas/loop-input.schema.yml
+    - schemas/work-boundary.schema.yml
     - schemas/issues-input.schema.yml
     - schemas/handoff-input.schema.yml
     - schemas/decision-pages-input.schema.yml

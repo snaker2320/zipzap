@@ -1,6 +1,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { inspectArtifact } from "./evidence.mjs";
 
 const SHA_PATTERN = /^[a-f0-9]{40}$/;
 const ISSUE_STATUSES = new Set(["open", "resolved", "closed"]);
@@ -186,6 +187,35 @@ function formatIssue(issue) {
   return value;
 }
 
+function assertWorkBoundary(work) {
+  if (!work) return;
+  if (typeof work.goal !== "string" || !work.goal.trim() || !RETURN_TARGETS.has(work.return_to)) {
+    throw new Error("handoff work requires a goal and return_to");
+  }
+  if (work.return_to === "direct") {
+    if (!work.result_ref || work.completion_stage) throw new Error("direct handoff work requires result_ref and no completion_stage");
+  } else if (!RETURN_TARGETS.has(work.completion_stage) || work.completion_stage === "direct" || work.result_ref) {
+    throw new Error("staged handoff work requires completion_stage and no result_ref");
+  }
+  if (work.inputs !== undefined && !Array.isArray(work.inputs)) throw new Error("handoff work inputs must be an array");
+  const ids = new Set();
+  for (const item of work.inputs ?? []) {
+    if (!item.id || ids.has(item.id) || !item.accepted_ref || !item.locator || !SHA_PATTERN.test(item.commit_sha)) {
+      throw new Error("handoff work input requires a unique id, locator, commit and accepted_ref");
+    }
+    ids.add(item.id);
+  }
+}
+
+function consistencyProblems(status, verification, issues, work) {
+  if (status !== "complete") return [];
+  return [
+    ...(!verification.length || verification.some((item) => item.status !== "passed") ? ["complete handoff requires passing verification"] : []),
+    ...(issues.some((item) => item.status !== "closed") ? ["complete handoff has unresolved issues"] : []),
+    ...(work && work.return_to !== "direct" && work.return_to !== work.completion_stage ? ["complete handoff has not reached completion_stage"] : [])
+  ];
+}
+
 export function inspectGitHandoff(input) {
   const projectRoot = path.resolve(input.project?.locator ?? "");
   if (!input.project?.locator || !fs.existsSync(path.join(projectRoot, ".git"))) {
@@ -201,6 +231,16 @@ export function inspectGitHandoff(input) {
   if (!["complete", "partial", "blocked"].includes(status)) throw new Error(`invalid ZipZap-Status: ${status}`);
   const rangeCommits = commits(projectRoot, base, head);
   if (!rangeCommits.length) throw new Error("Git Handoff range contains no commits");
+  const verification = (metadata.get("ZipZap-Verify") ?? []).map(parseVerification);
+  const issues = (metadata.get("ZipZap-Issue") ?? []).map((value) => parseIssue(value, head));
+  const workText = one(metadata, "ZipZap-Work", false);
+  const work = workText ? JSON.parse(workText) : null;
+  assertWorkBoundary(work);
+  const problems = consistencyProblems(status, verification, issues, work);
+  const inputChecks = (work?.inputs ?? []).map((item) => ({ id: item.id, ...inspectArtifact(projectRoot, item, { current: true }) }));
+  if (inputChecks.some((check) => !check.passed)) problems.push("handoff input versions are unavailable or stale");
+  const worktreeClean = git(projectRoot, ["status", "--porcelain"]).trim() === "";
+  if (!worktreeClean) problems.push("receiver worktree contains uncommitted changes");
   return {
     schema_version: 1,
     source: "git-checkpoint",
@@ -212,13 +252,17 @@ export function inspectGitHandoff(input) {
     summary: one(metadata, "ZipZap-Summary"),
     commits: rangeCommits,
     files: changedFiles(projectRoot, base, head),
-    verification: (metadata.get("ZipZap-Verify") ?? []).map(parseVerification),
-    issues: (metadata.get("ZipZap-Issue") ?? []).map((value) => parseIssue(value, head)),
+    verification,
+    issues,
+    work,
+    continuation_available: work !== null,
+    consistency: { status: problems.length ? "blocked" : "passed", problems, input_checks: inputChecks },
+    ready_to_resume: work !== null && problems.length === 0 && status === "partial",
     standards: metadata.get("ZipZap-Standard") ?? [],
     receiver_checks: {
       head_available: true,
       base_is_ancestor: true,
-      worktree_clean: git(projectRoot, ["status", "--porcelain"]).trim() === ""
+      worktree_clean: worktreeClean
     }
   };
 }
@@ -232,6 +276,13 @@ export function prepareGitHandoff(input) {
   if (!rangeCommits.length) throw new Error("Git Handoff range contains no commits");
   const status = input.status ?? "partial";
   if (!["complete", "partial", "blocked"].includes(status)) throw new Error(`invalid handoff status: ${status}`);
+  assertWorkBoundary(input.work);
+  const problems = consistencyProblems(status, input.verification ?? [], input.issues ?? [], input.work);
+  if (problems.length) throw new Error(problems.join("; "));
+  for (const item of input.work?.inputs ?? []) {
+    const checked = inspectArtifact(projectRoot, item, { current: true });
+    if (!checked.passed) throw new Error(`handoff input ${item.id}: ${checked.reason}`);
+  }
   const lines = [
     input.subject ?? "chore(handoff): record Git checkpoint",
     "",
@@ -247,6 +298,13 @@ export function prepareGitHandoff(input) {
     lines.push(`ZipZap-Issue: ${formatIssue(issue)}`);
   }
   for (const standard of input.standards ?? []) lines.push(`ZipZap-Standard: ${standard}`);
+  if (input.work) lines.push(`ZipZap-Work: ${JSON.stringify(input.work)}`);
+  // Prevent caller-controlled titles or references from injecting extra trailers.
+  for (const value of [input.subject, input.summary, ...(input.standards ?? []),
+    ...(input.verification ?? []).map((item) => item.command),
+    ...(input.issues ?? []).flatMap((item) => [item.title, item.fingerprint, item.verification_ref])]) {
+    if (typeof value === "string" && /[\r\n]/.test(value)) throw new Error("handoff fields must be single-line values");
+  }
   return {
     schema_version: 1,
     source: "git-checkpoint",

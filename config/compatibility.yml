@@ -15,6 +15,9 @@ host_features:
     - project-write
     - script-execution
     - request-user-input
+    - multi-agent
+    - stable-agent-identity
+    - handoff-acknowledgement
 decision_forms:
   native_max_questions: 3
   fallback: stepwise-text

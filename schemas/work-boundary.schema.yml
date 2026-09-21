@@ -1,0 +1,33 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://zipzap.local/schemas/work-boundary.schema.yml
+title: Work continuation boundary
+type: object
+additionalProperties: false
+required: [goal, return_to]
+properties:
+  goal: { type: string, minLength: 1 }
+  return_to: { enum: [direct, plan, design, implement, verify, deploy, maintain] }
+  completion_stage: { enum: [plan, design, implement, verify, deploy, maintain] }
+  result_ref: { type: string, minLength: 1 }
+  inputs:
+    type: array
+    items: { $ref: "#/$defs/input" }
+allOf:
+  - if:
+      properties: { return_to: { const: direct } }
+    then:
+      required: [result_ref]
+      not: { required: [completion_stage] }
+    else:
+      required: [completion_stage]
+      not: { required: [result_ref] }
+$defs:
+  input:
+    type: object
+    additionalProperties: false
+    required: [id, locator, commit_sha, accepted_ref]
+    properties:
+      id: { type: string, minLength: 1 }
+      locator: { type: string, minLength: 1 }
+      commit_sha: { type: string, pattern: "^[a-f0-9]{40}$" }
+      accepted_ref: { type: string, minLength: 1 }

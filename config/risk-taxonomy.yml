@@ -44,8 +44,8 @@ signals:
       required_evidence:
         - user-impact-validation
       required_gates:
-        - independent-testing-from-developer
-        - independent-review-from-developer
+        - independent-testing-from-authors
+        - independent-review-from-authors
       requires_approval: []
       risk_flags: []
     summary: The work changes externally visible behavior or can materially affect users.
@@ -57,9 +57,9 @@ signals:
         - financial-calculation-tests
         - reconciliation-evidence
       required_gates:
-        - independent-testing-from-developer
-        - independent-review-from-developer
-        - reviewer-independent-from-tester
+        - independent-testing-from-authors
+        - independent-review-from-authors
+        - review-independent-from-testing
       requires_approval:
         - business-or-financial-owner
       risk_flags: []
@@ -125,7 +125,7 @@ signals:
         - technology-specific-validation
       required_gates:
         - peer-challenge
-        - independent-testing-from-developer
+        - independent-testing-from-authors
       requires_approval: []
       risk_flags: []
     summary: The active executor lacks reliable experience or project evidence for the affected technology.
@@ -136,8 +136,8 @@ signals:
       required_evidence:
         - proportionate-test-plan
       required_gates:
-        - independent-testing-from-developer
-        - independent-review-from-developer
+        - independent-testing-from-authors
+        - independent-review-from-authors
       requires_approval: []
       risk_flags: []
     summary: Objective validation is absent, unreliable, or does not cover the affected behavior.

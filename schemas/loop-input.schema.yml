@@ -3,7 +3,7 @@ $id: https://zipzap.local/schemas/loop-input.schema.yml
 title: Loop transition input
 type: object
 additionalProperties: false
-required: [schema_version, loop, loop_id, project, gate]
+required: [schema_version, loop, loop_id, project, gate, execution]
 properties:
   schema_version: { const: 3 }
   loop: { enum: [work, feedback, maintenance] }
@@ -31,14 +31,46 @@ properties:
   completion_stage: { enum: [plan, design, implement, verify, deploy, maintain] }
   next_stage: { enum: [plan, design, implement, verify, deploy, maintain] }
   result_ref: { type: string, minLength: 1 }
-  required_roles:
+  handoff_required: { type: boolean }
+  acceptance_change_ref: { type: string, minLength: 1 }
+  resume: { $ref: ./work-boundary.schema.yml }
+  inputs:
     type: array
-    items: { enum: [developer, tester, reviewer, product] }
-    uniqueItems: true
-  active_roles:
-    type: array
-    items: { enum: [developer, tester, reviewer, product] }
-    uniqueItems: true
+    items: { $ref: ./work-boundary.schema.yml#/$defs/input }
+  execution:
+    type: object
+    additionalProperties: false
+    required: [owner]
+    properties:
+      multi_agent: { enum: [allowed, forbidden] }
+      owner:
+        type: object
+        additionalProperties: false
+        required: [agent_id, status]
+        properties:
+          agent_id: { type: string, minLength: 1 }
+          stage: { enum: [plan, design, implement, verify, deploy, maintain] }
+          status: { enum: [assigned, running, completed, blocked] }
+      checks:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required: [id, agent_id]
+          properties:
+            id: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+            agent_id: { type: string, minLength: 1 }
+      handoff:
+        type: object
+        additionalProperties: false
+        required: [from_agent, to_agent, from_stage, to_stage, artifact_ref, status]
+        properties:
+          from_agent: { type: string, minLength: 1 }
+          to_agent: { type: string, minLength: 1 }
+          from_stage: { enum: [plan, design, implement, verify, deploy, maintain] }
+          to_stage: { enum: [plan, design, implement, verify, deploy, maintain] }
+          artifact_ref: { type: string, minLength: 1 }
+          status: { enum: [prepared, accepted] }
   artifacts:
     type: array
     allOf:
@@ -82,6 +114,7 @@ properties:
         commit_sha: { type: string, pattern: "^[a-f0-9]{40}$" }
         sha256: { type: string, pattern: "^sha256:[a-f0-9]{64}$" }
         evidence_ref: { type: string, minLength: 1 }
+        inputs_sha256: { type: string, pattern: "^sha256:[a-f0-9]{64}$" }
   acceptance:
     type: object
     additionalProperties: false
@@ -138,6 +171,7 @@ properties:
         acceptance_id: { type: string, pattern: "^[A-Z][A-Z0-9_-]*$" }
         status: { enum: [passed, failed, not-run, not-applicable] }
         evidence_ref: { type: string, minLength: 1 }
+        acceptance_sha256: { type: string, pattern: "^sha256:[a-f0-9]{64}$" }
       allOf:
         - if:
             properties:
@@ -166,6 +200,14 @@ allOf:
     then:
       oneOf:
         - required: [result_ref]
+          properties:
+            execution:
+              properties:
+                owner:
+                  not:
+                    required: [stage]
+              not:
+                required: [handoff]
           not:
             anyOf:
               - required: [stage]
@@ -175,6 +217,10 @@ allOf:
         - required: [stage, completion_stage, artifacts]
           properties:
             artifacts: { minItems: 1 }
+            execution:
+              properties:
+                owner:
+                  required: [stage]
           not:
             required: [result_ref]
   - if:
