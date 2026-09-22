@@ -1,29 +1,37 @@
-# Standards governance and contextual routing
+# Project standards and document assistance
 
-`standards/` is the only project-specific governance root. Its fixed categories are `foundation/`, `engineering/`, `quality/`, `delivery/`, and `governance/`. Directory names are configuration-free; optional YAML frontmatter may declare `id`, `summary`, `priority`, `applies_to`, `high_risk`, and `authority`.
+Project-owned Markdown and entry instructions remain authoritative and directly usable without ZipZap. Discovery and routing are read-only standalone capabilities; neither starts a Loop. Metadata, a particular directory layout, installation and a committed index are not prerequisites for following project rules.
 
-## Govern standards without taking their authority
+## Discover existing sources
 
-ZipZap owns the governance protocol, not project rules. A project standard should state durable boundaries, conditions, constraints, decisions, and expected outcomes. Concrete examples may clarify a rule but must not substitute for one; keep example-heavy material in reference documentation and load it only when needed.
+Read the project's `AGENTS.md` and its referenced rules. By default, discovery inspects existing `standards/`, `conventions/` and `docs/standards/` without moving anything. Subdirectories may use any names. Conventional `standards/` category names remain recognized for compatibility.
 
-The derived index is rebuilt from the current Markdown files and frontmatter for each discovery or route. It is not committed and does not become a second authority. `discover` reports read-only diagnostics for missing standards, duplicate IDs, unsupported or absent applicability, thin content, and example-heavy files. Diagnostics are maintenance proposals, never permission to rewrite, split, move, or delete a project rule automatically.
+For another layout, pass `project.standards` as an array of existing project-relative Markdown files or directories. This replaces default source selection for that request. Obtain these paths from project instructions; do not infer authority from every document link or create a second project manifest. Missing sources produce diagnostics, not an instruction to invent rules. Paths must stay inside the project; directory traversal does not follow nested symlinks.
 
-Use minimal applicability metadata when a standard is not universal:
+`discover` returns the inspected `sources`, file digests and read-only diagnostics. `route` additionally returns `selected` rules, `matched_by`, `related_documents` and coverage. Results cover only inspected sources and direct references; a missing match never establishes that the project has no constraints. Read the project entry directly when routing cannot resolve the task.
 
-- `actions`: the work intent, such as `design`, `implement`, `verify`, or `review`;
-- `domains`: stable project-owned business or technical areas;
-- `artifacts`: stable kinds of affected output, such as `design-document`, `backend-api`, or `database-schema`;
-- `paths`: repository-relative glob patterns once affected files are known;
-- `risks`: `low`, `medium`, or `high`.
+## Optional matching metadata
 
-Values within one dimension are alternatives; configured dimensions are combined. Route once from action, domain, artifact, and risk at entry, then route again with affected paths when they become known. Each selected standard reports `matched_by`. Unscoped non-foundation standards remain universally applicable for compatibility but produce a diagnostic. An explicitly requested domain or artifact with no scoped match also produces a diagnostic rather than inventing a rule.
+Optional YAML frontmatter may contain `id`, `summary`, `priority`, `applies_to`, `high_risk` and `authority`. Other project documentation metadata is preserved and ignored by routing. Malformed YAML is diagnosed while the file remains available for direct reading.
 
-A route request with no action, domain, artifact, path, or risk produces an `insufficient-routing-context` diagnostic. Load the foundation standard, then ask only for the missing routing decision; do not treat a foundation-only result as complete routing evidence.
+Applicability dimensions are `actions`, `domains`, `artifacts`, `paths` and `risks`. Values within one dimension are alternatives; dimensions combine. The request uses singular `action` and `risk`. Unscoped files remain selected for compatibility; read their actual conditions before deciding applicability. Metadata can improve precision but is not required for a valid project rule.
 
-This is an additive contract: existing `action`, `risk`, and `paths` inputs and existing unscoped behavior remain valid; `domains` and `artifacts` are optional. No project migration or committed index is required. Rolling back the extension means omitting the optional context and applicability fields; authoritative Markdown remains unchanged.
+Load selected rules in full on first use. Reuse unchanged content by its SHA-256 in intact context. Reroute when scope changes; do not reread every rule at every internal edit. Diagnostics may identify duplicate IDs, missing sources, unclear applicability, thin content or excessive examples, but never authorize automatic rule changes.
 
-Run initialization in two calls. First use `action: preview`; show every `mkdir`, `move`, `write`, `replace-tree`, `keep`, collision, and the preview fingerprint. Only run `action: apply` with the same inputs and exact fingerprint after user confirmation. Existing `standards/` defaults to `keep`. When no standard tree exists but `conventions/` or `docs/standards/` does, default configuration becomes `reorganize`; nothing moves before confirmation. A full `rebuild` backs up the old standards tree in the user cache before replacement.
+## Related documents
 
-Scaffolding follows repository signals and creates only relevant files. `AGENTS.md` is created only when absent; otherwise consolidation remains a separate reviewed change.
+`related_documents` contains reference candidates, separate from selected standards. Sources are the selected rule files and document entry files (`AGENTS.md` and `docs/index.md` when present, or the explicit `project.documents` array). Document sources must be Markdown files.
 
-When standards are missing, preview the minimum scaffold and identify the project decisions that still need an owner. When diagnostics find weak or conflicting material, propose the narrowest maintenance change: add applicability, extract a durable rule, move examples to references, split mixed concerns, merge duplicates, or retire obsolete material. Apply only a human-reviewed proposal through the normal preview and confirmation boundary.
+Lookup follows one hop of explicit local Markdown links, link definitions and backtick Markdown paths. Markdown links resolve relative to their source; root-relative links and backtick paths resolve from the project root. Link fragments are ignored. Fenced examples, remote links and links outside the project are not fetched. Missing and invalid local references produce diagnostics.
+
+Each candidate reports `referenced_by` and the relationship. A reference is not proof of applicability or authority. Read relevant candidates as needed; this is not exhaustive semantic search, recursive knowledge indexing or a new rules database.
+
+## Optional initialization and migration
+
+Installation is separate from initialization. Installer `--standards auto` only discovers existing rules; it creates no entry or standards tree. Request `configure`, `reorganize` or `rebuild` explicitly when initialization is wanted.
+
+Initialization uses preview then apply with the same inputs and exact `preview_fingerprint`. Existing rules default to `keep`, including `conventions/`, `docs/standards/` and explicitly supplied sources. Only an explicit `reorganize` proposes moving conventional legacy directories; only an explicit `rebuild` replaces `standards/`, with backup. These choices are not required to use the Skill.
+
+When there are no known rules, requested `configure` may propose a small `standards/` scaffold. A newly generated `AGENTS.md` points to project-owned rules and states optional assistance; it does not require ZipZap. Existing `AGENTS.md` is kept unchanged. The preview includes a digest-bound `bootstrap_suggestion` with line-level replacements for recognized old mandatory ZipZap clauses. Review these separately and preserve project-specific instructions and required checks; initialization apply never rewrites the existing entry.
+
+When optional assistance is unavailable or removed, continue ordinary work from project instructions. If a project-required check cannot run, block that delivery boundary and report missing evidence. Do not use optional installation as a reason to bypass an active Gate.

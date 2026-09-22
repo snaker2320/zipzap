@@ -46,7 +46,7 @@ migrations:
   - id: remove-task-and-project-state
     from_version: 0.1.1-beta.7
     to_version: 0.2.0-beta.1
-    description: Preview and confirm deletion of obsolete .zipzap Task state, then initialize standards/ and use Git Checkpoint Handoff.
+    description: Preview obsolete .zipzap Task state cleanup separately; preserve project rules in place and initialize only when requested.
 policies:
   breaking_upgrade: true
   installer_managed_mutation: true

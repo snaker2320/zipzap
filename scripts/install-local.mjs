@@ -14,6 +14,7 @@ import {
 } from "./lib/legacy-cleanup.mjs";
 import {
   applyStandardsInitialization,
+  discoverStandards,
   planStandardsInitialization
 } from "./lib/standards.mjs";
 import { readHostCapabilities, writeHostCapabilities } from "./lib/host-capabilities.mjs";
@@ -43,7 +44,7 @@ async function main() {
     .option("--project <dir>", "project to inspect for standards initialization")
     .option(
       "--standards <mode>",
-      "standards mode: auto, skip, configure, reorganize, or rebuild",
+      "standards mode: auto (read-only discovery), skip, configure, reorganize, or rebuild",
       "auto"
     )
     .option(
@@ -56,6 +57,9 @@ async function main() {
     )
     .parse(process.argv);
   const options = program.opts();
+  if (options.standardsConfirm && ["auto", "skip"].includes(options.standards)) {
+    throw new Error("standards confirmation requires explicit configure, reorganize, or rebuild mode");
+  }
   const hostModes = new Set(["full", "disabled", "unavailable", "unknown"]);
   if (options.hostMultiAgent && !hostModes.has(options.hostMultiAgent)) {
     throw new Error(`unsupported Host multi-Agent mode: ${options.hostMultiAgent}`);
@@ -131,11 +135,13 @@ async function main() {
         })
       : legacyPreview;
     let standards = { skipped: true, reason: "standards mode is skip" };
-    if (options.standards !== "skip") {
+    if (options.standards === "auto") {
+      standards = { strategy: "inspect", requires_confirmation: false, ...discoverStandards(projectRoot) };
+    } else if (options.standards !== "skip") {
       const initialization = {
         schema_version: 1,
         action: options.standardsConfirm ? "apply" : "preview",
-        strategy: options.standards === "auto" ? "configure" : options.standards,
+        strategy: options.standards,
         project: { locator: projectRoot }
       };
       const planned = planStandardsInitialization(initialization);

@@ -19,6 +19,8 @@ invariants:
     rule: Do not let personalization change authority, rules, gates, evidence, or independence.
   - id: project-rule-single-source
     rule: Keep project-specific rules at their authoritative project source.
+  - id: project-independence
+    rule: Projects remain usable without ZipZap; assistance does not imply a Loop, installation does not initialize or relocate rules, and unavailable required checks still block their delivery boundary.
   - id: git-checkpoint-handoff
     rule: Use a structured final Git commit and base..HEAD as the durable handoff source.
   - id: truthful-assurance

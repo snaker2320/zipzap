@@ -15,10 +15,12 @@ host_features:
     - project-write
     - script-execution
     - request-user-input
+    - request-user-input-async
     - multi-agent
     - stable-agent-identity
     - handoff-acknowledgement
 decision_forms:
+  tool_preference: [request_user_input, request_user_input_async]
   native_max_questions: 3
   fallback: stepwise-text
   availability: host-and-mode-specific

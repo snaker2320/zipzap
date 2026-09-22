@@ -12,6 +12,17 @@ properties:
     required: [locator]
     properties:
       locator: { type: string, minLength: 1 }
+      standards:
+        description: Existing project-relative Markdown files or directories; overrides conventional source discovery without moving files.
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items: { type: string, minLength: 1 }
+      documents:
+        description: Existing project-relative Markdown entry or index files for one-hop reference discovery; never promoted to standards.
+        type: array
+        uniqueItems: true
+        items: { type: string, minLength: 1 }
   context:
     type: object
     additionalProperties: false

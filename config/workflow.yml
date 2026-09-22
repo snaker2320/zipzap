@@ -1,8 +1,10 @@
 schema_version: 2
 standards:
-  root: standards/
+  default_roots: [standards/, conventions/, docs/standards/]
+  sources: project-owned-with-per-request-overrides
+  related_documents: direct-local-references-not-rule-promotion
   categories: [foundation, engineering, quality, delivery, governance]
-  routing: standard-paths-with-optional-yaml-frontmatter
+  routing: existing-project-paths-with-optional-yaml-frontmatter
   loading: whole-file
 gates:
   built_in: [scope-understood, human-authorized, verification-passed, independent-review-passed]
@@ -37,6 +39,8 @@ loops:
   deterministic_script_rerun: does-not-consume-model-correction
   deterministic_rerun_requires: same-input-sha256
 work:
+  activation: requested-governed-delivery-or-project-policy
+  standalone_assistance: no-loop-required
   direct:
     stage_required: false
     result_ref_required: true

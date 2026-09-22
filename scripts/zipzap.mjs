@@ -47,7 +47,7 @@ export const ZIPZAP_COMMANDS = {
     usage: "catalog --kind <kind> [--id <id>] [--compact]"
   },
   initialize: {
-    summary: "Preview or apply standards/ initialization.",
+    summary: "Preview optional project standards initialization or entry migration suggestions.",
     usage: "initialize --input <input.json|input.yaml|input.yml> [--compact]",
     schema: "schemas/standards-initialization-input.schema.yml",
     example: "examples/zipzap/initialize.yml"
@@ -405,7 +405,7 @@ function executeCommand(options, rootDir) {
   }
   if (command === "standards") {
     return options.action === "discover"
-      ? discoverStandards(input.project.locator)
+      ? discoverStandards(input.project.locator, input.project)
       : routeStandards(input);
   }
   if (command === "gate") {
@@ -486,7 +486,7 @@ export function runCli(argv = process.argv.slice(2)) {
 
 if (
   process.argv[1] &&
-  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+  fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))
 ) {
   try {
     const result = runCli();

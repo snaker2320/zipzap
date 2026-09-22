@@ -10,7 +10,6 @@ properties:
   host:
     type: object
     additionalProperties: false
-    required: [request_user_input]
     properties:
       request_user_input:
         type: object
@@ -19,6 +18,13 @@ properties:
         properties:
           callable: { type: boolean }
           max_questions: { type: integer, minimum: 1, maximum: 3 }
+      request_user_input_async:
+        type: object
+        additionalProperties: false
+        required: [callable]
+        properties:
+          callable: { type: boolean }
+          max_questions: { type: integer, minimum: 1 }
   questions:
     type: array
     items:

@@ -14,6 +14,7 @@ export const STANDARD_CATEGORIES = [
 ];
 
 const LEGACY_ROOTS = ["conventions", "docs/standards"];
+const DEFAULT_ROOTS = ["standards", ...LEGACY_ROOTS];
 const APPLICABILITY_DIMENSIONS = [
   "actions",
   "domains",
@@ -25,8 +26,14 @@ const APPLICABILITY_DIMENSIONS = [
 function normalizeRelative(projectRoot, locator) {
   const absolute = path.resolve(projectRoot, locator);
   const relative = path.relative(projectRoot, absolute).split(path.sep).join("/");
-  if (!relative || relative.startsWith("../") || path.isAbsolute(relative)) {
+  if (!relative || relative === ".." || relative.startsWith("../") || path.isAbsolute(relative)) {
     throw new Error(`path escapes project root: ${locator}`);
+  }
+  if (fs.existsSync(absolute)) {
+    const realRelative = path.relative(fs.realpathSync(projectRoot), fs.realpathSync(absolute));
+    if (realRelative === ".." || realRelative.startsWith(`..${path.sep}`) || path.isAbsolute(realRelative)) {
+      throw new Error(`path escapes project root through symlink: ${locator}`);
+    }
   }
   return relative;
 }
@@ -34,6 +41,8 @@ function normalizeRelative(projectRoot, locator) {
 function walkFiles(root, relativeRoot) {
   const absoluteRoot = path.join(root, relativeRoot);
   if (!fs.existsSync(absoluteRoot)) return [];
+  normalizeRelative(root, relativeRoot);
+  if (fs.statSync(absoluteRoot).isFile()) return relativeRoot.endsWith(".md") ? [relativeRoot] : [];
   const files = [];
   const visit = (directory) => {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -49,6 +58,7 @@ function walkFiles(root, relativeRoot) {
 }
 
 function frontmatter(content, locator) {
+  content = content.replaceAll("\r\n", "\n");
   if (!content.startsWith("---\n")) return {};
   const end = content.indexOf("\n---\n", 4);
   if (end < 0) throw new Error(`unterminated YAML frontmatter: ${locator}`);
@@ -56,17 +66,7 @@ function frontmatter(content, locator) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`frontmatter must be a mapping: ${locator}`);
   }
-  const allowed = new Set([
-    "id",
-    "summary",
-    "priority",
-    "applies_to",
-    "high_risk",
-    "authority"
-  ]);
-  for (const key of Object.keys(value)) {
-    if (!allowed.has(key)) throw new Error(`unsupported standards frontmatter key ${key}: ${locator}`);
-  }
+  // Project-owned frontmatter may also contain unrelated documentation metadata.
   return value;
 }
 
@@ -95,9 +95,9 @@ function standardsDiagnostics(entries) {
   if (!entries.length) {
     return [diagnostic(
       "missing-standards",
-      "standards/",
-      "No project standards were discovered.",
-      "Preview standards initialization before creating project rules."
+      "AGENTS.md",
+      "No standards were found in the inspected sources; this does not mean the project has no rules.",
+      "Read project entry documents and supply their authoritative paths through project.standards."
     )];
   }
 
@@ -130,13 +130,15 @@ function standardsDiagnostics(entries) {
         { selectors: unsupported }
       ));
     }
+    const invalidValues = APPLICABILITY_DIMENSIONS.filter((key) => list(validApplies ? applies[key] : null).some((value) => typeof value !== "string" || !value.trim()));
+    if (invalidValues.length) result.push(diagnostic("invalid-applicability-values", standard.locator, `Selectors require nonempty strings: ${invalidValues.join(", ")}.`, "Read the rule directly and review its matching metadata."));
     const scoped = APPLICABILITY_DIMENSIONS.some((key) => list(validApplies ? applies[key] : null).length > 0);
     if (standard.category !== "foundation" && !scoped) {
       result.push(diagnostic(
         "unscoped-standard",
         standard.locator,
-        "This standard is universally applicable for backward compatibility.",
-        "Add minimal applies_to metadata when the rule is not truly universal."
+        "Applicability is unspecified; this file is retained for direct reading, not proof that every rule applies.",
+        "Read its conditions in context; optional applies_to metadata can improve matching."
       ));
     }
 
@@ -245,22 +247,59 @@ function previewFingerprint(preview) {
   return sha256(JSON.stringify(copy));
 }
 
-export function discoverStandards(projectRoot) {
-  const root = path.resolve(projectRoot);
-  const entries = walkFiles(root, "standards").map((locator) => {
-    const content = fs.readFileSync(path.join(root, locator), "utf8");
-    const relative = locator.slice("standards/".length);
-    const category = relative.split("/", 1)[0];
-    if (!STANDARD_CATEGORIES.includes(category)) {
-      throw new Error(`standards file is outside a standard category: ${locator}`);
+function bootstrapSuggestion(content) {
+  const changes = [];
+  for (const [index, line] of content.split("\n").entries()) {
+    let after = line;
+    if (/^- Use the installed ZipZap Skill for .+\.$/.test(line)) {
+      after = "- ZipZap is optional assistance. Read project rules directly for ordinary work; use governed delivery when requested or required by project policy.";
+    } else if (/^- Route by the active action, .+load every selected standards file in full\.$/.test(line)) {
+      after = "- Read applicable project rules in full for the current action and affected paths. Optional routing assists discovery without replacing project authority.";
+    } else if (/^- When routing is uncertain, load `standards\/foundation\/project.md`/.test(line)) {
+      after = "- When discovery is uncertain, read the project entry and its referenced rules directly; ask only for a genuinely missing decision.";
     }
-    const metadata = frontmatter(content, locator);
+    if (after !== line) changes.push({ line: index + 1, before: line, after });
+  }
+  return {
+    locator: "AGENTS.md",
+    current_sha256: sha256(content),
+    automatic_apply: false,
+    changes,
+    review: "Review these clause replacements separately. Preserve project rules and required delivery checks; an unavailable required check still blocks its boundary. Unrecognized custom instructions are left unchanged."
+  };
+}
+
+export function discoverStandards(projectRoot, options = {}) {
+  const root = path.resolve(projectRoot);
+  const diagnostics = [];
+  const requested = options.standards ?? DEFAULT_ROOTS.filter((locator) => fs.existsSync(path.join(root, locator)));
+  const sources = [...new Set(requested.map((locator) => normalizeRelative(root, locator)))].sort();
+  const locators = new Set();
+  for (const source of sources) {
+    if (!fs.existsSync(path.join(root, source))) {
+      diagnostics.push(diagnostic("missing-standard-source", source, "The requested standards source does not exist.", "Check the project entry and source path; do not infer that no rules apply."));
+    } else if (fs.statSync(path.join(root, source)).isFile() && !source.endsWith(".md")) {
+      diagnostics.push(diagnostic("invalid-standard-source", source, "A standards source must be a Markdown file or directory.", "Supply the project-owned rules rather than an executable or configuration file."));
+    }
+    for (const locator of walkFiles(root, source)) locators.add(locator);
+  }
+  const entries = [...locators].sort().map((locator) => {
+    const content = fs.readFileSync(path.join(root, locator), "utf8");
+    const conventional = locator.startsWith("standards/");
+    const relative = conventional ? locator.slice("standards/".length) : locator;
+    const categoryHint = relative.split("/", 1)[0];
+    let metadata = {};
+    try {
+      metadata = frontmatter(content, locator);
+    } catch (error) {
+      diagnostics.push(diagnostic("invalid-frontmatter", locator, error.message, "Read this file directly and repair metadata only after project review."));
+    }
     const standard = {
-      id: metadata.id ?? locator.slice("standards/".length, -3).replaceAll("/", ":"),
+      id: typeof metadata.id === "string" ? metadata.id : relative.slice(0, -3).replaceAll("/", ":"),
       locator,
-      category,
-      priority: metadata.priority ?? 0,
-      summary: metadata.summary ?? null,
+      category: conventional && STANDARD_CATEGORIES.includes(categoryHint) ? categoryHint : "project",
+      priority: Number.isFinite(metadata.priority) ? metadata.priority : 0,
+      summary: typeof metadata.summary === "string" ? metadata.summary : null,
       applies_to: metadata.applies_to ?? {},
       high_risk: metadata.high_risk === true,
       authority: metadata.authority ?? "project",
@@ -269,17 +308,20 @@ export function discoverStandards(projectRoot) {
     return { standard, content };
   });
   const files = entries.map((entry) => entry.standard);
+  const sourceLabel = sources.map((source) => fs.existsSync(path.join(root, source)) && fs.statSync(path.join(root, source)).isDirectory() ? `${source}/` : source).join(", ");
   return {
     configured: files.length > 0,
-    root: "standards/",
+    root: sourceLabel || null,
+    sources,
     categories: [...STANDARD_CATEGORIES],
     index: {
       mode: "derived",
-      source: "standards/",
+      source: sourceLabel || null,
       persisted: false
     },
     files,
-    diagnostics: standardsDiagnostics(entries)
+    diagnostics: [...diagnostics, ...standardsDiagnostics(entries)],
+    coverage: "inspected-sources-only"
   };
 }
 
@@ -288,23 +330,23 @@ export function planStandardsInitialization(input) {
   if (!input.project?.locator || !fs.existsSync(projectRoot)) {
     throw new Error("standards initialization requires an available project locator");
   }
-  const current = discoverStandards(projectRoot);
+  const current = discoverStandards(projectRoot, input.project);
   const requestedStrategy = input.strategy ?? "configure";
-  const hasLegacyStandards = LEGACY_ROOTS.some(
-    (legacyRoot) => walkFiles(projectRoot, legacyRoot).length > 0
-  );
-  const strategy = current.configured && requestedStrategy === "configure"
+  const strategy = (current.configured || input.project.standards?.length) && requestedStrategy === "configure"
     ? "keep"
-    : requestedStrategy === "configure" && hasLegacyStandards
-      ? "reorganize"
-      : requestedStrategy;
+    : requestedStrategy;
   if (!["keep", "configure", "reorganize", "rebuild"].includes(strategy)) {
     throw new Error(`unsupported standards initialization strategy: ${strategy}`);
   }
   const operations = [];
   const decisions = [];
+  if (current.diagnostics.some((item) => ["missing-standard-source", "invalid-standard-source"].includes(item.code))) {
+    decisions.push({ id: "missing-standard-source", question: "Resolve the missing project standards source before initialization." });
+  }
   if (strategy === "keep") {
-    operations.push({ action: "keep", source: "standards/", target: "standards/", reason: "standard structure already exists" });
+    for (const source of current.sources) {
+      operations.push({ action: "keep", source, target: source, reason: "preserve project-owned standards in place" });
+    }
   } else {
     if (strategy === "rebuild" && current.configured) {
       operations.push({
@@ -341,7 +383,8 @@ export function planStandardsInitialization(input) {
   }
   const agentsPath = path.join(projectRoot, "AGENTS.md");
   if (!fs.existsSync(agentsPath)) {
-    operations.push({ action: "write", source: null, target: "AGENTS.md", reason: "thin ZipZap bootstrap", content: agentsBootstrap() });
+    const ruleSources = strategy === "keep" ? current.sources : [...new Set([...current.sources, "standards"])];
+    operations.push({ action: "write", source: null, target: "AGENTS.md", reason: "standalone project entry", content: agentsBootstrap(ruleSources) });
   } else {
     operations.push({ action: "keep", source: "AGENTS.md", target: "AGENTS.md", reason: "existing bootstrap requires human-guided consolidation" });
   }
@@ -351,6 +394,7 @@ export function planStandardsInitialization(input) {
     strategy,
     already_configured: current.configured,
     operations: operations.map(({ content, ...operation }) => operation),
+    bootstrap_suggestion: fs.existsSync(agentsPath) ? bootstrapSuggestion(fs.readFileSync(agentsPath, "utf8")) : null,
     decisions,
     requires_confirmation: operations.some((operation) =>
       ["move", "write", "replace-tree"].includes(operation.action)
@@ -407,7 +451,7 @@ export function applyStandardsInitialization(input) {
       changed.push(operation.target);
     }
   }
-  return { ...preview, applied: true, changed, backup_root: fs.existsSync(backupRoot) ? backupRoot : null, standards: discoverStandards(projectRoot) };
+  return { ...preview, applied: true, changed, backup_root: fs.existsSync(backupRoot) ? backupRoot : null, standards: discoverStandards(projectRoot, input.project) };
 }
 
 function list(value) {
@@ -438,7 +482,7 @@ function matchStandard(standard, context = {}) {
     : {};
   const matchedBy = [];
   for (const dimension of APPLICABILITY_DIMENSIONS) {
-    const configured = list(applies[dimension]);
+    const configured = list(applies[dimension]).filter((value) => typeof value === "string" && value.trim());
     if (!configured.length) continue;
     const matched = matchedSelectorValues(dimension, configured, contextValues(context, dimension));
     if (!matched.length) return null;
@@ -447,6 +491,56 @@ function matchStandard(standard, context = {}) {
   return matchedBy.length
     ? matchedBy
     : [{ dimension: "default", values: ["unscoped"] }];
+}
+
+// Follow explicit local references once. Linked documents do not become standards.
+function relatedDocuments(projectRoot, standards, options = {}) {
+  const root = path.resolve(projectRoot);
+  const selected = new Set(standards.map((item) => item.locator));
+  const documents = new Map();
+  const diagnostics = [];
+  const seeds = options.documents ?? ["AGENTS.md", "docs/index.md"].filter((locator) => fs.existsSync(path.join(root, locator)));
+  const add = (locator, source, relation) => {
+    if (selected.has(locator)) return;
+    const item = documents.get(locator) ?? { locator, kind: "reference", authority: "unclassified", referenced_by: [] };
+    if (!item.referenced_by.some((ref) => ref.locator === source && ref.relation === relation)) item.referenced_by.push({ locator: source, relation });
+    documents.set(locator, item);
+  };
+  const inspected = new Set(selected);
+  for (const seed of seeds) {
+    const locator = normalizeRelative(root, seed);
+    if (!fs.existsSync(path.join(root, locator)) || !fs.statSync(path.join(root, locator)).isFile() || !locator.endsWith(".md")) {
+      diagnostics.push(diagnostic("missing-document-source", locator, "Document entry must be an existing Markdown file.", "Read the project entry and correct the document source."));
+      continue;
+    }
+    inspected.add(locator);
+  }
+  for (const source of [...inspected].sort()) {
+    const content = fs.readFileSync(path.join(root, source), "utf8").replace(/^(```|~~~)[\s\S]*?^\1[^\n]*$/gm, "");
+    const links = [...content.matchAll(/(?<!!)\[[^\]\n]+\]\(\s*(<[^>]+>|[^\s)]+)(?:\s+["'][^\n]*?["'])?\s*\)/g)]
+      .map((match) => ({ target: match[1].replace(/^<|>$/g, ""), relation: "markdown-link" }));
+    for (const match of content.matchAll(/^\s*\[[^\]\n]+\]:\s*(<[^>]+>|\S+)/gm)) links.push({ target: match[1].replace(/^<|>$/g, ""), relation: "markdown-link" });
+    for (const match of content.matchAll(/`([^`\n]+\.md(?:#[^`\n]*)?)`/g)) links.push({ target: match[1], relation: "code-path" });
+    for (const { target, relation } of links) {
+      if (/^[a-z][a-z0-9+.-]*:|^\/\/|^#/i.test(target)) continue;
+      try {
+        const decoded = decodeURIComponent(target.split(/[?#]/, 1)[0]);
+        if (!decoded.endsWith(".md")) continue;
+        const candidate = relation === "code-path" || decoded.startsWith("/")
+          ? decoded.replace(/^\//, "")
+          : path.join(path.dirname(source), decoded);
+        const locator = normalizeRelative(root, candidate);
+        if (!fs.existsSync(path.join(root, locator)) || !fs.statSync(path.join(root, locator)).isFile()) {
+          diagnostics.push(diagnostic("missing-document-reference", source, `Referenced document is unavailable: ${target}`, "Check the reference; it is not evidence that the document has no constraints."));
+          continue;
+        }
+        if (locator !== source) add(locator, source, relation);
+      } catch (error) {
+        diagnostics.push(diagnostic("invalid-document-reference", source, `Cannot inspect ${target}: ${error.message}`, "Review the reference; only local project documents are inspected."));
+      }
+    }
+  }
+  return { documents: [...documents.values()].sort((a, b) => a.locator.localeCompare(b.locator)), diagnostics };
 }
 
 function contextCoverageDiagnostics(context, selected) {
@@ -465,9 +559,9 @@ function contextCoverageDiagnostics(context, selected) {
     if (!missing.length) continue;
     result.push(diagnostic(
       `unmatched-${dimension}`,
-      "standards/",
+      "project",
       `No scoped standard matched ${dimension}: ${missing.join(", ")}.`,
-      "Review existing applicability metadata or preview a standards maintenance proposal.",
+      "Read project entries and applicable rules directly; review optional matching metadata if needed.",
       { values: missing }
     ));
   }
@@ -481,33 +575,39 @@ function routingContextDiagnostics(context) {
   if (hasRoutingContext) return [];
   return [diagnostic(
     "insufficient-routing-context",
-    "standards/",
+    "project",
     "No action, domain, artifact, path, or risk was provided for routing.",
-    "Load the foundation standard and ask only for the missing routing decision."
+    "Read project entries and referenced rules directly; ask only for a genuinely missing decision."
   )];
 }
 
 export function routeStandards(input) {
-  const standards = discoverStandards(input.project?.locator);
+  const standards = discoverStandards(input.project?.locator, input.project);
   const files = standards.files.flatMap((standard) => {
     const matchedBy = matchStandard(standard, input.context);
     return matchedBy ? [{ ...standard, matched_by: matchedBy }] : [];
   }).sort((left, right) => right.priority - left.priority || left.locator.localeCompare(right.locator));
+  const related = relatedDocuments(input.project.locator, files, input.project);
   return {
     schema_version: 1,
-    authority: "standards/",
+    authority: standards.root ?? "project",
     loading: "whole-file",
     index: standards.index,
+    sources: standards.sources,
+    coverage: "inspected-sources-and-direct-references-only",
     selected: files,
+    related_documents: related.documents,
     diagnostics: [
       ...standards.diagnostics,
+      ...related.diagnostics,
       ...routingContextDiagnostics(input.context),
       ...contextCoverageDiagnostics(input.context, files)
     ],
-    fallback: files.length ? null : "Load standards/foundation/project.md when present, then ask for missing project rules."
+    fallback: files.length ? null : "Read AGENTS.md and project indexes directly; provide authoritative sources if known. No match does not mean no rules apply."
   };
 }
 
-export function agentsBootstrap() {
-  return `# Agent bootstrap\n\n- Use the installed ZipZap Skill for collaboration routing, gates, loops, feedback, and Git Handoff.\n- Project standards under \`standards/\` are authoritative for project-specific work.\n- Route by the active action, affected domains, artifacts, changed paths, and risk; load every selected standards file in full.\n- Do not bypass a blocking gate or claim unrecorded verification.\n- When routing is uncertain, load \`standards/foundation/project.md\` and ask only for the missing decision.\n- Repeated feedback may propose a merge into an existing standard. A repeated bootstrap gap may propose a minimal reviewed revision here; never append blindly or auto-edit this file.\n`;
+export function agentsBootstrap(sources = ["standards"]) {
+  const locations = sources.map((source) => `\`${source}\``).join(", ") || "the project's documented rule sources";
+  return `# Project instructions\n\n- Project rules in ${locations} are authoritative and can be read directly without any Skill.\n- Read the applicable rules and their conditions for the current action and changed paths; follow existing document references. No search match does not mean no rules apply.\n- Use project-owned build and test commands. Record actual verification and preserve unrelated changes.\n- Follow project authorization, independent review and delivery requirements; if a required check is unavailable, block the affected boundary and report what is missing.\n- ZipZap is optional assistance for standards discovery, related documents, checks and handoffs. Discovery alone does not start a Loop. Use governed delivery when requested or required by project policy.\n- Installation or removal of a Skill does not change project rules. Review changes to rules and this entry before applying them.\n`;
 }

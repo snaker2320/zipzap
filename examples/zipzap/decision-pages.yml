@@ -1,14 +1,15 @@
 schema_version: 1
 host:
   request_user_input:
+    callable: false
+  request_user_input_async:
     callable: true
     max_questions: 3
 questions:
   - id: migration_mode
     question: How should existing standards be organized?
-  - id: agents_mode
-    question: How should AGENTS.md be consolidated?
-  - id: gate_level
-    question: Which risk gate applies?
-  - id: handoff_status
-    question: What is the handoff status?
+    options:
+      - Consolidate into the proposed standards structure
+      - Keep the current structure
+  - id: standards_scope
+    question: Which project directories should the standards cover?

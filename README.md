@@ -1,6 +1,6 @@
 # ZipZap
 
-ZipZap 是面向 AI 开发协作的 Git-native Skill。它让 Agent 在动手前读取正确的项目标准，在交付前通过与风险相匹配的检查，并把可追溯的结果留在 Git 中。
+ZipZap 是面向 AI 开发协作的可选 Skill，辅助查找项目规范和相关文档，并为需要受控交付的任务提供检查、证据和 Git 交接支持。项目不安装 ZipZap 也应能独立开发、验证和交付。
 
 它不是项目管理工具，也不会维护另一套任务、人员或状态数据库。
 
@@ -23,13 +23,15 @@ ZipZap 把这些协作约束做成一组轻量、可验证的控制能力，让 
 
 ### 治理并只加载当前需要的标准
 
-ZipZap 根据当前动作、影响域、产物、改动路径和风险，从 `standards/` 中选择相关规则。索引从项目现有 Markdown 和少量适用性元数据中动态生成，不写入项目。Agent 只读取命中的完整文件，避免一次加载所有规范。
+ZipZap 根据当前动作、影响域、产物、改动路径和风险，在项目已有规范中辅助匹配规则。默认原地读取 `standards/`、`conventions/` 和 `docs/standards/`，其他布局通过本次请求的 `project.standards` 指定，不需要搬迁文件或建立项目清单。Markdown 及项目入口是权威，适用性元数据是可选增强。
+
+规范匹配与相关资料分开返回。`related_documents` 只沿命中规范和项目入口的明确本地引用查找一层，记录引用来源，不自动赋予规范权威。匹配只覆盖已检查来源；无匹配不代表无约束。已读且未变化的规则可以在完整上下文内复用。
 
 发现缺少规范、重复 ID、适用范围不明、内容过薄或示例替代规则时，ZipZap 只给出治理诊断和最小修改建议。创建、拆分、合并、移动或清理规范仍需预览和人工确认，项目原始规范始终是权威来源。
 
 ### 使用最小工作契约
 
-小而明确的修改使用 Direct Work，直接产出结果。需要阶段交接时才使用 Staged Work，并明确起点和终点，例如只完成 Design，而不是默认走完整个研发流程。
+普通问答、修改和验证直接遵守项目规则，无需 Skill 或 Loop。可以单独使用规范路由、文档辅助和检查能力。用户要求受控交付或项目政策要求治理时，才使用 Work：没有阶段交接的有界结果使用 Direct，需要真实阶段边界时使用 Staged，并明确起点和终点。
 
 ### 检查强度与实际风险匹配
 
@@ -52,11 +54,11 @@ Build、Deploy、Probe、Smoke 和 Rollback 命令由项目自己维护和执行
 ```text
 用户目标
    ↓
-AGENTS.md + standards/ 路由
+读取项目入口与适用规则（可选 ZipZap 辅助查找）
    ↓
-Direct Work，或显式范围的 Staged Work
+普通任务直接执行；需要治理时进入 Direct / Staged Work
    ↓
-执行工作 ──→ Gate ──通过──→ Git Checkpoint / Handoff
+受控交付 ──→ Gate ──通过──→ 报告结果 / 必要时 Handoff
                  │
                  └─失败──→ Feedback → 修正 → 重新验证
 ```
@@ -81,7 +83,7 @@ Host 负责确定性编排，不设置 Orchestrator、Coordinator 或 Maintainer
 
 | 概念 | 简单理解 |
 | --- | --- |
-| Standards | 项目自己的规则，存放在 `standards/` |
+| Standards | 项目已有位置的权威规则，脱离 Skill 仍可直接阅读 |
 | Direct Work | 不需要阶段交接的有界工作 |
 | Staged Work | 需要明确阶段、产物和提交绑定的工作 |
 | Gate | 根据影响和风险检查范围、授权、验证与评审 |
@@ -105,30 +107,30 @@ npm run install:local -- --host-multi-agent full --host-version <host-version>
 
 安装内容来自自包含的 `dist/skill`。安装器把 Host 多 Agent 能力写入用户缓存；后续 Loop 不重复探测。`full` 表示默认允许，`disabled` 表示能力存在但默认关闭，`unavailable` 和 `unknown` 会保守阻止需要多个 Agent 的工作。Host 能力或版本变化时重新安装并更新这两个参数；省略参数会保留已有记录。已安装的 Skill 不需要、也不应该再次运行 `npm install`。
 
-### 2. 让项目声明使用 ZipZap
+### 2. 保持项目入口独立
 
-在项目的 `AGENTS.md` 中说明使用 ZipZap，并声明 `standards/` 是项目标准来源。例如：
+项目的 `AGENTS.md` 应直接说明规范位置、适用条件及验证要求。ZipZap 可以作为可选辅助，例如：
 
 ```md
-- Use the installed ZipZap Skill for standards routing, gates, feedback, and Git Handoff.
-- Project standards under `standards/` are authoritative.
-- Route by the active action, affected domains, artifacts, changed paths, and risk; load every selected file in full.
-- Do not bypass a blocking gate or claim unrecorded verification.
+- Project rules in `conventions/` are authoritative and directly readable without a Skill.
+- Read applicable rules for the current action and paths; use project-owned verification commands.
+- ZipZap may assist with rule and document discovery without starting a Loop.
+- Use governed delivery when requested or required by project policy. An unavailable required check blocks that boundary.
 ```
 
 CLI 入口由 `SKILL.md` 以相对路径 `scripts/zipzap.mjs` 声明，并从已安装 Skill 内解析。项目的 `AGENTS.md` 不需要、也不应硬编码 Skill 安装路径。
 
-如果项目还没有标准目录，让 Agent 使用 ZipZap 初始化即可。初始化始终先预览，再凭同一 fingerprint 确认应用；它不会自动覆盖已有的 `AGENTS.md`。
+安装器默认只发现现有规范，不初始化项目。只有明确请求初始化时才先预览、再凭同一 fingerprint 应用；已有规范默认原地保留。旧项目的强制入口只给出逐行迁移建议，初始化不会重写已有 `AGENTS.md`。卸载 Skill 不改变项目规则，也不免除项目要求的检查。
 
 ### 3. 像平常一样描述工作
 
 不需要学习一套任务语法。直接告诉 Agent 目标和边界，例如：
 
 ```text
-使用 ZipZap，按项目标准修复登录超时问题，完成实现和验证，不部署。
+使用 ZipZap，找出修复登录超时需要阅读的规范和相关文档。
 ```
 
-Agent 会负责路由标准、选择 Direct 或 Staged Work、执行所需 Gate，并在需要交接时准备 Git Handoff。
+这个请求只使用查找能力。需要治理时，可以明确要求“使用 ZipZap 受控交付，完成实现和验证，不部署”；此时再选择 Direct 或 Staged，执行适用的检查。可选辅助不可用时，按项目规则继续普通工作；已要求的检查不能被静默跳过。
 
 ## CLI 使用
 

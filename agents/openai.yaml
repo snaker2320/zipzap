@@ -1,4 +1,4 @@
 interface:
   display_name: "ZipZap"
-  short_description: "Run Git-native AI development with bounded loops"
-  default_prompt: "Use $zipzap to route project standards, apply the built-in gate, and hand off through a structured Git checkpoint."
+  short_description: "Find project rules and support governed delivery"
+  default_prompt: "Use $zipzap to find applicable project rules and related documents; add governed delivery only when requested or required by project policy."

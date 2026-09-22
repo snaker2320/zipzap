@@ -1,5 +1,7 @@
 # Gates, Work and conditional branches
 
+This reference applies after governed delivery is requested or required by project policy. Standalone standards discovery, document assistance and ordinary project work do not create a Loop. Optional assistance may be unavailable without blocking ordinary work; an unavailable required check still blocks its governed boundary.
+
 ## Three separate concepts
 
 Stages (`plan`, `design`, `implement`, `verify`, `deploy`, `maintain`) identify delivery artifacts. Loops (`work`, `feedback`, `maintenance`) identify delivery, defect correction or standards improvement. Internal actions such as edit, build, test and fix do not create new stages or Feedback entries by themselves.

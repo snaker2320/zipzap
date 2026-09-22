@@ -30,6 +30,28 @@ test("CLI accepts YML input and emits JSON", () => {
   assert.equal(Object.hasOwn(output, "collaboration"), false);
 });
 
+test("CLI accepts async-only Host capabilities and rejects malformed capabilities", (context) => {
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-decision-"));
+  context.after(() => fs.rmSync(temporaryRoot, { recursive: true, force: true }));
+  const input = path.join(temporaryRoot, "decision.json");
+  const request = {
+    schema_version: 1,
+    host: { request_user_input_async: { callable: true, max_questions: 10 } },
+    questions: [{ id: "scope", question: "Which scope?", options: ["Local", "Shared"] }]
+  };
+  fs.writeFileSync(input, JSON.stringify(request));
+  const result = JSON.parse(execute(["decision-pages", "--input", input, "--compact"]));
+  assert.equal(result.tool, "request_user_input_async");
+  assert.equal(result.must_pause, true);
+  assert.deepEqual(result.pages[0].questions, request.questions);
+
+  for (const capability of [{ callable: "true" }, { callable: true, max_questions: 0 }, {}]) {
+    request.host.request_user_input_async = capability;
+    fs.writeFileSync(input, JSON.stringify(request));
+    assert.throws(() => execute(["decision-pages", "--input", input, "--compact"]));
+  }
+});
+
 test("CLI exposes delivery planning without executing project commands", () => {
   const output = JSON.parse(
     execute(["delivery", "--action", "plan", "--input", "examples/zipzap/delivery.yml", "--compact"])

@@ -5,7 +5,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 
-test("installer exposes standards choice as preview before project writes", (context) => {
+test("installer auto mode only discovers standards without initializing the project", (context) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "zipzap-installer-"));
   context.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const project = path.join(root, "project");
@@ -35,9 +35,10 @@ test("installer exposes standards choice as preview before project writes", (con
     )
   );
   assert.equal(output.project_migration.legacy.file_count, 1);
-  assert.equal(output.project_migration.standards.strategy, "configure");
-  assert.equal(output.project_migration.standards.requires_confirmation, true);
+  assert.equal(output.project_migration.standards.strategy, "inspect");
+  assert.equal(output.project_migration.standards.requires_confirmation, false);
   assert.equal(fs.existsSync(path.join(project, "standards")), false);
+  assert.equal(fs.existsSync(path.join(project, "AGENTS.md")), false);
   assert.equal(fs.existsSync(path.join(target, "scripts", "zipzap.mjs")), true);
 });
 
